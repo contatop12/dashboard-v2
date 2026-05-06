@@ -20,6 +20,7 @@ import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
+import OAuthContextHint from '@/components/OAuthContextHint'
 
 const kpis = [
   { label: 'Seguidores', value: '12.840', delta: +4.2, icon: Users },
@@ -352,14 +353,14 @@ const IG_DASHBOARD_BLOCKS = [
   {
     id: 'ig-header',
     defaultColSpan: 8,
-    defaultRowSpan: 1,
+    defaultRowSpan: 3,
     minColSpan: 2,
     maxColSpan: 8,
-    minRowSpan: 1,
-    maxRowSpan: 2,
+    minRowSpan: 2,
+    maxRowSpan: 4,
     render: () => (
-      <div className="flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 py-1">
-        <div className="flex shrink-0 items-center gap-2">
+      <div className="flex w-full min-w-0 flex-col gap-2 py-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <div
             className="flex items-center gap-2 rounded-lg px-3 py-1.5"
             style={{
@@ -372,11 +373,12 @@ const IG_DASHBOARD_BLOCKS = [
           </div>
           <span className="text-xs font-sans text-muted-foreground">Janeiro 2025</span>
         </div>
-        <ChannelAccountPicker provider="instagram" className="shrink-0" />
         <SuperAdminAccountTitle
           endpoint="/api/admin/platform/instagram-overview"
           emptyLabel="@usuário do Instagram"
+          className="w-full min-w-0 text-left"
         />
+        <ChannelAccountPicker provider="instagram" className="shrink-0" />
       </div>
     ),
   },
@@ -426,6 +428,7 @@ const IG_DASHBOARD_BLOCKS = [
 export default function InstagramPage() {
   return (
     <div className="min-h-full">
+      <OAuthContextHint />
       <SuperAdminEnvLive
         endpoint="/api/admin/platform/instagram-overview"
         title="Super Admin · Instagram (Graph · perfil / insights)"

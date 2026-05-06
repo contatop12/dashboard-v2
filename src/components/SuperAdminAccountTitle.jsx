@@ -59,15 +59,21 @@ export default function SuperAdminAccountTitle({
   if (!user) return null
 
   const shown = loading ? 'Carregando…' : label || emptyLabel
+  const alignLeft = (className || '').includes('text-left')
 
   return (
     <div
       className={cn(
-        'min-w-0 max-w-[min(100%,32rem)] flex-1 text-right',
-        className ?? 'ml-auto'
+        'min-w-0 flex-1',
+        className ?? 'ml-auto max-w-[min(100%,32rem)] text-right'
       )}
     >
-      <p className="truncate font-sans text-base font-semibold leading-tight text-white sm:text-lg">
+      <p
+        className={cn(
+          'truncate font-sans text-base font-semibold leading-tight text-white sm:text-lg',
+          alignLeft ? 'text-left' : 'text-right'
+        )}
+      >
         {shown}
       </p>
     </div>

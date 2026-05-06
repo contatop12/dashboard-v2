@@ -7,6 +7,7 @@ import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
+import OAuthContextHint from '@/components/OAuthContextHint'
 
 const googleKPIs = [
   { label: 'Investimento', value: 'R$1,30mil', delta: +12.4, icon: DollarSign, accent: 'brand' },
@@ -254,25 +255,26 @@ const GOOGLE_DASHBOARD_BLOCKS = [
   {
     id: 'google-header',
     defaultColSpan: 8,
-    defaultRowSpan: 1,
+    defaultRowSpan: 3,
     minColSpan: 2,
     maxColSpan: 8,
-    minRowSpan: 1,
-    maxRowSpan: 2,
+    minRowSpan: 2,
+    maxRowSpan: 4,
     render: () => (
-      <div className="flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 py-1">
-        <div className="flex shrink-0 items-center gap-2">
+      <div className="flex w-full min-w-0 flex-col gap-2 py-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <div className="flex items-center gap-2 rounded-lg border border-[#4285F4]/30 bg-[#4285F4]/15 px-3 py-1.5">
             <Search size={14} className="text-[#4285F4]" />
             <span className="text-xs font-sans font-semibold text-[#4285F4]">Google Ads</span>
           </div>
           <span className="text-xs font-sans text-muted-foreground">Janeiro 2025 • Todas as Campanhas</span>
         </div>
-        <ChannelAccountPicker provider="google_ads" className="shrink-0" />
         <SuperAdminAccountTitle
           endpoint="/api/admin/platform/google-ads-overview"
           emptyLabel="Nome da conta Google Ads"
+          className="w-full min-w-0 text-left"
         />
+        <ChannelAccountPicker provider="google_ads" className="shrink-0" />
       </div>
     ),
   },
@@ -322,6 +324,7 @@ const GOOGLE_DASHBOARD_BLOCKS = [
 export default function GoogleAds() {
   return (
     <div className="min-h-full">
+      <OAuthContextHint />
       <SuperAdminEnvLive
         endpoint="/api/admin/platform/google-ads-overview"
         title="Super Admin · Google Ads API (campanhas · últimos 30 dias)"

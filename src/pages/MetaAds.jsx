@@ -33,6 +33,7 @@ import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
+import OAuthContextHint from '@/components/OAuthContextHint'
 
 const metaKPIs = [
   { label: 'Valor Gasto', value: 'R$1,30mil', delta: +12.4, icon: DollarSign, accent: 'brand' },
@@ -406,25 +407,26 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
     {
       id: 'meta-header',
       defaultColSpan: 8,
-      defaultRowSpan: 1,
+      defaultRowSpan: 3,
       minColSpan: 2,
       maxColSpan: 8,
-      minRowSpan: 1,
-      maxRowSpan: 2,
+      minRowSpan: 2,
+      maxRowSpan: 4,
       render: () => (
-        <div className="flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 py-1">
-          <div className="flex shrink-0 items-center gap-2">
+        <div className="flex w-full min-w-0 flex-col gap-2 py-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <div className="flex items-center gap-2 rounded-lg border border-blue-600/30 bg-blue-600/15 px-3 py-1.5">
               <Facebook size={14} className="text-blue-500" />
               <span className="text-xs font-sans font-semibold text-blue-400">Meta Ads</span>
             </div>
             <span className="text-xs font-sans text-muted-foreground">Janeiro 2025 • Todas as Campanhas</span>
           </div>
-          <ChannelAccountPicker provider="meta_ads" className="shrink-0" />
           <SuperAdminAccountTitle
             endpoint="/api/admin/platform/meta-overview"
             emptyLabel="Nome da conta de anúncios"
+            className="w-full min-w-0 text-left"
           />
+          <ChannelAccountPicker provider="meta_ads" className="shrink-0" />
         </div>
       ),
     },
@@ -514,6 +516,7 @@ export default function MetaAds() {
 
   return (
     <div className="min-h-full">
+      <OAuthContextHint />
       <SuperAdminEnvLive
         endpoint="/api/admin/platform/meta-overview"
         title="Super Admin · Meta Ads (Graph · últimos 30 dias)"

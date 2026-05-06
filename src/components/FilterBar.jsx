@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Calendar, ChevronDown, RefreshCw, Download, Building2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
@@ -97,10 +97,11 @@ function OrgContextSelect() {
   return null
 }
 
-function FilterSelect({ filterKey, value, onChange }) {
+function FilterSelect({ filterKey, value, onChange, optionsOverride }) {
   const [open, setOpen] = useState(false)
   const config = FILTER_OPTIONS[filterKey]
   if (!config) return null
+  const options = optionsOverride ?? config.options
 
   return (
     <div className="relative">
@@ -112,8 +113,8 @@ function FilterSelect({ filterKey, value, onChange }) {
         <ChevronDown size={10} className="text-muted-foreground shrink-0" />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-surface-card border border-surface-border rounded-lg shadow-xl z-50 min-w-[160px] py-1 animate-scale-in">
-          {config.options.map((opt) => (
+        <div className="absolute top-full left-0 mt-1 max-h-60 overflow-y-auto bg-surface-card border border-surface-border rounded-lg shadow-xl z-50 min-w-[160px] py-1 animate-scale-in">
+          {options.map((opt) => (
             <button
               key={opt}
               onClick={() => { onChange(filterKey, opt); setOpen(false) }}
@@ -129,7 +130,53 @@ function FilterSelect({ filterKey, value, onChange }) {
 }
 
 export default function FilterBar({ activePage, filters, onFiltersChange }) {
+  const { activeOrgId } = useOrgWorkspace()
+  const [metaLive, setMetaLive] = useState(null)
+
   const activeFilters = PAGE_FILTERS[activePage] ?? ['dateRange']
+
+  useEffect(() => {
+    if (activePage !== 'Meta Ads' || !activeOrgId) {
+      setMetaLive(null)
+      return
+    }
+    let cancelled = false
+    fetch(`/api/orgs/${activeOrgId}/meta-ads-filters`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setMetaLive(d)
+      })
+      .catch(() => {
+        if (!cancelled) setMetaLive(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activePage, activeOrgId])
+
+  useEffect(() => {
+    const refetch = () => {
+      if (activePage !== 'Meta Ads' || !activeOrgId) return
+      fetch(`/api/orgs/${activeOrgId}/meta-ads-filters`, { credentials: 'include' })
+        .then((r) => r.json())
+        .then(setMetaLive)
+        .catch(() => setMetaLive(null))
+    }
+    window.addEventListener('p12-account-selection-changed', refetch)
+    return () => window.removeEventListener('p12-account-selection-changed', refetch)
+  }, [activePage, activeOrgId])
+
+  const metaOptionsFor = (key) => {
+    if (activePage !== 'Meta Ads' || !metaLive) return undefined
+    const m = {
+      campanha: metaLive.campanha,
+      conjuntoAnuncios: metaLive.conjuntoAnuncios,
+      anuncio: metaLive.anuncio,
+      objetivo: metaLive.objetivo,
+      posicionamento: metaLive.posicionamento,
+    }
+    return m[key]
+  }
 
   if (activeFilters.length === 0) return null
 
@@ -155,6 +202,7 @@ export default function FilterBar({ activePage, filters, onFiltersChange }) {
             key={filterKey}
             filterKey={filterKey}
             value={filters[filterKey] || ''}
+            optionsOverride={metaOptionsFor(filterKey)}
             onChange={(key, val) => onFiltersChange({ ...filters, [key]: val })}
           />
         ))}

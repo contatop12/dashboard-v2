@@ -7,7 +7,7 @@ import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
  * Troca a conta OAuth usada para métricas (por organização), persistido em D1.
  */
 export default function ChannelAccountPicker({ provider, className }) {
-  const { activeOrgId, platformApiSuffix } = useOrgWorkspace()
+  const { activeOrgId } = useOrgWorkspace()
   const [connections, setConnections] = useState([])
   const [effectiveId, setEffectiveId] = useState('')
   const [loading, setLoading] = useState(false)
@@ -48,7 +48,7 @@ export default function ChannelAccountPicker({ provider, className }) {
     return () => window.removeEventListener('p12-account-selection-changed', onSel)
   }, [activeOrgId, provider])
 
-  if (!activeOrgId || platformApiSuffix === '') {
+  if (!activeOrgId) {
     return null
   }
 

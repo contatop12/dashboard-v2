@@ -6,6 +6,7 @@ import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
+import OAuthContextHint from '@/components/OAuthContextHint'
 
 const kpis = [
   { label: 'Buscas Diretas', value: '2.840', delta: +18.3, icon: Search, desc: 'Pesquisaram pelo nome' },
@@ -226,31 +227,33 @@ const GMB_DASHBOARD_BLOCKS = [
   {
     id: 'gmb-header',
     defaultColSpan: 8,
-    defaultRowSpan: 1,
+    defaultRowSpan: 3,
     minColSpan: 2,
     maxColSpan: 8,
-    minRowSpan: 1,
-    maxRowSpan: 2,
+    minRowSpan: 2,
+    maxRowSpan: 4,
     render: () => (
-      <div className="flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 py-1">
-        <div className="flex shrink-0 items-center gap-2">
-          <div className="flex items-center gap-2 rounded-lg border border-[#34A853]/30 bg-[#34A853]/15 px-3 py-1.5">
-            <MapPin size={14} className="text-[#34A853]" />
-            <span className="text-xs font-sans font-semibold text-[#34A853]">Google Meu Negócio</span>
+      <div className="flex w-full min-w-0 flex-col gap-2 py-1">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 rounded-lg border border-[#34A853]/30 bg-[#34A853]/15 px-3 py-1.5">
+              <MapPin size={14} className="text-[#34A853]" />
+              <span className="text-xs font-sans font-semibold text-[#34A853]">Google Meu Negócio</span>
+            </div>
+            <span className="text-xs font-sans text-muted-foreground">Janeiro 2025</span>
           </div>
-          <span className="text-xs font-sans text-muted-foreground">Janeiro 2025</span>
+          <div className="flex shrink-0 items-center gap-1.5 rounded-md border border-yellow-400/30 bg-yellow-400/10 px-2 py-1">
+            <Star size={11} className="text-yellow-400" fill="currentColor" />
+            <span className="font-mono text-xs font-semibold text-yellow-400">4.8</span>
+            <span className="font-sans text-[10px] text-muted-foreground">(148)</span>
+          </div>
         </div>
-        <ChannelAccountPicker provider="google_business" className="shrink-0" />
         <SuperAdminAccountTitle
-          className="flex-1"
+          className="w-full min-w-0 text-left"
           endpoint="/api/admin/platform/google-business-overview"
           emptyLabel="Nome do perfil (Google Business)"
         />
-        <div className="ml-auto flex shrink-0 items-center gap-1.5 rounded-md border border-yellow-400/30 bg-yellow-400/10 px-2 py-1">
-          <Star size={11} className="text-yellow-400" fill="currentColor" />
-          <span className="font-mono text-xs font-semibold text-yellow-400">4.8</span>
-          <span className="font-sans text-[10px] text-muted-foreground">(148)</span>
-        </div>
+        <ChannelAccountPicker provider="google_business" className="shrink-0" />
       </div>
     ),
   },
@@ -300,6 +303,7 @@ const GMB_DASHBOARD_BLOCKS = [
 export default function GoogleMeuNegocio() {
   return (
     <div className="min-h-full">
+      <OAuthContextHint />
       <SuperAdminEnvLive
         endpoint="/api/admin/platform/google-business-overview"
         title="Super Admin · Google Business (contas · refresh token)"
