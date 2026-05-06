@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "deploy": "wrangler pages deploy dist --project-name=dashboard-v2",
     "preview": "vite preview",
     "dev:cf": "npm run build && wrangler pages dev dist --port 8788 --persist-to .wrangler/state",
     "db:migrate": "wrangler d1 execute p12-dashboard --remote --file=migrations/0001_init.sql",
