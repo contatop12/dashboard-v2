@@ -4,6 +4,7 @@ import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { FunnelChart } from '@/components/FunnelChart'
 import DashboardGrid from '@/components/DashboardGrid'
+import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 
 const googleKPIs = [
   { label: 'Investimento', value: 'R$1,30mil', delta: +12.4, icon: DollarSign, accent: 'brand' },
@@ -310,5 +311,13 @@ const GOOGLE_DASHBOARD_BLOCKS = [
 ]
 
 export default function GoogleAds() {
-  return <DashboardGrid pageId="GoogleAds" definitions={GOOGLE_DASHBOARD_BLOCKS} className="min-h-full" />
+  return (
+    <div className="min-h-full">
+      <SuperAdminEnvLive
+        endpoint="/api/admin/platform/google-ads-overview"
+        title="Super Admin · Google Ads API (campanhas · últimos 30 dias)"
+      />
+      <DashboardGrid pageId="GoogleAds" definitions={GOOGLE_DASHBOARD_BLOCKS} className="min-h-full" />
+    </div>
+  )
 }

@@ -30,6 +30,7 @@ import {
 import FunnelGeral from '@/components/FunnelGeral'
 import CreativesCarousel from '@/components/CreativesCarousel'
 import DashboardGrid from '@/components/DashboardGrid'
+import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 
 const metaKPIs = [
   { label: 'Valor Gasto', value: 'R$1,30mil', delta: +12.4, icon: DollarSign, accent: 'brand' },
@@ -502,5 +503,13 @@ export default function MetaAds() {
   const [activeChart, setActiveChart] = useState('gasto')
   const definitions = useMemo(() => buildMetaDefinitions(activeChart, setActiveChart), [activeChart])
 
-  return <DashboardGrid pageId="MetaAds" definitions={definitions} className="min-h-full" />
+  return (
+    <div className="min-h-full">
+      <SuperAdminEnvLive
+        endpoint="/api/admin/platform/meta-overview"
+        title="Super Admin · Meta Ads (Graph · últimos 30 dias)"
+      />
+      <DashboardGrid pageId="MetaAds" definitions={definitions} className="min-h-full" />
+    </div>
+  )
 }

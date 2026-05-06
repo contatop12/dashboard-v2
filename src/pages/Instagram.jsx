@@ -17,6 +17,7 @@ import {
   Cell,
 } from 'recharts'
 import DashboardGrid from '@/components/DashboardGrid'
+import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 
 const kpis = [
   { label: 'Seguidores', value: '12.840', delta: +4.2, icon: Users },
@@ -414,5 +415,13 @@ const IG_DASHBOARD_BLOCKS = [
 ]
 
 export default function InstagramPage() {
-  return <DashboardGrid pageId="Instagram" definitions={IG_DASHBOARD_BLOCKS} className="min-h-full" />
+  return (
+    <div className="min-h-full">
+      <SuperAdminEnvLive
+        endpoint="/api/admin/platform/instagram-overview"
+        title="Super Admin · Instagram (Graph · perfil / insights)"
+      />
+      <DashboardGrid pageId="Instagram" definitions={IG_DASHBOARD_BLOCKS} className="min-h-full" />
+    </div>
+  )
 }

@@ -1,0 +1,158 @@
+import type { WorkerEnv } from '../../../_lib/worker-env'
+import type { UserRow } from '../../../_lib/auth'
+import { requireSuperAdmin } from '../../../_lib/admin-guard'
+import { json } from '../../../_lib/json'
+import { getGoogleAccessTokenFromEnv } from '../../../_lib/google-access-token'
+
+type Metric = { label: string; value: string }
+
+function fmtBRL(n: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n)
+}
+
+function fmtInt(n: number): string {
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(n)
+}
+
+function customerPathId(raw: string): string {
+  return raw.trim().replace(/^customers\//, '').replace(/-/g, '')
+}
+
+export async function onRequestGet(context: {
+  env: WorkerEnv
+  data: { user?: UserRow | null }
+}): Promise<Response> {
+  const denied = requireSuperAdmin(context.data.user)
+  if (denied) return denied
+
+  const { env } = context
+  const cid = env.GOOGLE_ADS_CUSTOMER_ID?.trim()
+  const devToken = env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim()
+
+  if (!cid || !devToken) {
+    return json({
+      configured: false,
+      source: 'worker_env',
+      error: null,
+      detail: 'Defina GOOGLE_ADS_CUSTOMER_ID e GOOGLE_ADS_DEVELOPER_TOKEN no Worker.',
+      metrics: [] as Metric[],
+    })
+  }
+
+  const access = await getGoogleAccessTokenFromEnv(env)
+  if (!access) {
+    return json({
+      configured: false,
+      source: 'worker_env',
+      error: null,
+      detail: 'Defina GOOGLE_ADS_REFRESH_TOKEN + CLIENT_ID/SECRET para obter access token.',
+      metrics: [] as Metric[],
+    })
+  }
+
+  const rawVer = env.GOOGLE_ADS_API_VERSION?.trim() || 'v17'
+  const ver = rawVer.startsWith('v') ? rawVer : `v${rawVer}`
+  const numericId = customerPathId(cid)
+  const url = `https://googleads.googleapis.com/${ver}/customers/${numericId}/googleAds:search`
+
+  const loginId = env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.trim()
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${access}`,
+    'Content-Type': 'application/json',
+    'developer-token': devToken,
+  }
+  if (loginId) {
+    headers['login-customer-id'] = customerPathId(loginId)
+  }
+
+  const query = `
+    SELECT
+      campaign.id,
+      campaign.name,
+      metrics.cost_micros,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.conversions,
+      metrics.ctr,
+      metrics.average_cpc
+    FROM campaign
+    WHERE segments.date DURING LAST_30_DAYS
+    AND campaign.status != 'REMOVED'
+  `
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query }),
+    })
+    const body = (await res.json()) as {
+      results?: {
+        campaign?: { id?: string; name?: string }
+        metrics?: {
+          costMicros?: string
+          impressions?: string
+          clicks?: string
+          conversions?: string | number
+          ctr?: number
+          averageCpc?: string
+        }
+      }[]
+      error?: { message?: string; status?: string }
+    }
+
+    if (!res.ok || body.error) {
+      return json({
+        configured: true,
+        source: 'worker_env',
+        error: body.error?.message || `Google Ads API (${res.status})`,
+        detail: `Cliente ${numericId}`,
+        metrics: [] as Metric[],
+      })
+    }
+
+    let costMicros = 0
+    let impressions = 0
+    let clicks = 0
+    let conversions = 0
+
+    for (const row of body.results ?? []) {
+      const m = row.metrics
+      if (!m) continue
+      costMicros += Number.parseInt(String(m.costMicros ?? '0'), 10) || 0
+      impressions += Number.parseInt(String(m.impressions ?? '0'), 10) || 0
+      clicks += Number.parseInt(String(m.clicks ?? '0'), 10) || 0
+      conversions += Number.parseFloat(String(m.conversions ?? '0')) || 0
+    }
+
+    const spend = costMicros / 1_000_000
+    const ctrPct = impressions > 0 ? (clicks / impressions) * 100 : 0
+    const cpc = clicks > 0 ? spend / clicks : 0
+
+    const metrics: Metric[] = [
+      { label: 'Investimento (30d)', value: fmtBRL(spend) },
+      { label: 'Impressões', value: fmtInt(impressions) },
+      { label: 'Cliques', value: fmtInt(clicks) },
+      { label: 'CTR médio', value: `${ctrPct.toFixed(2)}%` },
+      { label: 'CPC médio', value: fmtBRL(cpc) },
+      { label: 'Conversões', value: fmtInt(Math.round(conversions)) },
+    ]
+
+    return json({
+      configured: true,
+      source: 'worker_env',
+      error: null,
+      detail: `Cliente ${numericId} · campanhas · últimos 30 dias`,
+      metrics,
+    })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Erro Google Ads'
+    return json({
+      configured: true,
+      source: 'worker_env',
+      error: msg,
+      detail: null,
+      metrics: [] as Metric[],
+    })
+  }
+}

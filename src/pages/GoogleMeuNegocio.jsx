@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/utils'
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import DashboardGrid from '@/components/DashboardGrid'
+import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 
 const kpis = [
   { label: 'Buscas Diretas', value: '2.840', delta: +18.3, icon: Search, desc: 'Pesquisaram pelo nome' },
@@ -287,5 +288,13 @@ const GMB_DASHBOARD_BLOCKS = [
 ]
 
 export default function GoogleMeuNegocio() {
-  return <DashboardGrid pageId="GoogleMeuNegocio" definitions={GMB_DASHBOARD_BLOCKS} className="min-h-full" />
+  return (
+    <div className="min-h-full">
+      <SuperAdminEnvLive
+        endpoint="/api/admin/platform/google-business-overview"
+        title="Super Admin · Google Business (contas · refresh token)"
+      />
+      <DashboardGrid pageId="GoogleMeuNegocio" definitions={GMB_DASHBOARD_BLOCKS} className="min-h-full" />
+    </div>
+  )
 }

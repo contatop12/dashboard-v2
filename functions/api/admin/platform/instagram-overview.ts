@@ -1,0 +1,104 @@
+import type { WorkerEnv } from '../../../_lib/worker-env'
+import type { UserRow } from '../../../_lib/auth'
+import { requireSuperAdmin } from '../../../_lib/admin-guard'
+import { json } from '../../../_lib/json'
+
+type Metric = { label: string; value: string }
+
+function fmtInt(n: number): string {
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(n)
+}
+
+export async function onRequestGet(context: {
+  env: WorkerEnv
+  data: { user?: UserRow | null }
+}): Promise<Response> {
+  const denied = requireSuperAdmin(context.data.user)
+  if (denied) return denied
+
+  const token = context.env.META_ACCESS_TOKEN?.trim()
+  const igId = context.env.META_INSTAGRAM_USER_ID?.trim()
+
+  if (!token || !igId) {
+    return json({
+      configured: false,
+      source: 'worker_env',
+      error: null,
+      detail: 'Defina META_ACCESS_TOKEN e META_INSTAGRAM_USER_ID no Worker.',
+      metrics: [] as Metric[],
+    })
+  }
+
+  try {
+    const profUrl = new URL(`https://graph.facebook.com/v21.0/${igId}`)
+    profUrl.searchParams.set('fields', 'username,followers_count,follows_count,media_count,name')
+    profUrl.searchParams.set('access_token', token)
+
+    const pr = await fetch(profUrl.toString())
+    const prof = (await pr.json()) as {
+      username?: string
+      followers_count?: number
+      follows_count?: number
+      media_count?: number
+      name?: string
+      error?: { message?: string }
+    }
+
+    if (!pr.ok || prof.error) {
+      return json({
+        configured: true,
+        source: 'worker_env',
+        error: prof.error?.message || 'Perfil Instagram inválido',
+        detail: `IG ${igId}`,
+        metrics: [] as Metric[],
+      })
+    }
+
+    const metrics: Metric[] = [
+      { label: 'Usuário', value: `@${prof.username ?? '—'}` },
+      { label: 'Seguidores', value: fmtInt(prof.followers_count ?? 0) },
+      { label: 'Seguindo', value: fmtInt(prof.follows_count ?? 0) },
+      { label: 'Mídias', value: fmtInt(prof.media_count ?? 0) },
+    ]
+
+    const insUrl = new URL(`https://graph.facebook.com/v21.0/${igId}/insights`)
+    insUrl.searchParams.set('metric', 'impressions,reach')
+    insUrl.searchParams.set('period', 'days_28')
+    insUrl.searchParams.set('access_token', token)
+
+    const ir = await fetch(insUrl.toString())
+    const ins = (await ir.json()) as {
+      data?: { name?: string; values?: { value?: number }[] }[]
+      error?: { message?: string }
+    }
+
+    if (ir.ok && !ins.error && ins.data?.length) {
+      for (const row of ins.data) {
+        const v = row.values?.[0]?.value
+        if (row.name === 'impressions' && v != null) {
+          metrics.push({ label: 'Impressões (28d)', value: fmtInt(v) })
+        }
+        if (row.name === 'reach' && v != null) {
+          metrics.push({ label: 'Alcance (28d)', value: fmtInt(v) })
+        }
+      }
+    }
+
+    return json({
+      configured: true,
+      source: 'worker_env',
+      error: ins.error && !ins.data?.length ? ins.error.message : null,
+      detail: `${prof.name ?? 'Instagram'} · Graph API`,
+      metrics,
+    })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Erro Instagram'
+    return json({
+      configured: true,
+      source: 'worker_env',
+      error: msg,
+      detail: null,
+      metrics: [] as Metric[],
+    })
+  }
+}

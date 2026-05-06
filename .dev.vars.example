@@ -12,6 +12,13 @@ OAUTH_STATE_SECRET=
 META_APP_ID=
 META_APP_SECRET=
 
+# Opcional — só super_admin: token Graph de sistema/dev (nunca no cliente)
+META_ACCESS_TOKEN=
+# Conta de anúncios act_123 ou só o número; vazio = primeira de me/adaccounts
+META_AD_ACCOUNT_ID=
+# ID do usuário Instagram Business no Graph
+META_INSTAGRAM_USER_ID=
+
 # Google Cloud OAuth (mesmo client pode ter Ads + Business Profile)
 # Redirect: https://SEU_DOMÍNIO/api/oauth/google/callback
 GOOGLE_ADS_CLIENT_ID=
@@ -19,6 +26,13 @@ GOOGLE_ADS_CLIENT_SECRET=
 
 # Cabeçalho developer-token nas chamadas Google Ads API (Console Google Ads)
 GOOGLE_ADS_DEVELOPER_TOKEN=
+
+# Opcional — só super_admin: refresh token com escopos Ads (+ business.manage para listar contas GBP)
+GOOGLE_ADS_REFRESH_TOKEN=
+# Customer ID numérico (ex. 1234567890), sem hífens
+GOOGLE_ADS_CUSTOMER_ID=
+# Opcional — MCC / gestor (login-customer-id)
+GOOGLE_ADS_LOGIN_CUSTOMER_ID=
 
 # Opcional — default v17
 GOOGLE_ADS_API_VERSION=v17
