@@ -1,0 +1,5 @@
+# Copie para .dev.vars (não commitado) para wrangler pages dev local.
+# Opcional na Onda 1 — sessão usa apenas ID opaco no cookie.
+
+SESSION_COOKIE_SECRET=altere_em_producao
+OAUTH_ENC_KEY=base64_32_bytes_para_onde_2

@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.tmp/
+.env
+.env.local
+.dev.vars
+.wrangler/
+.tmp/seed_super_admin.sql
+credentials.json
+token.json
+*.avif
+*.png

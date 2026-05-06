@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Colors as RGB channels — enables opacity modifiers (bg-brand/15) */
+    --color-brand: 245 197 24;
+    --color-accent: 155 142 255;
+    --color-background: 15 15 15;
+    --color-foreground: 255 255 255;
+    --color-surface: 22 22 22;
+    --color-surface-card: 30 30 30;
+    --color-surface-hover: 36 36 36;
+    --color-surface-input: 40 40 40;
+    --color-border: 44 44 44;
+    --color-muted: 50 50 50;
+    --color-muted-fg: 136 136 136;
+
+    /* Fonts — CSS vars so runtime changes propagate instantly */
+    --font-display: "Syne";
+    --font-sans: "Outfit";
+    --font-mono: "JetBrains Mono";
+  }
+
+  * {
+    border-color: rgb(var(--color-border));
+  }
+
+  html {
+    background-color: rgb(var(--color-background));
+    color: rgb(var(--color-foreground));
+  }
+
+  body {
+    @apply font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: rgb(var(--color-background));
+    color: rgb(var(--color-foreground));
+  }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: rgb(var(--color-background)); }
+  ::-webkit-scrollbar-thumb { background: rgb(var(--color-border)); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--color-surface-hover)); }
+}
+
+@layer components {
+  .kpi-card {
+    @apply bg-surface-card border border-surface-border rounded-lg p-4 flex flex-col gap-1 transition-all duration-200 hover:border-brand/40 hover:bg-surface-hover;
+  }
+
+  /**
+   * Pano atrás de toda a área da grade (margens + gaps entre blocos), não dentro dos cards.
+   * Aplicado no container `DashboardGrid` junto com o padding do Design System.
+   */
+  .dashboard-area-bg {
+    background-color: rgb(var(--color-background));
+    background-image:
+      linear-gradient(to right, rgba(148, 163, 184, 0.09) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(148, 163, 184, 0.09) 1px, transparent 1px),
+      radial-gradient(circle at 50% 58%, rgba(236, 72, 153, 0.12) 0%, rgba(168, 85, 247, 0.055) 40%, transparent 70%);
+    background-size: 40px 40px, 40px 40px, 100% 100%;
+  }
+
+  .kpi-value {
+    @apply font-mono text-xl font-semibold;
+    color: rgb(var(--color-foreground));
+  }
+
+  .kpi-label {
+    @apply text-xs font-sans uppercase tracking-wider;
+    color: rgb(var(--color-muted-fg));
+  }
+
+  .filter-select {
+    @apply bg-surface-card border border-surface-border rounded-md px-3 py-1.5 flex items-center gap-1.5 cursor-pointer transition-all hover:bg-surface-hover hover:border-brand/40 select-none text-xs;
+    color: rgb(var(--color-foreground));
+  }
+
+  .section-title {
+    @apply text-xs font-display font-semibold uppercase tracking-widest;
+    color: rgb(var(--color-muted-fg));
+  }
+
+}
+
+@layer utilities {
+  .text-brand { color: rgb(var(--color-brand)); }
+  .bg-brand { background-color: rgb(var(--color-brand)); }
+  .border-brand { border-color: rgb(var(--color-brand)); }
+  .text-accent-purple { color: rgb(var(--color-accent)); }
+  .bg-accent-purple { background-color: rgb(var(--color-accent)); }
+
+  .animate-stagger-1 { animation-delay: 0.05s; }
+  .animate-stagger-2 { animation-delay: 0.1s; }
+  .animate-stagger-3 { animation-delay: 0.15s; }
+  .animate-stagger-4 { animation-delay: 0.2s; }
+  .animate-stagger-5 { animation-delay: 0.25s; }
+  .animate-stagger-6 { animation-delay: 0.3s; }
+}
+
+/* Grid “masonry” (CSS Grid nivel 3) — onde o navegador suporta (ex.: Firefox) */
+@media (min-width: 1024px) {
+  @supports (grid-template-rows: masonry) {
+    [data-dashboard-grid].dashboard-grid-masonry {
+      grid-template-rows: masonry;
+      grid-auto-rows: unset;
+    }
+  }
+}

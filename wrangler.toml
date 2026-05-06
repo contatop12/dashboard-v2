@@ -1,0 +1,9 @@
+name = "dashboard-v2"
+account_id = "922956353923d5563a21f8a5203202e9"
+compatibility_date = "2024-10-01"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "p12-dashboard"
+database_id = "372e21d2-f512-47b7-a650-80daa718f82b"
