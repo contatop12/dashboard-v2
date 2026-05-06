@@ -16,11 +16,11 @@ import { cn } from '@/lib/utils'
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-xs shadow-xl">
-      <p className="font-sans text-muted-foreground mb-1.5">{label}</p>
+    <div className="bg-surface-card border border-surface-border rounded-lg px-4 py-2 text-xs shadow-xl">
+      <p className="font-sans text-muted-foreground mb-2">{label}</p>
       {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color }} />
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
           <span className="font-sans text-muted-foreground">{p.name}:</span>
           <span className="font-mono text-white font-semibold">
             {p.name === 'Custo/Lead' ? `R$${p.value.toFixed(2)}` : p.value}
@@ -37,16 +37,16 @@ export default function TimelineChart() {
   const [activePeriod, setActivePeriod] = useState('30D')
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 rounded-lg border border-surface-border bg-surface-card p-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 rounded-lg border border-surface-border bg-surface-card p-4">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <span className="section-title">Linha de Tempo</span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           {periods.map((p) => (
             <button
               key={p}
               onClick={() => setActivePeriod(p)}
               className={cn(
-                'text-[10px] px-2 py-0.5 rounded font-mono transition-all',
+                'text-[10px] px-2 py-1 rounded font-mono transition-all',
                 activePeriod === p
                   ? 'bg-brand text-[#0F0F0F] font-semibold'
                   : 'text-muted-foreground hover:text-white'
@@ -59,11 +59,11 @@ export default function TimelineChart() {
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-4 text-[10px]">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <div className="w-4 h-0.5 bg-brand" />
           <span className="text-muted-foreground font-sans">Leads (TOTAL)</span>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <div className="w-4 h-0.5 bg-purple-accent border-dashed" />
           <span className="text-muted-foreground font-sans">Custo por Lead</span>
         </div>

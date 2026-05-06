@@ -17,10 +17,8 @@ import {
   Cell,
 } from 'recharts'
 import DashboardGrid from '@/components/DashboardGrid'
-import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
-import OAuthContextHint from '@/components/OAuthContextHint'
 
 const kpis = [
   { label: 'Seguidores', value: '12.840', delta: +4.2, icon: Users },
@@ -145,8 +143,8 @@ const TIPO_COLORS = { reel: '#FF6B6B', carrossel: '#4A9BFF', feed: '#F5C518', st
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-xs shadow-xl">
-      <p className="font-sans text-muted-foreground mb-1.5">Dia {label}</p>
+    <div className="bg-surface-card border border-surface-border rounded-lg px-4 py-2 text-xs shadow-xl">
+      <p className="font-sans text-muted-foreground mb-2">Dia {label}</p>
       {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color }} />
@@ -169,7 +167,7 @@ function IgKpiCard({ label, value, delta, icon: Icon }) {
         </div>
       </div>
       <span className="kpi-value mt-1 tabular-nums truncate">{value}</span>
-      <div className={cn('flex items-center gap-0.5 text-[10px] font-mono mt-0.5', isPos ? 'text-green-400' : 'text-red-400')}>
+      <div className={cn('flex items-center gap-1 text-[10px] font-mono mt-1', isPos ? 'text-green-400' : 'text-red-400')}>
         {isPos ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
         {isPos ? '+' : ''}
         {delta}%
@@ -263,7 +261,7 @@ function IgContentTypes() {
         </div>
         <div className="flex flex-col gap-2 flex-1 min-w-0">
           {contentTypes.map((c) => (
-            <div key={c.name} className="flex items-center gap-1.5">
+            <div key={c.name} className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full shrink-0" style={{ background: c.color }} />
               <span className="text-[10px] font-sans text-muted-foreground flex-1 truncate">{c.name}</span>
               <span className="font-mono text-[11px] text-white">{c.value}%</span>
@@ -278,7 +276,7 @@ function IgContentTypes() {
 function IgTopPostsTable() {
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg overflow-hidden min-w-0 h-full flex flex-col">
-      <div className="px-4 py-3 border-b border-surface-border flex items-center justify-between shrink-0">
+      <div className="px-4 py-4 border-b border-surface-border flex items-center justify-between shrink-0">
         <span className="section-title">Top Posts — Janeiro</span>
         <span className="text-[10px] text-muted-foreground font-sans">por taxa de engajamento</span>
       </div>
@@ -290,7 +288,7 @@ function IgTopPostsTable() {
                 <th
                   key={h}
                   className={cn(
-                    'px-3 py-2.5 text-[10px] uppercase tracking-wider font-sans font-medium text-muted-foreground',
+                    'px-4 py-2 text-[10px] uppercase tracking-wider font-sans font-medium text-muted-foreground',
                     h === 'Post' ? 'text-left' : 'text-right'
                   )}
                 >
@@ -305,20 +303,20 @@ function IgTopPostsTable() {
               const color = TIPO_COLORS[p.tipo]
               return (
                 <tr key={i} className="border-b border-surface-border/50 last:border-0 hover:bg-surface-hover/40 transition-colors">
-                  <td className="px-3 py-3 font-sans text-white">{p.desc}</td>
-                  <td className="px-3 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
+                  <td className="px-4 py-4 font-sans text-white">{p.desc}</td>
+                  <td className="px-4 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
                       <Icon size={11} style={{ color }} />
                       <span className="font-mono text-[10px]" style={{ color }}>
                         {p.tipo}
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-3 text-right font-mono text-white">{formatNumber(p.alcance)}</td>
-                  <td className="px-3 py-3 text-right font-mono text-white">{p.curtidas || '—'}</td>
-                  <td className="px-3 py-3 text-right font-mono text-white">{p.comentarios || '—'}</td>
-                  <td className="px-3 py-3 text-right font-mono text-white">{p.salvamentos || '—'}</td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="px-4 py-4 text-right font-mono text-white">{formatNumber(p.alcance)}</td>
+                  <td className="px-4 py-4 text-right font-mono text-white">{p.curtidas || '—'}</td>
+                  <td className="px-4 py-4 text-right font-mono text-white">{p.comentarios || '—'}</td>
+                  <td className="px-4 py-4 text-right font-mono text-white">{p.salvamentos || '—'}</td>
+                  <td className="px-4 py-4 text-right">
                     <span
                       className={cn(
                         'font-mono text-xs font-semibold',
@@ -395,11 +393,11 @@ const IG_DASHBOARD_BLOCKS = [
 
 function InstagramPageHeader() {
   return (
-    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-3">
+    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-4">
       <div className="flex w-full min-w-0 flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div
-            className="flex items-center gap-2 rounded-lg px-3 py-1.5"
+            className="flex items-center gap-2 rounded-lg px-4 py-2"
             style={{
               background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
               opacity: 0.9,
@@ -424,11 +422,6 @@ function InstagramPageHeader() {
 export default function InstagramPage() {
   return (
     <div className="flex min-h-full min-w-0 flex-col">
-      <OAuthContextHint />
-      <SuperAdminEnvLive
-        endpoint="/api/admin/platform/instagram-overview"
-        title="Super Admin · Instagram (Graph · perfil / insights)"
-      />
       <InstagramPageHeader />
       <div className="min-h-0 flex-1">
         <DashboardGrid pageId="Instagram" definitions={IG_DASHBOARD_BLOCKS} className="min-h-full" />

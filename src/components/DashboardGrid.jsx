@@ -137,7 +137,7 @@ export default function DashboardGrid({ pageId, definitions, className }) {
           const stripKey = `kpi-strip-${seg.ids.join('|')}-${segIdx}`
           if (!isLg) {
             return (
-              <div key={stripKey} className="relative z-[1] flex w-full flex-col gap-3">
+              <div key={stripKey} className="relative z-[1] flex w-full flex-col gap-4">
                 {seg.ids.map((id) => renderBlock(id))}
               </div>
             )

@@ -61,7 +61,7 @@ export default function AccountSwitcher({ user }) {
 
   return (
     <div className="px-2 py-2 border-b border-surface-border">
-      <div className="flex items-center gap-2 px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground font-sans">
+      <div className="flex items-center gap-2 px-2 py-2 text-[10px] uppercase tracking-wider text-muted-foreground font-sans">
         <Building2 size={12} />
         Contas / organização
       </div>
@@ -70,7 +70,7 @@ export default function AccountSwitcher({ user }) {
       ) : user?.role === 'super_admin' ? (
         <div className="px-2 py-2 rounded-md bg-surface-hover/50 border border-surface-border/80">
           <p className="text-xs text-white font-sans font-medium">Visão administrativa</p>
-          <p className="text-[11px] text-muted-foreground font-sans mt-1">
+          <p className="text-[11px] text-muted-foreground font-sans mt-2">
             Seletor de conta por canal chega na Onda 2 (OAuth). {orgs.length > 0 ? `${orgs.length} org(s) no sistema.` : ''}
           </p>
         </div>

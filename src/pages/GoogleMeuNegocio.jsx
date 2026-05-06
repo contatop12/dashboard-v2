@@ -3,10 +3,8 @@ import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/utils'
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import DashboardGrid from '@/components/DashboardGrid'
-import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
-import OAuthContextHint from '@/components/OAuthContextHint'
 
 const kpis = [
   { label: 'Buscas Diretas', value: '2.840', delta: +18.3, icon: Search, desc: 'Pesquisaram pelo nome' },
@@ -43,8 +41,8 @@ const reviews = [
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-xs shadow-xl">
-      <p className="font-sans text-muted-foreground mb-1.5">{label}</p>
+    <div className="bg-surface-card border border-surface-border rounded-lg px-4 py-2 text-xs shadow-xl">
+      <p className="font-sans text-muted-foreground mb-2">{label}</p>
       {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color }} />
@@ -138,15 +136,15 @@ function GmbSearchTerms() {
       <span className="section-title block mb-3 shrink-0">Termos de Busca</span>
       <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-auto">
         {searchTerms.map((t, i) => (
-          <div key={t.termo} className="flex items-center gap-2 py-1.5">
+          <div key={t.termo} className="flex items-center gap-2 py-2">
             <span className="font-mono text-[10px] text-muted-foreground w-4 shrink-0">{i + 1}</span>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[11px] font-sans text-white truncate">{t.termo}</span>
-                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                <div className="flex items-center gap-2 shrink-0 ml-2">
                   <span
                     className={cn(
-                      'text-[9px] px-1.5 py-0.5 rounded font-mono',
+                      'text-[9px] px-2 py-0.5 rounded font-mono',
                       t.tipo === 'Direta' ? 'bg-brand/15 text-brand' : 'bg-[#34A853]/15 text-[#34A853]'
                     )}
                   >
@@ -172,11 +170,11 @@ function GmbSearchTerms() {
 function GmbReviews() {
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
-      <div className="flex items-center justify-between mb-3 shrink-0">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <span className="section-title">Avaliações Recentes</span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           {[5, 4, 3, 2, 1].map((n) => (
-            <div key={n} className="flex items-center gap-0.5">
+            <div key={n} className="flex items-center gap-1">
               <div className="w-2 h-4 rounded-sm bg-surface-border overflow-hidden">
                 <div
                   className="w-full rounded-sm"
@@ -187,9 +185,9 @@ function GmbReviews() {
           ))}
         </div>
       </div>
-      <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-auto">
+      <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-auto">
         {reviews.map((r) => (
-          <div key={r.nome} className="flex flex-col gap-1.5 pb-3 border-b border-surface-border last:border-0 last:pb-0">
+          <div key={r.nome} className="flex flex-col gap-2 pb-4 border-b border-surface-border last:border-0 last:pb-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-full bg-surface-input flex items-center justify-center text-[10px] font-mono text-white">
@@ -197,11 +195,11 @@ function GmbReviews() {
                 </div>
                 <span className="text-xs font-sans text-white font-medium">{r.nome}</span>
               </div>
-              <div className="flex items-center gap-0.5">
+              <div className="flex items-center gap-1">
                 {Array.from({ length: r.nota }, (_, i) => (
                   <Star key={i} size={10} className="text-yellow-400" fill="currentColor" />
                 ))}
-                <span className="text-[10px] text-muted-foreground font-sans ml-1">{r.data}</span>
+                <span className="text-[10px] text-muted-foreground font-sans ml-2">{r.data}</span>
               </div>
             </div>
             <p className="text-[11px] text-muted-foreground font-sans leading-relaxed line-clamp-2">{r.texto}</p>
@@ -269,17 +267,17 @@ const GMB_DASHBOARD_BLOCKS = [
 
 function GoogleMeuNegocioPageHeader() {
   return (
-    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-3">
+    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-4">
       <div className="flex w-full min-w-0 flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 rounded-lg border border-[#34A853]/30 bg-[#34A853]/15 px-3 py-1.5">
+            <div className="flex items-center gap-2 rounded-lg border border-[#34A853]/30 bg-[#34A853]/15 px-4 py-2">
               <MapPin size={14} className="text-[#34A853]" />
               <span className="text-xs font-sans font-semibold text-[#34A853]">Google Meu Negócio</span>
             </div>
             <span className="text-xs font-sans text-muted-foreground">Janeiro 2025</span>
           </div>
-          <div className="flex shrink-0 items-center gap-1.5 rounded-md border border-yellow-400/30 bg-yellow-400/10 px-2 py-1">
+          <div className="flex shrink-0 items-center gap-2 rounded-md border border-yellow-400/30 bg-yellow-400/10 px-2 py-2">
             <Star size={11} className="text-yellow-400" fill="currentColor" />
             <span className="font-mono text-xs font-semibold text-yellow-400">4.8</span>
             <span className="font-sans text-[10px] text-muted-foreground">(148)</span>
@@ -299,11 +297,6 @@ function GoogleMeuNegocioPageHeader() {
 export default function GoogleMeuNegocio() {
   return (
     <div className="flex min-h-full min-w-0 flex-col">
-      <OAuthContextHint />
-      <SuperAdminEnvLive
-        endpoint="/api/admin/platform/google-business-overview"
-        title="Super Admin · Google Business (contas · refresh token)"
-      />
       <GoogleMeuNegocioPageHeader />
       <div className="min-h-0 flex-1">
         <DashboardGrid pageId="GoogleMeuNegocio" definitions={GMB_DASHBOARD_BLOCKS} className="min-h-full" />

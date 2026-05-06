@@ -27,7 +27,7 @@ export default function OverviewTable() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 rounded-lg border border-surface-border bg-surface-card p-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 rounded-lg border border-surface-border bg-surface-card p-4">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <span className="section-title">Visão Geral</span>
         <span className="text-[10px] text-muted-foreground font-mono">{overviewTableData.length} campanhas</span>
@@ -68,7 +68,7 @@ export default function OverviewTable() {
                   <td
                     key={col.key}
                     className={cn(
-                      'break-words py-2.5 font-mono',
+                      'break-words py-2 font-mono',
                       col.align === 'right' ? 'text-right' : 'text-left',
                       col.key === 'campanha' ? 'truncate font-sans text-white' : 'text-white/90'
                     )}

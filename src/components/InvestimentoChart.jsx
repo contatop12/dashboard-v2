@@ -69,17 +69,17 @@ export default function InvestimentoChart() {
   const data = useMemo(() => generateData(periodDef.pts), [period])
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 rounded-xl border border-surface-border bg-surface-card p-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 rounded-xl border border-surface-border bg-surface-card p-4">
       <div className="flex flex-wrap shrink-0 items-center justify-between gap-2">
         <span className="section-title">Investimento Total</span>
-        <button className="text-[10px] px-2 py-1 rounded-md bg-surface-hover border border-surface-border text-muted-foreground hover:text-white transition-colors font-sans">
+        <button className="text-[10px] px-2 py-2 rounded-md bg-surface-hover border border-surface-border text-muted-foreground hover:text-white transition-colors font-sans">
           Relatório
         </button>
       </div>
 
       <div className="flex items-center gap-2">
         <span className="text-2xl font-mono font-medium tracking-tight">R$1,30mil</span>
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/20">
+        <span className="text-[10px] font-mono px-2 py-1 rounded-full bg-green-500/15 text-green-400 border border-green-500/20">
           +12%
         </span>
       </div>
@@ -114,7 +114,7 @@ export default function InvestimentoChart() {
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null
                 return (
-                  <div className="bg-surface-card border border-surface-border rounded-lg px-2.5 py-1.5 text-xs shadow-xl">
+                  <div className="bg-surface-card border border-surface-border rounded-lg px-2 py-2 text-xs shadow-xl">
                     <span className="font-mono text-brand font-semibold">
                       {fmt.format(payload[0].value)}
                     </span>

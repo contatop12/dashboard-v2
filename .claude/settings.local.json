@@ -7,7 +7,10 @@
       "Bash(npm run *)",
       "Bash(Start-Process -FilePath \"cmd\" -ArgumentList \"/c npm run dev\" -WindowStyle Normal)",
       "PowerShell(Out-Null *)",
-      "Bash(claude mcp *)"
+      "Bash(claude mcp *)",
+      "Bash(git fetch *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

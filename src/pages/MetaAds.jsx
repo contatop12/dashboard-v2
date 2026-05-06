@@ -30,10 +30,8 @@ import {
 import FunnelGeral from '@/components/FunnelGeral'
 import CreativesCarousel from '@/components/CreativesCarousel'
 import DashboardGrid from '@/components/DashboardGrid'
-import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
-import OAuthContextHint from '@/components/OAuthContextHint'
 
 const metaKPIs = [
   { label: 'Valor Gasto', value: 'R$1,30mil', delta: +12.4, icon: DollarSign, accent: 'brand' },
@@ -155,8 +153,8 @@ const campaigns = [
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-xs shadow-xl">
-      <p className="font-sans text-muted-foreground mb-1.5">Dia {label}</p>
+    <div className="bg-surface-card border border-surface-border rounded-lg px-4 py-2 text-xs shadow-xl">
+      <p className="font-sans text-muted-foreground mb-2">Dia {label}</p>
       {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color }} />
@@ -184,7 +182,7 @@ function MetaKpiCard({ label, value, delta, icon: Icon, accent }) {
         </div>
       </div>
       <span className="kpi-value mt-1 tabular-nums truncate">{value}</span>
-      <div className={cn('flex items-center gap-0.5 text-[10px] font-mono mt-0.5', isPos ? 'text-green-400' : 'text-red-400')}>
+      <div className={cn('flex items-center gap-1 text-[10px] font-mono mt-1', isPos ? 'text-green-400' : 'text-red-400')}>
         {isPos ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
         {isPos ? '+' : ''}
         {delta}% vs mês ant.
@@ -196,9 +194,9 @@ function MetaKpiCard({ label, value, delta, icon: Icon, accent }) {
 function MetaDailyChart({ activeChart, setActiveChart }) {
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
-      <div className="flex items-center justify-between mb-3 shrink-0">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <span className="section-title">Desempenho Diário</span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           {[
             { k: 'gasto', l: 'Gasto' },
             { k: 'alcance', l: 'Alcance' },
@@ -209,7 +207,7 @@ function MetaDailyChart({ activeChart, setActiveChart }) {
               type="button"
               onClick={() => setActiveChart(k)}
               className={cn(
-                'text-[10px] px-2 py-0.5 rounded font-mono transition-all',
+                'text-[10px] px-2 py-1 rounded font-mono transition-all',
                 activeChart === k ? 'bg-brand text-[#0F0F0F] font-semibold' : 'text-muted-foreground hover:text-white'
               )}
             >
@@ -251,7 +249,7 @@ function MetaDailyChart({ activeChart, setActiveChart }) {
 function MetaPlacements() {
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
-      <span className="section-title block mb-3 shrink-0">Posicionamentos</span>
+      <span className="section-title block mb-4 shrink-0">Posicionamentos</span>
       <div className="flex items-center gap-2 flex-1 min-h-0">
         <div className="w-28 h-28 shrink-0">
           <ResponsiveContainer width="100%" height="100%">
@@ -277,9 +275,9 @@ function MetaPlacements() {
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+        <div className="flex flex-col gap-2 flex-1 min-w-0">
           {placements.map((p) => (
-            <div key={p.name} className="flex items-center gap-1.5">
+            <div key={p.name} className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} />
               <span className="text-[10px] font-sans text-muted-foreground flex-1 truncate">{p.name}</span>
               <span className="font-mono text-[11px] text-white">{p.value}%</span>
@@ -294,14 +292,14 @@ function MetaPlacements() {
 function MetaVideoRetention() {
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-4">
         <Video size={13} className="text-brand" />
         <span className="section-title">Retenção de Vídeo</span>
       </div>
       <div className="grid grid-cols-4 gap-2">
         {videoMetrics.map((m) => (
-          <div key={m.label} className="flex flex-col items-center gap-1.5">
-            <div className="w-full h-1.5 bg-surface-border rounded-full overflow-hidden">
+          <div key={m.label} className="flex flex-col items-center gap-2">
+            <div className="w-full h-2 bg-surface-border rounded-full overflow-hidden">
               <div className="h-full rounded-full" style={{ width: `${(m.value / 15) * 100}%`, background: m.color }} />
             </div>
             <span className="font-mono text-sm font-semibold text-white">{m.value}%</span>
@@ -316,12 +314,12 @@ function MetaVideoRetention() {
 function MetaEngagement() {
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0">
-      <span className="section-title block mb-3">Engajamento</span>
-      <div className="grid grid-cols-3 gap-3">
+      <span className="section-title block mb-4">Engajamento</span>
+      <div className="grid grid-cols-3 gap-4">
         {engMetrics.map(({ label, value, icon: Icon, color }) => (
           <div
             key={label}
-            className="flex flex-col items-center gap-1.5 p-3 rounded-lg"
+            className="flex flex-col items-center gap-2 p-4 rounded-lg"
             style={{ background: `${color}10`, border: `1px solid ${color}30` }}
           >
             <Icon size={16} style={{ color }} />
@@ -337,7 +335,7 @@ function MetaEngagement() {
 function MetaCampaignsTable() {
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg overflow-hidden min-w-0 h-full flex flex-col">
-      <div className="px-4 py-3 border-b border-surface-border flex items-center justify-between shrink-0">
+      <div className="px-4 py-4 border-b border-surface-border flex items-center justify-between shrink-0">
         <span className="section-title">Campanhas Meta Ads</span>
         <span className="text-[10px] text-muted-foreground font-mono">
           {campaigns.filter((c) => c.status === 'active').length} ativas
@@ -351,7 +349,7 @@ function MetaCampaignsTable() {
                 <th
                   key={h}
                   className={cn(
-                    'px-3 py-2.5 text-[10px] uppercase tracking-wider font-sans font-medium text-muted-foreground',
+                    'px-4 py-2 text-[10px] uppercase tracking-wider font-sans font-medium text-muted-foreground',
                     h === 'Campanha' ? 'text-left' : 'text-right'
                   )}
                 >
@@ -363,25 +361,25 @@ function MetaCampaignsTable() {
           <tbody>
             {campaigns.map((c) => (
               <tr key={c.name} className="border-b border-surface-border/50 last:border-0 hover:bg-surface-hover/40 transition-colors">
-                <td className="px-3 py-3 font-sans text-white font-medium truncate max-w-[180px]">{c.name}</td>
-                <td className="px-3 py-3 text-right">
+                <td className="px-4 py-4 font-sans text-white font-medium truncate max-w-[180px]">{c.name}</td>
+                <td className="px-4 py-4 text-right">
                   <span
                     className={cn(
-                      'text-[10px] font-mono px-1.5 py-0.5 rounded',
+                      'text-[10px] font-mono px-2 py-0.5 rounded',
                       c.status === 'active' ? 'text-green-400 bg-green-400/10' : 'text-yellow-400 bg-yellow-400/10'
                     )}
                   >
                     {c.status === 'active' ? '● Ativo' : '● Pausado'}
                   </span>
                 </td>
-                <td className="px-3 py-3 text-right font-sans text-muted-foreground text-[11px]">{c.objetivo}</td>
-                <td className="px-3 py-3 text-right font-mono text-white">{formatCurrency(c.gasto)}</td>
-                <td className="px-3 py-3 text-right font-mono text-white">{c.alcance ? formatNumber(c.alcance) : '—'}</td>
-                <td className="px-3 py-3 text-right font-mono text-white">{c.impressoes ? formatNumber(c.impressoes) : '—'}</td>
-                <td className="px-3 py-3 text-right font-mono text-white">{c.ctr ? formatPercent(c.ctr) : '—'}</td>
-                <td className="px-3 py-3 text-right font-mono text-white">{c.cpm ? formatCurrency(c.cpm) : '—'}</td>
-                <td className="px-3 py-3 text-right font-mono text-white">{c.leads}</td>
-                <td className="px-3 py-3 text-right font-mono text-white">{c.custoLead ? formatCurrency(c.custoLead) : '—'}</td>
+                <td className="px-4 py-4 text-right font-sans text-muted-foreground text-[11px]">{c.objetivo}</td>
+                <td className="px-4 py-4 text-right font-mono text-white">{formatCurrency(c.gasto)}</td>
+                <td className="px-4 py-4 text-right font-mono text-white">{c.alcance ? formatNumber(c.alcance) : '—'}</td>
+                <td className="px-4 py-4 text-right font-mono text-white">{c.impressoes ? formatNumber(c.impressoes) : '—'}</td>
+                <td className="px-4 py-4 text-right font-mono text-white">{c.ctr ? formatPercent(c.ctr) : '—'}</td>
+                <td className="px-4 py-4 text-right font-mono text-white">{c.cpm ? formatCurrency(c.cpm) : '—'}</td>
+                <td className="px-4 py-4 text-right font-mono text-white">{c.leads}</td>
+                <td className="px-4 py-4 text-right font-mono text-white">{c.custoLead ? formatCurrency(c.custoLead) : '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -486,10 +484,10 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
 
 function MetaAdsPageHeader() {
   return (
-    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-3">
+    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-4">
       <div className="flex w-full min-w-0 flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <div className="flex items-center gap-2 rounded-lg border border-blue-600/30 bg-blue-600/15 px-3 py-1.5">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex items-center gap-2 rounded-lg border border-blue-600/30 bg-blue-600/15 px-4 py-2">
             <Facebook size={14} className="text-blue-500" />
             <span className="text-xs font-sans font-semibold text-blue-400">Meta Ads</span>
           </div>
@@ -512,11 +510,6 @@ export default function MetaAds() {
 
   return (
     <div className="flex min-h-full min-w-0 flex-col">
-      <OAuthContextHint />
-      <SuperAdminEnvLive
-        endpoint="/api/admin/platform/meta-overview"
-        title="Super Admin · Meta Ads (Graph · últimos 30 dias)"
-      />
       <MetaAdsPageHeader />
       <div className="min-h-0 flex-1">
         <DashboardGrid pageId="MetaAds" definitions={definitions} className="min-h-full" />

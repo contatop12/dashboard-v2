@@ -51,7 +51,7 @@ export default function Sidebar({ activePage, onNavigate, open, onClose, userRol
         )}
       >
         {/* Nav items */}
-        <nav className="flex-1 flex flex-col gap-0.5 pt-3 px-2">
+        <nav className="flex-1 flex flex-col gap-2 pt-4 px-2">
           {items.map(({ id, label, icon: Icon }) => {
             const isActive = activePage === id
             return (
@@ -64,7 +64,7 @@ export default function Sidebar({ activePage, onNavigate, open, onClose, userRol
                 }}
                 title={collapsed ? label : undefined}
                 className={cn(
-                  'flex items-center gap-2.5 rounded-md px-2 py-2 transition-all duration-150 group relative text-left w-full',
+                  'flex items-center gap-2 rounded-md px-2 py-2 transition-all duration-150 group relative text-left w-full',
                   isActive
                     ? 'bg-brand/15 text-brand'
                     : 'text-muted-foreground hover:text-white hover:bg-surface-card'
@@ -83,7 +83,7 @@ export default function Sidebar({ activePage, onNavigate, open, onClose, userRol
         </nav>
 
         {/* Bottom: Settings + collapse */}
-        <div className="px-2 pb-3 flex flex-col gap-0.5">
+        <div className="px-2 pb-4 flex flex-col gap-2">
           <button
             type="button"
             onClick={() => {
@@ -92,7 +92,7 @@ export default function Sidebar({ activePage, onNavigate, open, onClose, userRol
             }}
             title={collapsed ? 'Configurações' : undefined}
             className={cn(
-              'flex items-center gap-2.5 rounded-md px-2 py-2 transition-all text-left w-full',
+              'flex items-center gap-2 rounded-md px-2 py-2 transition-all text-left w-full',
               activePage === 'Configurações'
                 ? 'bg-brand/15 text-brand'
                 : 'text-muted-foreground hover:text-white hover:bg-surface-card'
@@ -105,7 +105,7 @@ export default function Sidebar({ activePage, onNavigate, open, onClose, userRol
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
-            className="hidden lg:flex items-center gap-2.5 rounded-md px-2 py-2 text-muted-foreground hover:text-white hover:bg-surface-card transition-all"
+            className="hidden lg:flex items-center gap-2 rounded-md px-2 py-2 text-muted-foreground hover:text-white hover:bg-surface-card transition-all"
           >
             {collapsed ? (
               <ChevronRight size={14} />

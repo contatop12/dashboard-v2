@@ -4,10 +4,8 @@ import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { FunnelChart } from '@/components/FunnelChart'
 import DashboardGrid from '@/components/DashboardGrid'
-import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
-import OAuthContextHint from '@/components/OAuthContextHint'
 
 const googleKPIs = [
   { label: 'Investimento', value: 'R$1,30mil', delta: +12.4, icon: DollarSign, accent: 'brand' },
@@ -61,8 +59,8 @@ const campaigns = [
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-xs shadow-xl">
-      <p className="font-sans text-muted-foreground mb-1.5">Dia {label}</p>
+    <div className="bg-surface-card border border-surface-border rounded-lg px-4 py-2 text-xs shadow-xl">
+      <p className="font-sans text-muted-foreground mb-2">Dia {label}</p>
       {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color }} />
@@ -85,7 +83,7 @@ function GoogleKpiCard({ label, value, delta, icon: Icon, accent }) {
         </div>
       </div>
       <span className="kpi-value mt-1 tabular-nums truncate">{value}</span>
-      <div className={cn('flex items-center gap-0.5 text-[10px] font-mono mt-0.5', isPos ? 'text-green-400' : 'text-red-400')}>
+      <div className={cn('flex items-center gap-1 text-[10px] font-mono mt-1', isPos ? 'text-green-400' : 'text-red-400')}>
         {isPos ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
         {isPos ? '+' : ''}
         {delta}%
@@ -131,11 +129,11 @@ function GoogleClicksChart() {
 function GoogleQuality() {
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
-      <div className="flex items-center gap-2 mb-3 shrink-0">
+      <div className="flex items-center gap-2 mb-4 shrink-0">
         <Award size={13} className="text-brand" />
         <span className="section-title">Índice de Qualidade</span>
       </div>
-      <div className="flex flex-col gap-2.5 flex-1 min-h-0 overflow-auto">
+      <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-auto">
         {qualityData.map((kw) => (
           <div key={kw.keyword} className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
@@ -152,7 +150,7 @@ function GoogleQuality() {
                 </span>
               </div>
             </div>
-            <div className="h-1.5 bg-surface-border rounded-full overflow-hidden">
+            <div className="h-2 bg-surface-border rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full"
                 style={{
@@ -194,7 +192,7 @@ function GoogleFunnelBlock() {
 function GoogleCampaignsTable() {
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg overflow-hidden min-w-0 h-full flex flex-col">
-      <div className="px-4 py-3 border-b border-surface-border shrink-0">
+      <div className="px-4 py-4 border-b border-surface-border shrink-0">
         <span className="section-title">Campanhas</span>
       </div>
       <div className="overflow-x-auto flex-1 min-h-0">
@@ -205,7 +203,7 @@ function GoogleCampaignsTable() {
                 <th
                   key={h}
                   className={cn(
-                    'px-3 py-2 text-[10px] uppercase tracking-wider font-sans font-medium text-muted-foreground',
+                    'px-4 py-2 text-[10px] uppercase tracking-wider font-sans font-medium text-muted-foreground',
                     h === 'Campanha' ? 'text-left' : 'text-right'
                   )}
                 >
@@ -217,20 +215,20 @@ function GoogleCampaignsTable() {
           <tbody>
             {campaigns.map((c) => (
               <tr key={c.name} className="border-b border-surface-border/50 last:border-0 hover:bg-surface-hover/40 transition-colors">
-                <td className="px-3 py-3">
-                  <div className="flex items-center gap-1.5">
-                    <div className={cn('w-1.5 h-1.5 rounded-full', c.status === 'active' ? 'bg-green-400' : 'bg-yellow-400')} />
+                <td className="px-4 py-4">
+                  <div className="flex items-center gap-2">
+                    <div className={cn('w-2 h-2 rounded-full', c.status === 'active' ? 'bg-green-400' : 'bg-yellow-400')} />
                     <span className="font-sans text-white truncate max-w-[150px]">{c.name}</span>
                   </div>
                 </td>
-                <td className="px-3 py-3 text-right">
+                <td className="px-4 py-4 text-right">
                   <span className="text-[10px] font-mono text-muted-foreground">{c.tipo}</span>
                 </td>
-                <td className="px-3 py-3 text-right font-mono text-white">{formatCurrency(c.investimento)}</td>
-                <td className="px-3 py-3 text-right font-mono text-white">{formatNumber(c.cliques)}</td>
-                <td className="px-3 py-3 text-right font-mono text-white">{formatPercent(c.ctr)}</td>
-                <td className="px-3 py-3 text-right font-mono text-white">{c.conversoes}</td>
-                <td className="px-3 py-3 text-right font-mono text-muted-foreground">{c.impressaoParcela}</td>
+                <td className="px-4 py-4 text-right font-mono text-white">{formatCurrency(c.investimento)}</td>
+                <td className="px-4 py-4 text-right font-mono text-white">{formatNumber(c.cliques)}</td>
+                <td className="px-4 py-4 text-right font-mono text-white">{formatPercent(c.ctr)}</td>
+                <td className="px-4 py-4 text-right font-mono text-white">{c.conversoes}</td>
+                <td className="px-4 py-4 text-right font-mono text-muted-foreground">{c.impressaoParcela}</td>
               </tr>
             ))}
           </tbody>
@@ -297,10 +295,10 @@ const GOOGLE_DASHBOARD_BLOCKS = [
 
 function GoogleAdsPageHeader() {
   return (
-    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-3">
+    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-4">
       <div className="flex w-full min-w-0 flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <div className="flex items-center gap-2 rounded-lg border border-[#4285F4]/30 bg-[#4285F4]/15 px-3 py-1.5">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex items-center gap-2 rounded-lg border border-[#4285F4]/30 bg-[#4285F4]/15 px-4 py-2">
             <Search size={14} className="text-[#4285F4]" />
             <span className="text-xs font-sans font-semibold text-[#4285F4]">Google Ads</span>
           </div>
@@ -320,11 +318,6 @@ function GoogleAdsPageHeader() {
 export default function GoogleAds() {
   return (
     <div className="flex min-h-full min-w-0 flex-col">
-      <OAuthContextHint />
-      <SuperAdminEnvLive
-        endpoint="/api/admin/platform/google-ads-overview"
-        title="Super Admin · Google Ads API (campanhas · últimos 30 dias)"
-      />
       <GoogleAdsPageHeader />
       <div className="min-h-0 flex-1">
         <DashboardGrid pageId="GoogleAds" definitions={GOOGLE_DASHBOARD_BLOCKS} className="min-h-full" />

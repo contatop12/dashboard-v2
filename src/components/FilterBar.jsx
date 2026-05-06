@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Calendar, ChevronDown, RefreshCw, Download, Building2 } from 'lucide-react'
+import { Calendar, ChevronDown, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useAuth } from '@/context/AuthContext'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 
 // Filter configs per page
@@ -34,69 +33,6 @@ const FILTER_OPTIONS = {
   tipoCorrespondencia: { label: 'Correspondência', options: ['Todas', 'Exata', 'Frase', 'Ampla'] },
 }
 
-function OrgContextSelect() {
-  const { user } = useAuth()
-  const { orgs, activeOrgId, setActiveOrgId, loading } = useOrgWorkspace()
-
-  if (loading) {
-    return <span className="text-[10px] text-muted-foreground font-sans px-1">Organização…</span>
-  }
-
-  if (user?.role === 'client') {
-    if (orgs.length === 0) return null
-    if (orgs.length === 1) {
-      return (
-        <span
-          className="hidden max-w-[180px] truncate text-[10px] text-muted-foreground font-sans sm:inline"
-          title={orgs[0].name}
-        >
-          {orgs[0].name}
-        </span>
-      )
-    }
-    return (
-      <select
-        value={activeOrgId ?? ''}
-        onChange={(e) => setActiveOrgId(e.target.value || null)}
-        className="max-w-[200px] cursor-pointer rounded-md border border-surface-border bg-surface-input py-1 pl-2 pr-6 text-[10px] text-white font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-      >
-        {orgs.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.name}
-          </option>
-        ))}
-      </select>
-    )
-  }
-
-  if (user?.role === 'super_admin') {
-    if (orgs.length === 0) return null
-    return (
-      <div className="flex items-center gap-1.5 shrink-0">
-        <Building2 size={11} className="text-muted-foreground shrink-0" />
-        <select
-          value={activeOrgId ?? '__worker__'}
-          onChange={(e) => {
-            const v = e.target.value
-            setActiveOrgId(v === '__worker__' ? null : v)
-          }}
-          className="max-w-[220px] cursor-pointer rounded-md border border-surface-border bg-surface-input py-1 pl-2 pr-6 text-[10px] text-white font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-          title="Organização para dados OAuth · Worker usa secrets"
-        >
-          <option value="__worker__">Ambiente Worker (secrets)</option>
-          {orgs.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.name}
-            </option>
-          ))}
-        </select>
-      </div>
-    )
-  }
-
-  return null
-}
-
 function FilterSelect({ filterKey, value, onChange, optionsOverride }) {
   const [open, setOpen] = useState(false)
   const config = FILTER_OPTIONS[filterKey]
@@ -113,12 +49,12 @@ function FilterSelect({ filterKey, value, onChange, optionsOverride }) {
         <ChevronDown size={10} className="text-muted-foreground shrink-0" />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 max-h-60 overflow-y-auto bg-surface-card border border-surface-border rounded-lg shadow-xl z-50 min-w-[160px] py-1 animate-scale-in">
+        <div className="absolute top-full left-0 mt-2 max-h-60 overflow-y-auto bg-surface-card border border-surface-border rounded-lg shadow-xl z-50 min-w-[160px] py-2 animate-scale-in">
           {options.map((opt) => (
             <button
               key={opt}
               onClick={() => { onChange(filterKey, opt); setOpen(false) }}
-              className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-surface-hover transition-colors', value === opt ? 'text-brand' : 'text-white')}
+              className={cn('w-full text-left px-4 py-2 text-xs hover:bg-surface-hover transition-colors', value === opt ? 'text-brand' : 'text-white')}
             >
               {opt}
             </button>
@@ -132,6 +68,7 @@ function FilterSelect({ filterKey, value, onChange, optionsOverride }) {
 export default function FilterBar({ activePage, filters, onFiltersChange }) {
   const { activeOrgId } = useOrgWorkspace()
   const [metaLive, setMetaLive] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   const activeFilters = PAGE_FILTERS[activePage] ?? ['dateRange']
 
@@ -180,23 +117,35 @@ export default function FilterBar({ activePage, filters, onFiltersChange }) {
 
   if (activeFilters.length === 0) return null
 
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    if (activePage === 'Meta Ads' && activeOrgId) {
+      try {
+        const r = await fetch(`/api/orgs/${activeOrgId}/meta-ads-filters`, { credentials: 'include' })
+        const data = await r.json()
+        setMetaLive(data)
+      } catch {
+        setMetaLive(null)
+      }
+    }
+    setTimeout(() => setRefreshing(false), 800)
+  }
+
   return (
-    <div className="min-h-10 bg-[#0F0F0F] border-b border-surface-border flex items-center px-4 gap-2 shrink-0 flex-wrap py-1.5">
-      <OrgContextSelect />
+    <div className="min-h-12 bg-[#0F0F0F] border-b border-surface-border flex items-center px-4 gap-2 shrink-0 flex-wrap py-2">
       {activeFilters.includes('dateRange') && (
         <>
-          <div className="w-px h-4 bg-surface-border mx-0.5 hidden sm:block" />
           <button className="filter-select">
             <Calendar size={11} className="text-muted-foreground" />
             <span className="text-white text-xs hidden sm:block">1 jan – 31 jan 2025</span>
             <span className="text-white text-xs sm:hidden">Jan 2025</span>
             <ChevronDown size={10} className="text-muted-foreground" />
           </button>
-          <div className="w-px h-4 bg-surface-border mx-0.5 hidden sm:block" />
+          <div className="w-px h-4 bg-surface-border mx-2 hidden sm:block" />
         </>
       )}
 
-      <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
         {activeFilters.filter(f => f !== 'dateRange').map(filterKey => (
           <FilterSelect
             key={filterKey}
@@ -209,11 +158,13 @@ export default function FilterBar({ activePage, filters, onFiltersChange }) {
       </div>
 
       <div className="ml-auto flex items-center gap-1">
-        <button className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-white hover:bg-surface-card transition-all" title="Atualizar">
-          <RefreshCw size={12} />
-        </button>
-        <button className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-white hover:bg-surface-card transition-all" title="Exportar">
-          <Download size={12} />
+        <button
+          type="button"
+          onClick={handleRefresh}
+          className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-white hover:bg-surface-card transition-all"
+          title="Atualizar"
+        >
+          <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
         </button>
       </div>
     </div>

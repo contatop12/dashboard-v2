@@ -136,7 +136,7 @@ export default function Conexoes() {
             void loadConnections()
           }}
           disabled={loadingConn || !orgId}
-          className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-white border border-surface-border rounded-md px-3 py-1.5 font-sans disabled:opacity-50"
+          className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-white border border-surface-border rounded-md px-4 py-2 font-sans disabled:opacity-50"
         >
           <RefreshCw size={14} className={loadingConn ? 'animate-spin' : ''} />
           Atualizar
@@ -166,7 +166,7 @@ export default function Conexoes() {
       </div>
 
       {!authLoading && !loadingOrgs && orgs.length === 0 && user?.role === 'super_admin' && (
-        <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 px-4 py-4 space-y-3">
+        <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 px-4 py-4 space-y-4">
           <p className="text-xs text-amber-100/95 font-sans leading-relaxed">
             Ainda não existe nenhuma <strong className="text-amber-200">organização</strong> na base de dados.
             Cria uma aqui (ou em <strong className="text-amber-200">Clientes → Criar cliente</strong>). Depois escolhe
@@ -174,7 +174,7 @@ export default function Conexoes() {
             Worker não preenchem automaticamente esta lista.
           </p>
           <form onSubmit={handleCreateOrganization} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="flex-1 flex flex-col gap-1">
+            <div className="flex-1 flex flex-col gap-2">
               <label className="text-[11px] uppercase tracking-wider text-muted-foreground font-sans">
                 Nome da organização
               </label>
@@ -182,7 +182,7 @@ export default function Conexoes() {
                 value={newOrgName}
                 onChange={(e) => setNewOrgName(e.target.value)}
                 placeholder="Ex.: Ventura Vet"
-                className="bg-surface-input border border-surface-border rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-brand/50 font-sans"
+                className="bg-surface-input border border-surface-border rounded-md px-4 py-2 text-sm text-white focus:outline-none focus:border-brand/50 font-sans"
               />
             </div>
             <button
@@ -223,13 +223,13 @@ export default function Conexoes() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {CHANNELS.map((c) => {
           const st = statusForChannel(connections, c.id)
           return (
             <div
               key={c.id}
-              className="bg-surface-card border border-surface-border rounded-xl p-4 flex flex-col gap-3"
+              className="bg-surface-card border border-surface-border rounded-xl p-4 flex flex-col gap-4"
             >
               <div>
                 <h3 className="text-sm font-semibold text-white font-display">{c.title}</h3>
@@ -254,7 +254,7 @@ export default function Conexoes() {
               <a
                 href={orgId ? connectUrl(c.oauthPath) : undefined}
                 aria-disabled={!orgId}
-                className={`mt-auto text-center text-xs font-semibold px-3 py-2 rounded-md border transition-colors font-sans ${
+                className={`mt-auto text-center text-xs font-semibold px-4 py-2 rounded-md border transition-colors font-sans ${
                   orgId
                     ? 'border-brand/50 bg-brand/10 text-brand hover:bg-brand/20'
                     : 'border-surface-border text-muted-foreground pointer-events-none opacity-50'

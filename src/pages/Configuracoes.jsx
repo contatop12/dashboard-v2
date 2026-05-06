@@ -16,25 +16,25 @@ const TABS = [
 function ContaTab() {
   return (
     <div className="max-w-lg flex flex-col gap-4">
-      <div className="bg-surface-card border border-surface-border rounded-xl p-5">
+      <div className="bg-surface-card border border-surface-border rounded-xl p-4">
         <h3 className="font-display font-semibold text-white text-sm mb-4">Informações da Conta</h3>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           {[{ label: 'Nome', value: 'Administrador' }, { label: 'Email', value: 'contato@p12digital.com.br' }, { label: 'Empresa', value: 'P12 Digital' }].map(({ label, value }) => (
-            <div key={label} className="flex flex-col gap-1">
+            <div key={label} className="flex flex-col gap-2">
               <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-sans">{label}</span>
-              <input defaultValue={value} className="bg-surface-input border border-surface-border rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-brand/50 font-sans transition-colors" />
+              <input defaultValue={value} className="bg-surface-input border border-surface-border rounded-md px-4 py-2 text-sm text-white focus:outline-none focus:border-brand/50 font-sans transition-colors" />
             </div>
           ))}
           <button className="mt-2 bg-brand text-[#0F0F0F] text-xs font-semibold px-4 py-2 rounded-md hover:bg-brand/90 transition-all w-fit">Salvar Alterações</button>
         </div>
       </div>
-      <div className="bg-surface-card border border-surface-border rounded-xl p-5">
+      <div className="bg-surface-card border border-surface-border rounded-xl p-4">
         <h3 className="font-display font-semibold text-white text-sm mb-4">Alterar Senha</h3>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           {['Senha Atual', 'Nova Senha', 'Confirmar Nova Senha'].map(l => (
-            <div key={l} className="flex flex-col gap-1">
+            <div key={l} className="flex flex-col gap-2">
               <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-sans">{l}</span>
-              <input type="password" placeholder="••••••••" className="bg-surface-input border border-surface-border rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-brand/50 font-sans transition-colors" />
+              <input type="password" placeholder="••••••••" className="bg-surface-input border border-surface-border rounded-md px-4 py-2 text-sm text-white focus:outline-none focus:border-brand/50 font-sans transition-colors" />
             </div>
           ))}
           <button className="mt-2 bg-surface-card border border-surface-border text-white text-xs font-sans px-4 py-2 rounded-md hover:bg-surface-hover transition-all w-fit">Alterar Senha</button>
@@ -48,7 +48,7 @@ function NotificacoesTab() {
   const [prefs, setPrefs] = useState({ emailDiario: true, emailSemanal: false, alertaKPI: true, alertaCusto: true, novoCampanha: false })
   return (
     <div className="max-w-lg">
-      <div className="bg-surface-card border border-surface-border rounded-xl p-5">
+      <div className="bg-surface-card border border-surface-border rounded-xl p-4">
         <h3 className="font-display font-semibold text-white text-sm mb-4">Preferências de Notificação</h3>
         <div className="flex flex-col gap-4">
           {[
@@ -94,15 +94,15 @@ export default function Configuracoes() {
       className="animate-fade-in box-border min-h-0 min-w-0 max-w-full"
       style={contentPad}
     >
-      <div className="flex gap-6">
+      <div className="flex gap-8">
         {/* Side nav */}
         <div className="w-44 shrink-0">
-          <nav className="flex flex-col gap-0.5">
+          <nav className="flex flex-col gap-2">
             {TABS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm font-sans transition-all ${activeTab === id ? 'bg-brand/15 text-brand' : 'text-muted-foreground hover:text-white hover:bg-surface-card'}`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-left text-sm font-sans transition-all ${activeTab === id ? 'bg-brand/15 text-brand' : 'text-muted-foreground hover:text-white hover:bg-surface-card'}`}
               >
                 <Icon size={14} />
                 {label}
@@ -119,10 +119,10 @@ export default function Configuracoes() {
           {activeTab === 'integracoes' && <Conexoes />}
           {activeTab === 'permissoes' && (
             <div className="max-w-lg">
-              <div className="rounded-xl border border-surface-border bg-surface-card p-5">
+              <div className="rounded-xl border border-surface-border bg-surface-card p-4">
                 <h3 className="mb-2 font-display text-sm font-semibold text-white">Gerenciamento de Usuários</h3>
                 <p className="font-sans text-xs text-muted-foreground">Super Admin — módulo de atribuição de contas por usuário em desenvolvimento.</p>
-                <div className="mt-4 rounded-lg border border-brand/20 bg-brand/10 p-3">
+                <div className="mt-4 rounded-lg border border-brand/20 bg-brand/10 p-4">
                   <p className="font-sans text-xs text-brand">Em breve: atribua contas (Meta Ads, Google Ads) a usuários específicos. Cada usuário verá apenas os dados das contas autorizadas.</p>
                 </div>
               </div>

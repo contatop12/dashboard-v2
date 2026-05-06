@@ -21,7 +21,7 @@ function CreativeCard({ card }) {
         )}
         {card.tag && (
           <div className="absolute top-2 left-2">
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded font-semibold uppercase"
+            <span className="text-[9px] font-mono px-2 py-0.5 rounded font-semibold uppercase"
               style={{ background: card.tagBg, color: card.tagColor }}>
               {card.tag}
             </span>
@@ -29,7 +29,7 @@ function CreativeCard({ card }) {
         )}
         {card.status && (
           <div className="absolute top-2 right-2">
-            <span className={cn('text-[9px] font-mono px-1.5 py-0.5 rounded-full',
+            <span className={cn('text-[9px] font-mono px-2 py-0.5 rounded-full',
               card.status === 'active' ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                 : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30')}>
               {card.status === 'active' ? '● Ativo' : '● Pausado'}
@@ -39,12 +39,12 @@ function CreativeCard({ card }) {
       </div>
 
       {/* Info */}
-      <div className="p-3 flex flex-col gap-2.5">
+      <div className="p-4 flex flex-col gap-2">
         <p className="text-[11px] font-sans text-white font-medium leading-tight line-clamp-2 min-h-[2.5em]">
           {card.name}
         </p>
 
-        <div className="flex flex-col gap-1.5 pt-1 border-t border-surface-border">
+        <div className="flex flex-col gap-2 pt-2 border-t border-surface-border">
           {card.metrics.map(({ label, value, highlight }) => (
             <div key={label} className="flex items-center justify-between gap-1">
               <span className="text-[10px] font-sans text-muted-foreground truncate">{label}</span>
@@ -69,11 +69,11 @@ export default function CreativesCarousel({ title, cards, badge }) {
 
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg overflow-hidden">
-      <div className="px-4 py-3 border-b border-surface-border flex items-center justify-between">
+      <div className="px-4 py-4 border-b border-surface-border flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="section-title">{title}</span>
           {badge && (
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-brand/15 text-brand border border-brand/20">
+            <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-brand/15 text-brand border border-brand/20">
               {badge}
             </span>
           )}
@@ -96,7 +96,7 @@ export default function CreativesCarousel({ title, cards, badge }) {
 
       <div
         ref={scrollRef}
-        className="flex gap-3 overflow-x-auto px-4 py-3"
+        className="flex gap-4 overflow-x-auto px-4 py-4"
         style={{ scrollSnapType: 'x mandatory', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {cards.map((card, i) => (

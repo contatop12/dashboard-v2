@@ -88,7 +88,7 @@ export default function Demographics() {
   const data = current.data
 
   return (
-    <div className="flex min-h-0 min-w-0 h-full flex-col gap-3 rounded-lg border border-surface-border bg-surface-card p-4 overflow-hidden">
+    <div className="flex min-h-0 min-w-0 h-full flex-col gap-4 rounded-lg border border-surface-border bg-surface-card p-4 overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <span className="section-title">Demográficos</span>
         <div className="flex flex-wrap items-center justify-end gap-1">
@@ -100,7 +100,7 @@ export default function Demographics() {
                 setView(v.key)
                 setActiveIdx(0)
               }}
-              className={`rounded px-2 py-0.5 font-sans text-[9px] transition-all ${view === v.key ? 'bg-brand/15 text-brand ring-1 ring-brand/35' : 'text-muted-foreground hover:text-white'}`}
+              className={`rounded px-2 py-1 font-sans text-[9px] transition-all ${view === v.key ? 'bg-brand/15 text-brand ring-1 ring-brand/35' : 'text-muted-foreground hover:text-white'}`}
             >
               {v.label}
             </button>
@@ -148,7 +148,7 @@ export default function Demographics() {
           </div>
         </div>
 
-        <div className="flex min-h-0 min-w-0 flex-col gap-2.5 overflow-x-hidden">
+        <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-x-hidden">
           {data.map((item, i) => (
             <div
               key={item.name}
@@ -156,7 +156,7 @@ export default function Demographics() {
               onMouseEnter={() => setActiveIdx(i)}
             >
               <div className="flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-1.5">
+                <div className="flex min-w-0 items-center gap-2">
                   <div className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
                   <span className="max-w-[min(100%,12rem)] truncate font-sans text-[10px] text-muted-foreground">{item.name}</span>
                 </div>
