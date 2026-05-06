@@ -18,6 +18,7 @@ import {
 } from 'recharts'
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
+import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 
 const kpis = [
   { label: 'Seguidores', value: '12.840', delta: +4.2, icon: Users },
@@ -356,18 +357,24 @@ const IG_DASHBOARD_BLOCKS = [
     minRowSpan: 1,
     maxRowSpan: 2,
     render: () => (
-      <div className="flex items-center gap-2 py-1">
-        <div
-          className="flex items-center gap-2 rounded-lg px-3 py-1.5"
-          style={{
-            background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
-            opacity: 0.9,
-          }}
-        >
-          <Instagram size={14} className="text-white" />
-          <span className="text-xs font-sans font-semibold text-white">Instagram</span>
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 py-1">
+        <div className="flex shrink-0 items-center gap-2">
+          <div
+            className="flex items-center gap-2 rounded-lg px-3 py-1.5"
+            style={{
+              background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+              opacity: 0.9,
+            }}
+          >
+            <Instagram size={14} className="text-white" />
+            <span className="text-xs font-sans font-semibold text-white">Instagram</span>
+          </div>
+          <span className="text-xs font-sans text-muted-foreground">Janeiro 2025</span>
         </div>
-        <span className="text-xs text-muted-foreground font-sans">@p12digital • Janeiro 2025</span>
+        <SuperAdminAccountTitle
+          endpoint="/api/admin/platform/instagram-overview"
+          emptyLabel="@usuário do Instagram"
+        />
       </div>
     ),
   },

@@ -23,6 +23,7 @@ export async function onRequestGet(context: {
     return json({
       configured: false,
       source: 'worker_env',
+      accountDisplay: null as string | null,
       error: null,
       detail: 'Defina META_ACCESS_TOKEN e META_INSTAGRAM_USER_ID no Worker.',
       metrics: [] as Metric[],
@@ -48,11 +49,16 @@ export async function onRequestGet(context: {
       return json({
         configured: true,
         source: 'worker_env',
+        accountDisplay: `IG ${igId}`,
         error: prof.error?.message || 'Perfil Instagram inválido',
         detail: `IG ${igId}`,
         metrics: [] as Metric[],
       })
     }
+
+    const accountDisplay = prof.username?.trim()
+      ? `@${prof.username.trim()}`
+      : prof.name?.trim() || `IG ${igId}`
 
     const metrics: Metric[] = [
       { label: 'Usuário', value: `@${prof.username ?? '—'}` },
@@ -87,6 +93,7 @@ export async function onRequestGet(context: {
     return json({
       configured: true,
       source: 'worker_env',
+      accountDisplay,
       error: ins.error && !ins.data?.length ? ins.error.message : null,
       detail: `${prof.name ?? 'Instagram'} · Graph API`,
       metrics,
@@ -96,6 +103,7 @@ export async function onRequestGet(context: {
     return json({
       configured: true,
       source: 'worker_env',
+      accountDisplay: null as string | null,
       error: msg,
       detail: null,
       metrics: [] as Metric[],

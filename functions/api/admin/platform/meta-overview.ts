@@ -32,6 +32,21 @@ async function resolveAdAccountId(token: string, env: WorkerEnv): Promise<string
   return normalizeActId(id)
 }
 
+/** Nome amigável da conta de anúncios (Graph). */
+async function fetchAdAccountDisplay(token: string, actId: string): Promise<string | null> {
+  const u = new URL(`https://graph.facebook.com/v21.0/${actId}`)
+  u.searchParams.set('fields', 'name,account_id')
+  u.searchParams.set('access_token', token)
+  const r = await fetch(u.toString())
+  const j = (await r.json()) as {
+    name?: string
+    account_id?: string
+    error?: { message?: string }
+  }
+  if (!r.ok || j.error || !j.name?.trim()) return null
+  return j.name.trim()
+}
+
 export async function onRequestGet(context: {
   request: Request
   env: WorkerEnv
@@ -45,6 +60,7 @@ export async function onRequestGet(context: {
     return json({
       configured: false,
       source: 'worker_env',
+      accountDisplay: null as string | null,
       error: null,
       detail: 'Defina o secret META_ACCESS_TOKEN no Worker.',
       metrics: [] as Metric[],
@@ -53,10 +69,12 @@ export async function onRequestGet(context: {
 
   try {
     const actId = await resolveAdAccountId(token, context.env)
+    const accountDisplay = actId ? (await fetchAdAccountDisplay(token, actId)) || actId : null
     if (!actId) {
       return json({
         configured: true,
         source: 'worker_env',
+        accountDisplay,
         error: 'Nenhuma conta de anúncios acessível com este token. Defina META_AD_ACCOUNT_ID ou conceda ads_read/ads_management.',
         detail: null,
         metrics: [] as Metric[],
@@ -88,6 +106,7 @@ export async function onRequestGet(context: {
       return json({
         configured: true,
         source: 'worker_env',
+        accountDisplay,
         error: idata.error?.message || 'Graph API insights falhou',
         detail: actId,
         metrics: [] as Metric[],
@@ -99,6 +118,7 @@ export async function onRequestGet(context: {
       return json({
         configured: true,
         source: 'worker_env',
+        accountDisplay,
         error: 'Sem linhas de insights (período ou permissões).',
         detail: actId,
         metrics: [] as Metric[],
@@ -128,6 +148,7 @@ export async function onRequestGet(context: {
     return json({
       configured: true,
       source: 'worker_env',
+      accountDisplay,
       error: null,
       detail: `Conta ${actId} · últimos 30 dias (Graph)`,
       metrics,
@@ -137,6 +158,7 @@ export async function onRequestGet(context: {
     return json({
       configured: true,
       source: 'worker_env',
+      accountDisplay: null as string | null,
       error: msg,
       detail: null,
       metrics: [] as Metric[],

@@ -31,6 +31,7 @@ import FunnelGeral from '@/components/FunnelGeral'
 import CreativesCarousel from '@/components/CreativesCarousel'
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
+import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 
 const metaKPIs = [
   { label: 'Valor Gasto', value: 'R$1,30mil', delta: +12.4, icon: DollarSign, accent: 'brand' },
@@ -410,12 +411,18 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
       minRowSpan: 1,
       maxRowSpan: 2,
       render: () => (
-        <div className="flex items-center gap-2 py-1">
-          <div className="flex items-center gap-2 bg-blue-600/15 border border-blue-600/30 rounded-lg px-3 py-1.5">
-            <Facebook size={14} className="text-blue-500" />
-            <span className="text-xs font-sans font-semibold text-blue-400">Meta Ads</span>
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 py-1">
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex items-center gap-2 rounded-lg border border-blue-600/30 bg-blue-600/15 px-3 py-1.5">
+              <Facebook size={14} className="text-blue-500" />
+              <span className="text-xs font-sans font-semibold text-blue-400">Meta Ads</span>
+            </div>
+            <span className="text-xs font-sans text-muted-foreground">Janeiro 2025 • Todas as Campanhas</span>
           </div>
-          <span className="text-xs text-muted-foreground font-sans">Janeiro 2025 • Todas as Campanhas</span>
+          <SuperAdminAccountTitle
+            endpoint="/api/admin/platform/meta-overview"
+            emptyLabel="Nome da conta de anúncios"
+          />
         </div>
       ),
     },

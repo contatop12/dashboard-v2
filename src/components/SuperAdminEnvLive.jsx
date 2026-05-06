@@ -50,7 +50,6 @@ export default function SuperAdminEnvLive({ endpoint, title = 'Super Admin · da
   const metrics = Array.isArray(payload?.metrics) ? payload.metrics : []
   const configured = payload?.configured === true
   const apiError = payload?.error || null
-  const detail = payload?.detail || null
 
   return (
     <div className="mb-4 rounded-lg border border-amber-500/35 bg-amber-500/5 px-4 py-3">
@@ -65,14 +64,11 @@ export default function SuperAdminEnvLive({ endpoint, title = 'Super Admin · da
           <span>{httpError}</span>
         </p>
       )}
-      {!loading && !httpError && !configured && detail && (
-        <p className="mt-2 text-[11px] text-muted-foreground font-sans leading-relaxed">{detail}</p>
+      {!loading && !httpError && !configured && payload?.detail && (
+        <p className="mt-2 text-[11px] text-muted-foreground font-sans leading-relaxed">{payload.detail}</p>
       )}
       {!loading && !httpError && apiError && (
         <p className="mt-2 text-[11px] text-amber-200/80 font-sans">{apiError}</p>
-      )}
-      {!loading && !httpError && detail && configured && (
-        <p className="mt-1 text-[10px] text-muted-foreground font-mono">{detail}</p>
       )}
       {metrics.length > 0 && (
         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">

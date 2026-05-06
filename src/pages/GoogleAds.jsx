@@ -5,6 +5,7 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tool
 import { FunnelChart } from '@/components/FunnelChart'
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
+import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 
 const googleKPIs = [
   { label: 'Investimento', value: 'R$1,30mil', delta: +12.4, icon: DollarSign, accent: 'brand' },
@@ -258,12 +259,18 @@ const GOOGLE_DASHBOARD_BLOCKS = [
     minRowSpan: 1,
     maxRowSpan: 2,
     render: () => (
-      <div className="flex items-center gap-2 py-1">
-        <div className="flex items-center gap-2 bg-[#4285F4]/15 border border-[#4285F4]/30 rounded-lg px-3 py-1.5">
-          <Search size={14} className="text-[#4285F4]" />
-          <span className="text-xs font-sans font-semibold text-[#4285F4]">Google Ads</span>
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 py-1">
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="flex items-center gap-2 rounded-lg border border-[#4285F4]/30 bg-[#4285F4]/15 px-3 py-1.5">
+            <Search size={14} className="text-[#4285F4]" />
+            <span className="text-xs font-sans font-semibold text-[#4285F4]">Google Ads</span>
+          </div>
+          <span className="text-xs font-sans text-muted-foreground">Janeiro 2025 • Todas as Campanhas</span>
         </div>
-        <span className="text-xs text-muted-foreground font-sans">Janeiro 2025 • Todas as Campanhas</span>
+        <SuperAdminAccountTitle
+          endpoint="/api/admin/platform/google-ads-overview"
+          emptyLabel="Nome da conta Google Ads"
+        />
       </div>
     ),
   },

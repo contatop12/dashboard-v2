@@ -18,6 +18,27 @@ function customerPathId(raw: string): string {
   return raw.trim().replace(/^customers\//, '').replace(/-/g, '')
 }
 
+async function fetchCustomerDescriptiveName(
+  ver: string,
+  numericId: string,
+  headers: Record<string, string>
+): Promise<string | null> {
+  const url = `https://googleads.googleapis.com/${ver}/customers/${numericId}/googleAds:search`
+  const query = `SELECT customer.descriptive_name, customer.id FROM customer LIMIT 1`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ query }),
+  })
+  const body = (await res.json()) as {
+    results?: { customer?: { descriptiveName?: string; id?: string } }[]
+    error?: { message?: string }
+  }
+  if (!res.ok || body.error) return null
+  const name = body.results?.[0]?.customer?.descriptiveName?.trim()
+  return name || null
+}
+
 export async function onRequestGet(context: {
   env: WorkerEnv
   data: { user?: UserRow | null }
@@ -33,6 +54,7 @@ export async function onRequestGet(context: {
     return json({
       configured: false,
       source: 'worker_env',
+      accountDisplay: null as string | null,
       error: null,
       detail: 'Defina GOOGLE_ADS_CUSTOMER_ID e GOOGLE_ADS_DEVELOPER_TOKEN no Worker.',
       metrics: [] as Metric[],
@@ -44,6 +66,7 @@ export async function onRequestGet(context: {
     return json({
       configured: false,
       source: 'worker_env',
+      accountDisplay: null as string | null,
       error: null,
       detail: 'Defina GOOGLE_ADS_REFRESH_TOKEN + CLIENT_ID/SECRET para obter access token.',
       metrics: [] as Metric[],
@@ -81,6 +104,9 @@ export async function onRequestGet(context: {
   `
 
   try {
+    const accountDisplay =
+      (await fetchCustomerDescriptiveName(ver, numericId, headers)) || `Cliente ${numericId}`
+
     const res = await fetch(url, {
       method: 'POST',
       headers,
@@ -105,6 +131,7 @@ export async function onRequestGet(context: {
       return json({
         configured: true,
         source: 'worker_env',
+        accountDisplay,
         error: body.error?.message || `Google Ads API (${res.status})`,
         detail: `Cliente ${numericId}`,
         metrics: [] as Metric[],
@@ -141,6 +168,7 @@ export async function onRequestGet(context: {
     return json({
       configured: true,
       source: 'worker_env',
+      accountDisplay,
       error: null,
       detail: `Cliente ${numericId} · campanhas · últimos 30 dias`,
       metrics,
@@ -150,6 +178,7 @@ export async function onRequestGet(context: {
     return json({
       configured: true,
       source: 'worker_env',
+      accountDisplay: `Cliente ${numericId}`,
       error: msg,
       detail: null,
       metrics: [] as Metric[],

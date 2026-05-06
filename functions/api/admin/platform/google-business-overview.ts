@@ -18,6 +18,7 @@ export async function onRequestGet(context: {
     return json({
       configured: false,
       source: 'worker_env',
+      accountDisplay: null as string | null,
       error: null,
       detail:
         'Defina GOOGLE_ADS_REFRESH_TOKEN (e escopos business.manage) + CLIENT_ID/SECRET no Worker.',
@@ -38,6 +39,7 @@ export async function onRequestGet(context: {
       return json({
         configured: true,
         source: 'worker_env',
+        accountDisplay: null as string | null,
         error:
           body.error?.message ||
           'Contas Business não listadas (confira escopo business.manage no refresh token).',
@@ -51,11 +53,18 @@ export async function onRequestGet(context: {
       return json({
         configured: true,
         source: 'worker_env',
+        accountDisplay: null as string | null,
         error: 'Nenhuma conta Google Business encontrada.',
         detail: null,
         metrics: [] as Metric[],
       })
     }
+
+    const primary = accounts[0]
+    const accountDisplay =
+      primary?.accountName?.trim() ||
+      primary?.name?.replace(/^accounts\//, '').trim() ||
+      null
 
     const metrics: Metric[] = accounts.slice(0, 6).map((a, i) => ({
       label: `Conta ${i + 1}`,
@@ -65,6 +74,7 @@ export async function onRequestGet(context: {
     return json({
       configured: true,
       source: 'worker_env',
+      accountDisplay,
       error: null,
       detail: `${accounts.length} conta(s) · Account Management API`,
       metrics,
@@ -74,6 +84,7 @@ export async function onRequestGet(context: {
     return json({
       configured: true,
       source: 'worker_env',
+      accountDisplay: null as string | null,
       error: msg,
       detail: null,
       metrics: [] as Metric[],
