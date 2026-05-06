@@ -30,6 +30,16 @@ Listar secrets remotos: `npm run cf:secrets:list`.
 
 Valores em `[vars]` aparecem em texto no dashboard; secrets são mascarados.
 
+### OAuth (Meta + Google)
+
+1. Defina **secrets** no Worker: `OAUTH_ENC_KEY` (Base64 de 32 bytes), `META_APP_ID`, `META_APP_SECRET`, `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`, `GOOGLE_ADS_DEVELOPER_TOKEN`, opcional `OAUTH_STATE_SECRET`.
+2. **Redirect URIs** (produção e `http://localhost:8788` para dev):
+   - `{ORIGEM}/api/oauth/meta/callback`
+   - `{ORIGEM}/api/oauth/google/callback`
+3. No app: **Configurações → Conexões** — escolha a organização e **Conectar**.
+
+Um login **Meta** preenche contas de anúncios + Instagram Business (quando houver página com IG). Um login **Google** tenta listar clientes do Google Ads e contas do Business Profile.
+
 ## Desenvolvimento local
 
 - `npm run dev` — Vite (proxy `/api` → `localhost:8788` via [`vite.config.js`](vite.config.js)).

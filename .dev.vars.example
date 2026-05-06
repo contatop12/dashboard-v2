@@ -1,9 +1,26 @@
 # Copie para .dev.vars (não commitado).
-# - Local: wrangler dev usa esse arquivo automaticamente.
-# - Produção (Worker): com Wrangler logado na conta do wrangler.toml:
-#     npm run cf:secrets
-#   Equivale a enviar todas as linhas KEY=VALUE como secrets no projeto dashboard-v2.
-# - Um secret só: npx wrangler secret put SESSION_COOKIE_SECRET
+# Local: wrangler dev carrega automaticamente.
+# Produção: npm run cf:secrets (Wrangler na conta do wrangler.toml).
+
+# Obrigatório para OAuth — gere 32 bytes em Base64: openssl rand -base64 32
+OAUTH_ENC_KEY=
+
+# Opcional — se vazio, reutiliza OAUTH_ENC_KEY para assinar ?state=
+OAUTH_STATE_SECRET=
+
+# Meta (developers.facebook.com) — Redirect: https://SEU_DOMÍNIO/api/oauth/meta/callback
+META_APP_ID=
+META_APP_SECRET=
+
+# Google Cloud OAuth (mesmo client pode ter Ads + Business Profile)
+# Redirect: https://SEU_DOMÍNIO/api/oauth/google/callback
+GOOGLE_ADS_CLIENT_ID=
+GOOGLE_ADS_CLIENT_SECRET=
+
+# Cabeçalho developer-token nas chamadas Google Ads API (Console Google Ads)
+GOOGLE_ADS_DEVELOPER_TOKEN=
+
+# Opcional — default v17
+GOOGLE_ADS_API_VERSION=v17
 
 SESSION_COOKIE_SECRET=altere_em_producao
-OAUTH_ENC_KEY=base64_32_bytes_para_onde_2

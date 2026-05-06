@@ -1,17 +1,13 @@
-import type { D1Database } from '@cloudflare/workers-types'
 import { findUserBySession, touchSession, type UserRow } from './_lib/auth'
 import { getSessionIdFromRequest } from './_lib/session'
 import { jsonError } from './_lib/json'
-
-interface Env {
-  DB: D1Database
-}
+import type { WorkerEnv } from './_lib/worker-env'
 
 type Data = { user?: UserRow | null }
 
 export async function onRequest(context: {
   request: Request
-  env: Env
+  env: WorkerEnv
   next: () => Promise<Response>
   data: Data
 }): Promise<Response> {
@@ -21,6 +17,10 @@ export async function onRequest(context: {
   const method = request.method
 
   if (!path.startsWith('/api/')) {
+    return next()
+  }
+
+  if (method === 'GET' && /^\/api\/oauth\/[^/]+\/callback$/.test(path)) {
     return next()
   }
 

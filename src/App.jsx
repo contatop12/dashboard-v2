@@ -41,6 +41,22 @@ export default function App() {
     }
   }, [user, activePage])
 
+  useEffect(() => {
+    if (!user) return
+    const sp = new URLSearchParams(window.location.search)
+    const ok = sp.get('oauth_ok')
+    const oauthErr = sp.get('oauth_error')
+    if (!ok && !oauthErr) return
+    if (ok === '1') {
+      window.history.replaceState({}, '', window.location.pathname || '/')
+    }
+    if (oauthErr === '1') {
+      const m = sp.get('oauth_msg')
+      window.alert(m ? decodeURIComponent(m) : 'Não foi possível conectar a conta.')
+      window.history.replaceState({}, '', window.location.pathname || '/')
+    }
+  }, [user])
+
   const PAGE_COMPONENTS = {
     Geral: GeralPage,
     'Meta Ads': MetaAds,
