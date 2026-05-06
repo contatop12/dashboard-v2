@@ -1,4 +1,11 @@
 # Workers Builds usa a conta abaixo — deve bater com account_id aqui.
+#
+# Variáveis de runtime:
+# - Não secretas → [vars] abaixo (podem ir para o Git se não forem sensíveis).
+# - Secretas → Dashboard (Workers → dashboard-v2 → Settings → Variables and Secrets)
+#   ou CLI: npm run cf:secrets (usa .dev.vars no formato KEY=VALUE — não commitado).
+#   Também: npx wrangler secret put NOME
+#
 name = "dashboard-v2"
 account_id = "0976ee0adac0062c726747d29549308e"
 compatibility_date = "2024-10-01"
@@ -9,6 +16,10 @@ main = "dist/_worker.js/index.js"
 directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+
+# Exemplo — só descomente se o Worker ler env.MEU_FLAG (valor público):
+# [vars]
+# MEU_FLAG = "valor"
 
 [[d1_databases]]
 binding = "DB"

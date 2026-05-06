@@ -1,5 +1,9 @@
-# Copie para .dev.vars (não commitado) para wrangler pages dev local.
-# Opcional na Onda 1 — sessão usa apenas ID opaco no cookie.
+# Copie para .dev.vars (não commitado).
+# - Local: wrangler dev usa esse arquivo automaticamente.
+# - Produção (Worker): com Wrangler logado na conta do wrangler.toml:
+#     npm run cf:secrets
+#   Equivale a enviar todas as linhas KEY=VALUE como secrets no projeto dashboard-v2.
+# - Um secret só: npx wrangler secret put SESSION_COOKIE_SECRET
 
 SESSION_COOKIE_SECRET=altere_em_producao
 OAUTH_ENC_KEY=base64_32_bytes_para_onde_2

@@ -13,6 +13,23 @@ O projeto segue o guia **Migrate Pages to Workers** (MCP Cloudflare `migrate_pag
 
 Se builds em branches não-produção usarem `npx wrangler versions upload`, isso deve funcionar com este `wrangler.toml` (Worker + assets). Ajuste só se a Cloudflare pedir flags extras.
 
+## Variáveis no Cloudflare (Worker)
+
+| Tipo | Onde |
+|------|------|
+| Público / não sensível | Bloco `[vars]` no [`wrangler.toml`](wrangler.toml) |
+| Senhas, tokens | **Secrets**: Dashboard → Workers & Pages → **dashboard-v2** → Settings → **Variables and Secrets**, ou CLI |
+
+**Subir vários secrets de uma vez** (arquivo `.dev.vars` na raiz, já no `.gitignore`):
+
+1. `npx wrangler login` na conta certa (`account_id` do `wrangler.toml`).
+2. Copie [`.dev.vars.example`](.dev.vars.example) → `.dev.vars` e preencha.
+3. `npm run cf:secrets` — usa `wrangler secret bulk .dev.vars`.
+
+Listar secrets remotos: `npm run cf:secrets:list`.
+
+Valores em `[vars]` aparecem em texto no dashboard; secrets são mascarados.
+
 ## Desenvolvimento local
 
 - `npm run dev` — Vite (proxy `/api` → `localhost:8788` via [`vite.config.js`](vite.config.js)).
