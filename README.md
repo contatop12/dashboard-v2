@@ -1,35 +1,22 @@
 # dashboard-v2
 
-SPA React (Vite) com **Cloudflare Pages Functions** (`functions/`) e **D1**.
+SPA React (Vite) com rotas `/api/*` geradas a partir de **`functions/`** (fluxo Pages Functions → bundle Worker) e **D1**.
 
 ## Deploy no Cloudflare (Workers Builds + Git)
 
-O log de CI mostra `Executing user deploy command: npx wrangler deploy` quando o painel ainda está com o **comando padrão**. Este repositório **não** é um Worker com `main`; o deploy correto é **Pages**.
+O projeto segue o guia **Migrate Pages to Workers** (MCP Cloudflare `migrate_pages_to_workers_guide`): o **`npm run build`** gera `dist/` + `dist/_worker.js/` via `wrangler pages functions build`, e o **`wrangler.toml`** define `main` + `[assets]` para **`npx wrangler deploy`** (comando padrão do Workers Builds).
 
-1. Cloudflare Dashboard → **Workers & Pages** → selecione o worker/projeto ligado ao repo.
-2. **Settings** → **Build** (configuração de build).
-3. **Deploy command**: altere de `npx wrangler deploy` para:
+1. **Build command:** `npm run build`
+2. **Deploy command:** pode permanecer o padrão `npx wrangler deploy` ou `npm run deploy` (equivalente).
 
-   ```bash
-   npm run deploy
-   ```
+### Branches de preview
 
-   (equivale a `wrangler pages deploy dist --project-name=dashboard-v2`.)
-
-4. Se o nome do projeto Pages no dashboard for diferente de `dashboard-v2`, ajuste o flag `--project-name` no script `deploy` em [`package.json`](package.json).
-
-### Branches de preview (não produção)
-
-Se você habilitou builds em branches que não são produção, o padrão costuma ser `npx wrangler versions upload`, o que também não serve a este app. Configure **Non-production branch deploy command** para algo como:
-
-```bash
-npx wrangler pages deploy dist --project-name=dashboard-v2 --branch=$WORKERS_CI_BRANCH
-```
+Se builds em branches não-produção usarem `npx wrangler versions upload`, isso deve funcionar com este `wrangler.toml` (Worker + assets). Ajuste só se a Cloudflare pedir flags extras.
 
 ## Desenvolvimento local
 
 - `npm run dev` — Vite (proxy `/api` → `localhost:8788` via [`vite.config.js`](vite.config.js)).
-- `npm run dev:cf` — build + `wrangler pages dev` na porta 8788.
+- `npm run dev:cf` — `npm run build` + `wrangler dev` na porta **8788**.
 
 Variáveis sensíveis: copie [`.dev.vars.example`](.dev.vars.example) para `.dev.vars` (não commitado).
 
