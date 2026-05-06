@@ -18,16 +18,56 @@ export function OrgWorkspaceProvider({ children }) {
   const [activeOrgId, setActiveOrgIdState] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  const loadOrgsFromApi = useCallback(async () => {
+    if (!user) {
+      setOrgs([])
+      setActiveOrgIdState(null)
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    try {
+      const r = await fetch('/api/orgs', { credentials: 'include' })
+      if (!r.ok) throw new Error('orgs')
+      const data = await r.json()
+      const list = data.organizations ?? []
+      setOrgs(list)
+
+      let next = null
+      if (user.role === 'client') {
+        next = list[0]?.id ?? null
+      } else {
+        const stored =
+          typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
+        if (stored === '__worker__' || stored === '' || stored === null) {
+          next = null
+        } else if (stored && list.some((o) => o.id === stored)) {
+          next = stored
+        } else {
+          next = null
+        }
+      }
+      setActiveOrgIdState(next)
+    } catch {
+      setOrgs([])
+      setActiveOrgIdState(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [user])
+
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       if (!user) {
-        setOrgs([])
-        setActiveOrgIdState(null)
-        setLoading(false)
+        if (!cancelled) {
+          setOrgs([])
+          setActiveOrgIdState(null)
+          setLoading(false)
+        }
         return
       }
-      setLoading(true)
+      if (!cancelled) setLoading(true)
       try {
         const r = await fetch('/api/orgs', { credentials: 'include' })
         if (!r.ok) throw new Error('orgs')
@@ -65,6 +105,9 @@ export function OrgWorkspaceProvider({ children }) {
     }
   }, [user])
 
+  /** Recarrega organizações (ex.: após POST /api/orgs). */
+  const refreshOrgs = useCallback(() => loadOrgsFromApi(), [loadOrgsFromApi])
+
   const setActiveOrgId = useCallback((id) => {
     const resolved = id && id !== '__worker__' ? id : null
     setActiveOrgIdState(resolved)
@@ -89,8 +132,9 @@ export function OrgWorkspaceProvider({ children }) {
       setActiveOrgId,
       loading,
       platformApiSuffix,
+      refreshOrgs,
     }),
-    [orgs, activeOrgId, loading, setActiveOrgId, platformApiSuffix]
+    [orgs, activeOrgId, loading, setActiveOrgId, platformApiSuffix, refreshOrgs]
   )
 
   return <OrgWorkspaceContext.Provider value={value}>{children}</OrgWorkspaceContext.Provider>

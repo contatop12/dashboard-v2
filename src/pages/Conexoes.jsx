@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plug, RefreshCw } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
+import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 
 const CHANNELS = [
   {
@@ -43,29 +45,23 @@ function statusForChannel(connections, channelId) {
 }
 
 export default function Conexoes() {
-  const [orgs, setOrgs] = useState([])
+  const { user, loading: authLoading } = useAuth()
+  const { orgs, loading: loadingOrgs, refreshOrgs } = useOrgWorkspace()
   const [orgId, setOrgId] = useState('')
   const [connections, setConnections] = useState([])
-  const [loadingOrgs, setLoadingOrgs] = useState(true)
   const [loadingConn, setLoadingConn] = useState(false)
   const [error, setError] = useState('')
+  const [newOrgName, setNewOrgName] = useState('')
+  const [creatingOrg, setCreatingOrg] = useState(false)
+  const [createError, setCreateError] = useState('')
 
-  const loadOrgs = useCallback(async () => {
-    setLoadingOrgs(true)
-    setError('')
-    try {
-      const r = await fetch('/api/orgs', { credentials: 'include' })
-      if (!r.ok) throw new Error('Não foi possível carregar organizações')
-      const data = await r.json()
-      const list = data.organizations ?? []
-      setOrgs(list)
-      setOrgId((prev) => prev || (list[0]?.id ?? ''))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao carregar')
-    } finally {
-      setLoadingOrgs(false)
-    }
-  }, [])
+  useEffect(() => {
+    setOrgId((prev) => {
+      if (orgs.length === 0) return ''
+      if (prev && orgs.some((o) => o.id === prev)) return prev
+      return orgs[0].id
+    })
+  }, [orgs])
 
   const loadConnections = useCallback(async () => {
     if (!orgId) return
@@ -84,12 +80,33 @@ export default function Conexoes() {
   }, [orgId])
 
   useEffect(() => {
-    loadOrgs()
-  }, [loadOrgs])
-
-  useEffect(() => {
     loadConnections()
   }, [loadConnections])
+
+  async function handleCreateOrganization(e) {
+    e.preventDefault()
+    const name = newOrgName.trim()
+    if (!name) return
+    setCreateError('')
+    setCreatingOrg(true)
+    try {
+      const r = await fetch('/api/orgs', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Não foi possível criar a organização')
+      setNewOrgName('')
+      await refreshOrgs()
+      if (data.organization?.id) setOrgId(data.organization.id)
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Erro')
+    } finally {
+      setCreatingOrg(false)
+    }
+  }
 
   const connectUrl = useMemo(() => {
     return (oauthPath) => {
@@ -107,12 +124,17 @@ export default function Conexoes() {
             Integrações
           </div>
           <p className="text-xs text-muted-foreground font-sans mt-1">
-            Conecte Meta e Google (OAuth) para esta organização. Tokens ficam cifrados no D1.
+            Ligações por <strong className="text-white/90">OAuth</strong> guardadas no D1 por organização. Isto é
+            independente dos <strong className="text-white/90">secrets</strong> do Worker (META_ACCESS_TOKEN, etc.)
+            usados no modo &quot;Ambiente Worker&quot;.
           </p>
         </div>
         <button
           type="button"
-          onClick={() => loadConnections()}
+          onClick={() => {
+            void refreshOrgs()
+            void loadConnections()
+          }}
           disabled={loadingConn || !orgId}
           className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-white border border-surface-border rounded-md px-3 py-1.5 font-sans disabled:opacity-50"
         >
@@ -142,6 +164,44 @@ export default function Conexoes() {
           )}
         </select>
       </div>
+
+      {!authLoading && !loadingOrgs && orgs.length === 0 && user?.role === 'super_admin' && (
+        <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 px-4 py-4 space-y-3">
+          <p className="text-xs text-amber-100/95 font-sans leading-relaxed">
+            Ainda não existe nenhuma <strong className="text-amber-200">organização</strong> na base de dados.
+            Cria uma aqui (ou em <strong className="text-amber-200">Clientes → Criar cliente</strong>). Depois escolhe
+            essa org na barra superior e usa <strong className="text-amber-200">Conectar</strong> — os secrets do
+            Worker não preenchem automaticamente esta lista.
+          </p>
+          <form onSubmit={handleCreateOrganization} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="flex-1 flex flex-col gap-1">
+              <label className="text-[11px] uppercase tracking-wider text-muted-foreground font-sans">
+                Nome da organização
+              </label>
+              <input
+                value={newOrgName}
+                onChange={(e) => setNewOrgName(e.target.value)}
+                placeholder="Ex.: Ventura Vet"
+                className="bg-surface-input border border-surface-border rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-brand/50 font-sans"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={creatingOrg || !newOrgName.trim()}
+              className="shrink-0 bg-brand text-[#0F0F0F] text-xs font-semibold px-4 py-2 rounded-md hover:bg-brand/90 font-sans disabled:opacity-50"
+            >
+              {creatingOrg ? 'A criar…' : 'Criar organização'}
+            </button>
+          </form>
+          {createError && <p className="text-xs text-red-400 font-sans">{createError}</p>}
+        </div>
+      )}
+
+      {!authLoading && !loadingOrgs && orgs.length === 0 && user && user.role !== 'super_admin' && (
+        <p className="text-xs text-muted-foreground font-sans rounded-lg border border-surface-border bg-surface-card px-4 py-3">
+          Não tens organizações associadas. Pede a um administrador para te adicionar a uma organização.
+        </p>
+      )}
 
       {error && (
         <p className="text-xs text-red-400 font-sans bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">
