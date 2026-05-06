@@ -29,18 +29,19 @@ function CornerResizeGrip() {
 
 export default function DashboardBlock({
   blockId,
-  orderIndex,
   colSpan,
   rowSpan,
   minColSpan = 1,
   maxColSpan = 8,
   minRowSpan = 1,
   maxRowSpan = 12,
+  /** Altura base de uma linha da grade (px) — alinha com theme.layout.cellHeightPx */
+  cellHeight = 94,
+  /** Gap vertical entre linhas da grade (px) */
+  gapY = 12,
   colUnit,
   rowStride,
   isLg,
-  /** Preenche a altura da célula da grade — gráficos/tabelas acompanham o vizinho mais alto */
-  fillVertical = false,
   draggingId,
   overId,
   onDragHandlePointerDown,
@@ -51,10 +52,13 @@ export default function DashboardBlock({
   const over = overId === blockId
   const [preview, setPreview] = useState(null)
   const isKpiSlot = /^kpi-/i.test(blockId)
-  const stretchCell = Boolean(isLg && fillVertical)
 
   const displayCol = preview?.col ?? colSpan
   const displayRow = preview?.row ?? rowSpan
+
+  /** Altura total do bloco em linhas da grade (sem h-full — evita loop com aspect-ratio / grid auto-rows). */
+  const blockHeightPx =
+    displayRow * cellHeight + Math.max(0, displayRow - 1) * gapY
 
   const handleResizePointerDown = useCallback(
     (edge) => (e) => {
@@ -118,6 +122,7 @@ export default function DashboardBlock({
     ? {
         gridColumn: `span ${displayCol}`,
         gridRow: `span ${displayRow}`,
+        height: blockHeightPx,
       }
     : {}
 
@@ -127,13 +132,14 @@ export default function DashboardBlock({
 
   return (
     <div
+      data-block-id={blockId}
       className={cn(
         'relative flex min-w-0 flex-col',
         !isLg && 'w-full',
-        stretchCell ? 'h-full min-h-0 w-full min-w-0 max-h-none justify-self-stretch self-stretch' : isLg && 'h-max max-w-full self-start',
+        isLg &&
+          'min-h-0 w-full max-w-full justify-self-stretch self-stretch overflow-hidden rounded-[inherit]',
         dragging && 'z-[2] opacity-[0.88] shadow-lg ring-2 ring-brand/35 ring-offset-2 ring-offset-[rgb(var(--color-background))]',
-        over && !dragging && 'ring-1 ring-brand/30',
-        stretchCell ? 'overflow-hidden rounded-[inherit]' : ''
+        over && !dragging && 'ring-1 ring-brand/30'
       )}
       style={gridStyle}
     >
@@ -141,7 +147,7 @@ export default function DashboardBlock({
         type="button"
         aria-label="Arrastar bloco"
         title="Arrastar: arraste pela faixa superior esquerda do título"
-        onPointerDown={(e) => onDragHandlePointerDown(e, orderIndex)}
+        onPointerDown={(e) => onDragHandlePointerDown(e, blockId)}
         className={cn(
           dragHitClass,
           'cursor-grab bg-transparent [-webkit-tap-highlight-color:transparent] touch-none active:cursor-grabbing opacity-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand/50 focus-visible:outline-offset-2'
@@ -153,7 +159,7 @@ export default function DashboardBlock({
       <div
         className={cn(
           'relative flex min-w-0 flex-col',
-          stretchCell ? 'min-h-0 flex-1 h-full overflow-hidden' : 'h-fit shrink-0'
+          isLg ? 'min-h-0 flex-1 overflow-hidden' : 'h-fit shrink-0'
         )}
       >
         {children}

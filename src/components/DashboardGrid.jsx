@@ -33,7 +33,7 @@ export default function DashboardGrid({ pageId, definitions, className }) {
   const cols = buildGridTemplateColumns(L.columnWeights, L.cellMinWidthPx)
 
   const { order, spans, setOrder, resizeBlock } = useGridLayout(pageId, definitions)
-  const drag = useDragReorder(order, setOrder, (id) => id)
+  const drag = useDragReorder(order, setOrder)
 
   const [isLg, setIsLg] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
@@ -79,23 +79,20 @@ export default function DashboardGrid({ pageId, definitions, className }) {
   function renderBlock(id) {
     const def = catalog[id]
     if (!def) return null
-    const index = order.indexOf(id)
     const span = spans[id] || { colSpan: 1, rowSpan: 1 }
-    const fillVertical =
-      def.fillVertical ?? !/^kpi-/i.test(String(def.id ?? ''))
 
     return (
       <DashboardBlock
         key={id}
         blockId={id}
-        orderIndex={index}
         colSpan={span.colSpan}
         rowSpan={span.rowSpan}
         minColSpan={def.minColSpan}
         maxColSpan={def.maxColSpan}
         minRowSpan={def.minRowSpan}
         maxRowSpan={def.maxRowSpan}
-        fillVertical={fillVertical}
+        cellHeight={L.cellHeightPx}
+        gapY={L.gapY}
         colUnit={colUnit}
         rowStride={rowStride}
         isLg={isLg}
