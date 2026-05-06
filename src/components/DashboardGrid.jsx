@@ -91,8 +91,6 @@ export default function DashboardGrid({ pageId, definitions, className }) {
         maxColSpan={def.maxColSpan}
         minRowSpan={def.minRowSpan}
         maxRowSpan={def.maxRowSpan}
-        cellHeight={L.cellHeightPx}
-        gapY={L.gapY}
         colUnit={colUnit}
         rowStride={rowStride}
         isLg={isLg}

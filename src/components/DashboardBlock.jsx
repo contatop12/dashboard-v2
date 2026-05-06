@@ -35,10 +35,6 @@ export default function DashboardBlock({
   maxColSpan = 8,
   minRowSpan = 1,
   maxRowSpan = 12,
-  /** Altura base de uma linha da grade (px) — alinha com theme.layout.cellHeightPx */
-  cellHeight = 94,
-  /** Gap vertical entre linhas da grade (px) */
-  gapY = 12,
   colUnit,
   rowStride,
   isLg,
@@ -52,13 +48,10 @@ export default function DashboardBlock({
   const over = overId === blockId
   const [preview, setPreview] = useState(null)
   const isKpiSlot = /^kpi-/i.test(blockId)
+  const stretchCell = Boolean(isLg && !isKpiSlot)
 
   const displayCol = preview?.col ?? colSpan
   const displayRow = preview?.row ?? rowSpan
-
-  /** Altura total do bloco em linhas da grade (sem h-full — evita loop com aspect-ratio / grid auto-rows). */
-  const blockHeightPx =
-    displayRow * cellHeight + Math.max(0, displayRow - 1) * gapY
 
   const handleResizePointerDown = useCallback(
     (edge) => (e) => {
@@ -122,7 +115,6 @@ export default function DashboardBlock({
     ? {
         gridColumn: `span ${displayCol}`,
         gridRow: `span ${displayRow}`,
-        height: blockHeightPx,
       }
     : {}
 
@@ -136,8 +128,7 @@ export default function DashboardBlock({
       className={cn(
         'relative flex min-w-0 flex-col',
         !isLg && 'w-full',
-        isLg &&
-          'min-h-0 w-full max-w-full justify-self-stretch self-stretch overflow-hidden rounded-[inherit]',
+        stretchCell ? 'h-full min-h-0 w-full min-w-0 max-h-none justify-self-stretch self-stretch overflow-hidden rounded-[inherit]' : isLg && 'h-max max-w-full self-start',
         dragging && 'z-[2] opacity-[0.88] shadow-lg ring-2 ring-brand/35 ring-offset-2 ring-offset-[rgb(var(--color-background))]',
         over && !dragging && 'ring-1 ring-brand/30'
       )}
@@ -159,7 +150,7 @@ export default function DashboardBlock({
       <div
         className={cn(
           'relative flex min-w-0 flex-col',
-          isLg ? 'min-h-0 flex-1 overflow-hidden' : 'h-fit shrink-0'
+          stretchCell ? 'min-h-0 flex-1 h-full overflow-hidden' : 'h-fit shrink-0'
         )}
       >
         {children}
