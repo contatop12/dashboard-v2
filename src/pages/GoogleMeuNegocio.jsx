@@ -224,39 +224,6 @@ const KPI_BLOCKS = kpis.map((k, i) => ({
 }))
 
 const GMB_DASHBOARD_BLOCKS = [
-  {
-    id: 'gmb-header',
-    defaultColSpan: 8,
-    defaultRowSpan: 3,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 2,
-    maxRowSpan: 4,
-    render: () => (
-      <div className="flex w-full min-w-0 flex-col gap-2 py-1">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 rounded-lg border border-[#34A853]/30 bg-[#34A853]/15 px-3 py-1.5">
-              <MapPin size={14} className="text-[#34A853]" />
-              <span className="text-xs font-sans font-semibold text-[#34A853]">Google Meu Negócio</span>
-            </div>
-            <span className="text-xs font-sans text-muted-foreground">Janeiro 2025</span>
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5 rounded-md border border-yellow-400/30 bg-yellow-400/10 px-2 py-1">
-            <Star size={11} className="text-yellow-400" fill="currentColor" />
-            <span className="font-mono text-xs font-semibold text-yellow-400">4.8</span>
-            <span className="font-sans text-[10px] text-muted-foreground">(148)</span>
-          </div>
-        </div>
-        <SuperAdminAccountTitle
-          className="w-full min-w-0 text-left"
-          endpoint="/api/admin/platform/google-business-overview"
-          emptyLabel="Nome do perfil (Google Business)"
-        />
-        <ChannelAccountPicker provider="google_business" className="shrink-0" />
-      </div>
-    ),
-  },
   ...KPI_BLOCKS,
   {
     id: 'gmb-weekly-bars',
@@ -300,15 +267,47 @@ const GMB_DASHBOARD_BLOCKS = [
   },
 ]
 
+function GoogleMeuNegocioPageHeader() {
+  return (
+    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-3">
+      <div className="flex w-full min-w-0 flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 rounded-lg border border-[#34A853]/30 bg-[#34A853]/15 px-3 py-1.5">
+              <MapPin size={14} className="text-[#34A853]" />
+              <span className="text-xs font-sans font-semibold text-[#34A853]">Google Meu Negócio</span>
+            </div>
+            <span className="text-xs font-sans text-muted-foreground">Janeiro 2025</span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5 rounded-md border border-yellow-400/30 bg-yellow-400/10 px-2 py-1">
+            <Star size={11} className="text-yellow-400" fill="currentColor" />
+            <span className="font-mono text-xs font-semibold text-yellow-400">4.8</span>
+            <span className="font-sans text-[10px] text-muted-foreground">(148)</span>
+          </div>
+        </div>
+        <SuperAdminAccountTitle
+          className="w-full min-w-0 text-left"
+          endpoint="/api/admin/platform/google-business-overview"
+          emptyLabel="Nome do perfil (Google Business)"
+        />
+        <ChannelAccountPicker provider="google_business" className="shrink-0" />
+      </div>
+    </header>
+  )
+}
+
 export default function GoogleMeuNegocio() {
   return (
-    <div className="min-h-full">
+    <div className="flex min-h-full min-w-0 flex-col">
       <OAuthContextHint />
       <SuperAdminEnvLive
         endpoint="/api/admin/platform/google-business-overview"
         title="Super Admin · Google Business (contas · refresh token)"
       />
-      <DashboardGrid pageId="GoogleMeuNegocio" definitions={GMB_DASHBOARD_BLOCKS} className="min-h-full" />
+      <GoogleMeuNegocioPageHeader />
+      <div className="min-h-0 flex-1">
+        <DashboardGrid pageId="GoogleMeuNegocio" definitions={GMB_DASHBOARD_BLOCKS} className="min-h-full" />
+      </div>
     </div>
   )
 }

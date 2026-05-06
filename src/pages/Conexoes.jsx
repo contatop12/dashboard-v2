@@ -104,10 +104,10 @@ export default function Conexoes() {
         <div>
           <div className="flex items-center gap-2 text-white font-display font-semibold text-sm">
             <Plug size={16} className="text-brand" />
-            Conexões
+            Integrações
           </div>
           <p className="text-xs text-muted-foreground font-sans mt-1">
-            Autorize Meta e Google para esta organização. Tokens ficam cifrados no D1.
+            Conecte Meta e Google (OAuth) para esta organização. Tokens ficam cifrados no D1.
           </p>
         </div>
         <button

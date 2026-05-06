@@ -404,32 +404,6 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
   }))
 
   return [
-    {
-      id: 'meta-header',
-      defaultColSpan: 8,
-      defaultRowSpan: 3,
-      minColSpan: 2,
-      maxColSpan: 8,
-      minRowSpan: 2,
-      maxRowSpan: 4,
-      render: () => (
-        <div className="flex w-full min-w-0 flex-col gap-2 py-1">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <div className="flex items-center gap-2 rounded-lg border border-blue-600/30 bg-blue-600/15 px-3 py-1.5">
-              <Facebook size={14} className="text-blue-500" />
-              <span className="text-xs font-sans font-semibold text-blue-400">Meta Ads</span>
-            </div>
-            <span className="text-xs font-sans text-muted-foreground">Janeiro 2025 • Todas as Campanhas</span>
-          </div>
-          <SuperAdminAccountTitle
-            endpoint="/api/admin/platform/meta-overview"
-            emptyLabel="Nome da conta de anúncios"
-            className="w-full min-w-0 text-left"
-          />
-          <ChannelAccountPicker provider="meta_ads" className="shrink-0" />
-        </div>
-      ),
-    },
     ...kpiBlocks,
     {
       id: 'meta-daily',
@@ -510,18 +484,43 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
   ]
 }
 
+function MetaAdsPageHeader() {
+  return (
+    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-3">
+      <div className="flex w-full min-w-0 flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="flex items-center gap-2 rounded-lg border border-blue-600/30 bg-blue-600/15 px-3 py-1.5">
+            <Facebook size={14} className="text-blue-500" />
+            <span className="text-xs font-sans font-semibold text-blue-400">Meta Ads</span>
+          </div>
+          <span className="text-xs font-sans text-muted-foreground">Janeiro 2025 • Todas as Campanhas</span>
+        </div>
+        <SuperAdminAccountTitle
+          endpoint="/api/admin/platform/meta-overview"
+          emptyLabel="Nome da conta de anúncios"
+          className="w-full min-w-0 text-left"
+        />
+        <ChannelAccountPicker provider="meta_ads" className="shrink-0" />
+      </div>
+    </header>
+  )
+}
+
 export default function MetaAds() {
   const [activeChart, setActiveChart] = useState('gasto')
   const definitions = useMemo(() => buildMetaDefinitions(activeChart, setActiveChart), [activeChart])
 
   return (
-    <div className="min-h-full">
+    <div className="flex min-h-full min-w-0 flex-col">
       <OAuthContextHint />
       <SuperAdminEnvLive
         endpoint="/api/admin/platform/meta-overview"
         title="Super Admin · Meta Ads (Graph · últimos 30 dias)"
       />
-      <DashboardGrid pageId="MetaAds" definitions={definitions} className="min-h-full" />
+      <MetaAdsPageHeader />
+      <div className="min-h-0 flex-1">
+        <DashboardGrid pageId="MetaAds" definitions={definitions} className="min-h-full" />
+      </div>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Palette, User, Bell, Shield, Zap, Link2 } from 'lucide-react'
+import { Palette, User, Bell, Shield, Zap } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 import { normalizeLayout } from '@/lib/dashboardGrid'
 import DesignSystem from './DesignSystem'
@@ -11,7 +11,6 @@ const TABS = [
   { id: 'notificacoes', label: 'Notificações', icon: Bell },
   { id: 'permissoes', label: 'Permissões', icon: Shield },
   { id: 'integracoes', label: 'Integrações', icon: Zap },
-  { id: 'conexoes', label: 'Conexões', icon: Link2 },
 ]
 
 function ContaTab() {
@@ -78,33 +77,6 @@ function NotificacoesTab() {
   )
 }
 
-function IntegracoesTab() {
-  const integracoes = [
-    { nome: 'Meta Ads', status: 'connected', icon: '📘', desc: 'Conta: p12digital@meta.com' },
-    { nome: 'Google Ads', status: 'connected', icon: '🔍', desc: 'MCC: 123-456-7890' },
-    { nome: 'Google Analytics 4', status: 'connected', icon: '📊', desc: 'Propriedade: P12 Digital' },
-    { nome: 'Google Meu Negócio', status: 'connected', icon: '📍', desc: '1 local cadastrado' },
-    { nome: 'Instagram Business', status: 'connected', icon: '📷', desc: '@p12digital' },
-    { nome: 'Slack', status: 'disconnected', icon: '💬', desc: 'Alertas e relatórios' },
-  ]
-  return (
-    <div className="max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {integracoes.map(i => (
-        <div key={i.nome} className="bg-surface-card border border-surface-border rounded-xl p-4 flex items-center gap-3">
-          <span className="text-2xl shrink-0">{i.icon}</span>
-          <div className="flex-1 min-w-0">
-            <span className="text-sm font-sans font-semibold text-white block">{i.nome}</span>
-            <span className="text-[11px] text-muted-foreground font-sans">{i.desc}</span>
-          </div>
-          <button className={`text-[10px] font-mono px-2.5 py-1 rounded-md border shrink-0 ${i.status === 'connected' ? 'text-green-400 border-green-400/30 bg-green-400/10' : 'text-muted-foreground border-surface-border hover:border-brand/40 hover:text-brand'}`}>
-            {i.status === 'connected' ? '● Ativo' : 'Conectar'}
-          </button>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 export default function Configuracoes() {
   const [activeTab, setActiveTab] = useState('design')
   const { theme } = useTheme()
@@ -144,8 +116,7 @@ export default function Configuracoes() {
           {activeTab === 'design' && <DesignSystem />}
           {activeTab === 'conta' && <ContaTab />}
           {activeTab === 'notificacoes' && <NotificacoesTab />}
-          {activeTab === 'integracoes' && <IntegracoesTab />}
-          {activeTab === 'conexoes' && <Conexoes />}
+          {activeTab === 'integracoes' && <Conexoes />}
           {activeTab === 'permissoes' && (
             <div className="max-w-lg">
               <div className="rounded-xl border border-surface-border bg-surface-card p-5">

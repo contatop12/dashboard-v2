@@ -252,32 +252,6 @@ const KPI_BLOCKS = googleKPIs.map((k, i) => ({
 }))
 
 const GOOGLE_DASHBOARD_BLOCKS = [
-  {
-    id: 'google-header',
-    defaultColSpan: 8,
-    defaultRowSpan: 3,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 2,
-    maxRowSpan: 4,
-    render: () => (
-      <div className="flex w-full min-w-0 flex-col gap-2 py-1">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <div className="flex items-center gap-2 rounded-lg border border-[#4285F4]/30 bg-[#4285F4]/15 px-3 py-1.5">
-            <Search size={14} className="text-[#4285F4]" />
-            <span className="text-xs font-sans font-semibold text-[#4285F4]">Google Ads</span>
-          </div>
-          <span className="text-xs font-sans text-muted-foreground">Janeiro 2025 • Todas as Campanhas</span>
-        </div>
-        <SuperAdminAccountTitle
-          endpoint="/api/admin/platform/google-ads-overview"
-          emptyLabel="Nome da conta Google Ads"
-          className="w-full min-w-0 text-left"
-        />
-        <ChannelAccountPicker provider="google_ads" className="shrink-0" />
-      </div>
-    ),
-  },
   ...KPI_BLOCKS,
   {
     id: 'google-clicks',
@@ -321,15 +295,40 @@ const GOOGLE_DASHBOARD_BLOCKS = [
   },
 ]
 
+function GoogleAdsPageHeader() {
+  return (
+    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-3">
+      <div className="flex w-full min-w-0 flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="flex items-center gap-2 rounded-lg border border-[#4285F4]/30 bg-[#4285F4]/15 px-3 py-1.5">
+            <Search size={14} className="text-[#4285F4]" />
+            <span className="text-xs font-sans font-semibold text-[#4285F4]">Google Ads</span>
+          </div>
+          <span className="text-xs font-sans text-muted-foreground">Janeiro 2025 • Todas as Campanhas</span>
+        </div>
+        <SuperAdminAccountTitle
+          endpoint="/api/admin/platform/google-ads-overview"
+          emptyLabel="Nome da conta Google Ads"
+          className="w-full min-w-0 text-left"
+        />
+        <ChannelAccountPicker provider="google_ads" className="shrink-0" />
+      </div>
+    </header>
+  )
+}
+
 export default function GoogleAds() {
   return (
-    <div className="min-h-full">
+    <div className="flex min-h-full min-w-0 flex-col">
       <OAuthContextHint />
       <SuperAdminEnvLive
         endpoint="/api/admin/platform/google-ads-overview"
         title="Super Admin · Google Ads API (campanhas · últimos 30 dias)"
       />
-      <DashboardGrid pageId="GoogleAds" definitions={GOOGLE_DASHBOARD_BLOCKS} className="min-h-full" />
+      <GoogleAdsPageHeader />
+      <div className="min-h-0 flex-1">
+        <DashboardGrid pageId="GoogleAds" definitions={GOOGLE_DASHBOARD_BLOCKS} className="min-h-full" />
+      </div>
     </div>
   )
 }

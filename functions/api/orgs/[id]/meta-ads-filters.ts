@@ -49,7 +49,7 @@ export async function onRequestGet(context: {
   if (!conn?.oauth_credential_id) {
     return json({
       ok: false,
-      hint: 'Conecte Meta Ads em Configurações → Conexões (OAuth) para esta organização.',
+      hint: 'Conecte Meta Ads em Configurações → Integrações (OAuth) para esta organização.',
       campanha: ['Todas'],
       conjuntoAnuncios: ['Todos'],
       anuncio: ['Todos'],
@@ -62,7 +62,7 @@ export async function onRequestGet(context: {
   if (!token) {
     return json({
       ok: false,
-      hint: 'Token Meta inválido. Reconecte em Conexões.',
+      hint: 'Token Meta inválido. Reconecte em Integrações.',
       campanha: ['Todas'],
       conjuntoAnuncios: ['Todos'],
       anuncio: ['Todos'],

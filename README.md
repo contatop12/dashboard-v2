@@ -36,7 +36,7 @@ Valores em `[vars]` aparecem em texto no dashboard; secrets são mascarados.
 2. **Redirect URIs** (produção e `http://localhost:8788` para dev):
    - `{ORIGEM}/api/oauth/meta/callback`
    - `{ORIGEM}/api/oauth/google/callback`
-3. No app: **Configurações → Conexões** — escolha a organização e **Conectar**.
+3. No app: **Configurações → Integrações** — escolha a organização e **Conectar**.
 
 Um login **Meta** preenche contas de anúncios + Instagram Business (quando houver página com IG). Um login **Google** tenta listar clientes do Google Ads e contas do Business Profile.
 

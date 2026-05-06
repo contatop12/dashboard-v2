@@ -350,38 +350,6 @@ const KPI_BLOCKS = kpis.map((k, i) => ({
 }))
 
 const IG_DASHBOARD_BLOCKS = [
-  {
-    id: 'ig-header',
-    defaultColSpan: 8,
-    defaultRowSpan: 3,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 2,
-    maxRowSpan: 4,
-    render: () => (
-      <div className="flex w-full min-w-0 flex-col gap-2 py-1">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <div
-            className="flex items-center gap-2 rounded-lg px-3 py-1.5"
-            style={{
-              background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
-              opacity: 0.9,
-            }}
-          >
-            <Instagram size={14} className="text-white" />
-            <span className="text-xs font-sans font-semibold text-white">Instagram</span>
-          </div>
-          <span className="text-xs font-sans text-muted-foreground">Janeiro 2025</span>
-        </div>
-        <SuperAdminAccountTitle
-          endpoint="/api/admin/platform/instagram-overview"
-          emptyLabel="@usuário do Instagram"
-          className="w-full min-w-0 text-left"
-        />
-        <ChannelAccountPicker provider="instagram" className="shrink-0" />
-      </div>
-    ),
-  },
   ...KPI_BLOCKS,
   {
     id: 'ig-reach',
@@ -425,15 +393,46 @@ const IG_DASHBOARD_BLOCKS = [
   },
 ]
 
+function InstagramPageHeader() {
+  return (
+    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-3">
+      <div className="flex w-full min-w-0 flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div
+            className="flex items-center gap-2 rounded-lg px-3 py-1.5"
+            style={{
+              background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+              opacity: 0.9,
+            }}
+          >
+            <Instagram size={14} className="text-white" />
+            <span className="text-xs font-sans font-semibold text-white">Instagram</span>
+          </div>
+          <span className="text-xs font-sans text-muted-foreground">Janeiro 2025</span>
+        </div>
+        <SuperAdminAccountTitle
+          endpoint="/api/admin/platform/instagram-overview"
+          emptyLabel="@usuário do Instagram"
+          className="w-full min-w-0 text-left"
+        />
+        <ChannelAccountPicker provider="instagram" className="shrink-0" />
+      </div>
+    </header>
+  )
+}
+
 export default function InstagramPage() {
   return (
-    <div className="min-h-full">
+    <div className="flex min-h-full min-w-0 flex-col">
       <OAuthContextHint />
       <SuperAdminEnvLive
         endpoint="/api/admin/platform/instagram-overview"
         title="Super Admin · Instagram (Graph · perfil / insights)"
       />
-      <DashboardGrid pageId="Instagram" definitions={IG_DASHBOARD_BLOCKS} className="min-h-full" />
+      <InstagramPageHeader />
+      <div className="min-h-0 flex-1">
+        <DashboardGrid pageId="Instagram" definitions={IG_DASHBOARD_BLOCKS} className="min-h-full" />
+      </div>
     </div>
   )
 }

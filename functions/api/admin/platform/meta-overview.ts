@@ -143,7 +143,7 @@ export async function onRequestGet(context: {
         source: 'oauth_org',
         accountDisplay: null,
         error: null,
-        detail: 'Nenhuma conta Meta Ads ligada a esta organização (Conexões).',
+        detail: 'Nenhuma conta Meta Ads ligada a esta organização (Integrações).',
         metrics: [] as Metric[],
       })
     }
@@ -154,7 +154,7 @@ export async function onRequestGet(context: {
         source: 'oauth_org',
         accountDisplay: conn.external_name,
         error: null,
-        detail: 'Token Meta indisponível. Reconecte em Conexões.',
+        detail: 'Token Meta indisponível. Reconecte em Integrações.',
         metrics: [] as Metric[],
       })
     }

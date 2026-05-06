@@ -15,7 +15,7 @@ export default function OAuthContextHint() {
       <strong>não lista contas OAuth</strong>. Para escolher uma conta de cliente:{' '}
       <span className="text-white">
         1) Na barra em cima, muda de &quot;Ambiente Worker&quot; para a{' '}
-        <strong>organização</strong>; 2) Em <strong>Configurações → Conexões</strong>, faz login Meta/Google
+        <strong>organização</strong>; 2) Em <strong>Configurações → Integrações</strong>, faz login Meta/Google
         para essa org.
       </span>
     </div>
