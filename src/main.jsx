@@ -4,12 +4,15 @@ import './index.css'
 import App from './App.jsx'
 import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider } from './context/AuthContext'
+import { OrgWorkspaceProvider } from './context/OrgWorkspaceContext'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ThemeProvider>
       <AuthProvider>
-        <App />
+        <OrgWorkspaceProvider>
+          <App />
+        </OrgWorkspaceProvider>
       </AuthProvider>
     </ThemeProvider>
   </StrictMode>,

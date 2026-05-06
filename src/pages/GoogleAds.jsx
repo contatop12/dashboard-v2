@@ -6,6 +6,7 @@ import { FunnelChart } from '@/components/FunnelChart'
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
+import ChannelAccountPicker from '@/components/ChannelAccountPicker'
 
 const googleKPIs = [
   { label: 'Investimento', value: 'R$1,30mil', delta: +12.4, icon: DollarSign, accent: 'brand' },
@@ -267,6 +268,7 @@ const GOOGLE_DASHBOARD_BLOCKS = [
           </div>
           <span className="text-xs font-sans text-muted-foreground">Janeiro 2025 • Todas as Campanhas</span>
         </div>
+        <ChannelAccountPicker provider="google_ads" className="shrink-0" />
         <SuperAdminAccountTitle
           endpoint="/api/admin/platform/google-ads-overview"
           emptyLabel="Nome da conta Google Ads"

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
+import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 import { cn } from '@/lib/utils'
 
 /**
- * Nome da conta / perfil (Worker) no cabeçalho do dashboard — só super_admin.
- * Lê `accountDisplay` do mesmo endpoint de overview da página.
+ * Nome da conta / perfil nas APIs de plataforma.
+ * Com `org_id` usa OAuth da organização; sem org (super_admin) usa secrets do Worker.
  */
 export default function SuperAdminAccountTitle({
   endpoint,
@@ -12,15 +13,18 @@ export default function SuperAdminAccountTitle({
   className,
 }) {
   const { user } = useAuth()
+  const { platformApiSuffix } = useOrgWorkspace()
   const [label, setLabel] = useState(null)
   const [loading, setLoading] = useState(false)
 
+  const url = `${endpoint}${platformApiSuffix}`
+
   useEffect(() => {
-    if (user?.role !== 'super_admin') return
+    if (!user) return
     let cancelled = false
     setLoading(true)
     setLabel(null)
-    fetch(endpoint, { credentials: 'include' })
+    fetch(url, { credentials: 'include' })
       .then((r) => r.json().catch(() => ({})))
       .then((j) => {
         if (cancelled) return
@@ -36,9 +40,23 @@ export default function SuperAdminAccountTitle({
     return () => {
       cancelled = true
     }
-  }, [user?.role, endpoint])
+  }, [user, url])
 
-  if (user?.role !== 'super_admin') return null
+  useEffect(() => {
+    const onSel = () => {
+      fetch(url, { credentials: 'include' })
+        .then((r) => r.json().catch(() => ({})))
+        .then((j) => {
+          const v = typeof j?.accountDisplay === 'string' ? j.accountDisplay.trim() : ''
+          setLabel(v || null)
+        })
+        .catch(() => {})
+    }
+    window.addEventListener('p12-account-selection-changed', onSel)
+    return () => window.removeEventListener('p12-account-selection-changed', onSel)
+  }, [url])
+
+  if (!user) return null
 
   const shown = loading ? 'Carregando…' : label || emptyLabel
 
@@ -49,7 +67,9 @@ export default function SuperAdminAccountTitle({
         className ?? 'ml-auto'
       )}
     >
-      <p className="truncate font-sans text-base font-semibold leading-tight text-white sm:text-lg">{shown}</p>
+      <p className="truncate font-sans text-base font-semibold leading-tight text-white sm:text-lg">
+        {shown}
+      </p>
     </div>
   )
 }

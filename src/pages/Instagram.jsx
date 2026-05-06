@@ -19,6 +19,7 @@ import {
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
+import ChannelAccountPicker from '@/components/ChannelAccountPicker'
 
 const kpis = [
   { label: 'Seguidores', value: '12.840', delta: +4.2, icon: Users },
@@ -371,6 +372,7 @@ const IG_DASHBOARD_BLOCKS = [
           </div>
           <span className="text-xs font-sans text-muted-foreground">Janeiro 2025</span>
         </div>
+        <ChannelAccountPicker provider="instagram" className="shrink-0" />
         <SuperAdminAccountTitle
           endpoint="/api/admin/platform/instagram-overview"
           emptyLabel="@usuário do Instagram"

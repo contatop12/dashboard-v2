@@ -32,6 +32,7 @@ import CreativesCarousel from '@/components/CreativesCarousel'
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
+import ChannelAccountPicker from '@/components/ChannelAccountPicker'
 
 const metaKPIs = [
   { label: 'Valor Gasto', value: 'R$1,30mil', delta: +12.4, icon: DollarSign, accent: 'brand' },
@@ -419,6 +420,7 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
             </div>
             <span className="text-xs font-sans text-muted-foreground">Janeiro 2025 • Todas as Campanhas</span>
           </div>
+          <ChannelAccountPicker provider="meta_ads" className="shrink-0" />
           <SuperAdminAccountTitle
             endpoint="/api/admin/platform/meta-overview"
             emptyLabel="Nome da conta de anúncios"

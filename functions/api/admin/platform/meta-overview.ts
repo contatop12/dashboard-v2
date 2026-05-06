@@ -1,7 +1,12 @@
 import type { WorkerEnv } from '../../../_lib/worker-env'
 import type { UserRow } from '../../../_lib/auth'
+import { userCanAccessOrg } from '../../../_lib/auth'
 import { requireSuperAdmin } from '../../../_lib/admin-guard'
-import { json } from '../../../_lib/json'
+import { json, jsonError } from '../../../_lib/json'
+import {
+  decryptMetaAccessToken,
+  getActiveConnectionForOrg,
+} from '../../../_lib/org-platform-credentials'
 
 type Metric = { label: string; value: string }
 
@@ -32,7 +37,6 @@ async function resolveAdAccountId(token: string, env: WorkerEnv): Promise<string
   return normalizeActId(id)
 }
 
-/** Nome amigável da conta de anúncios (Graph). */
 async function fetchAdAccountDisplay(token: string, actId: string): Promise<string | null> {
   const u = new URL(`https://graph.facebook.com/v21.0/${actId}`)
   u.searchParams.set('fields', 'name,account_id')
@@ -40,11 +44,81 @@ async function fetchAdAccountDisplay(token: string, actId: string): Promise<stri
   const r = await fetch(u.toString())
   const j = (await r.json()) as {
     name?: string
-    account_id?: string
     error?: { message?: string }
   }
   if (!r.ok || j.error || !j.name?.trim()) return null
   return j.name.trim()
+}
+
+async function insightsPayload(
+  token: string,
+  actId: string,
+  accountDisplay: string | null,
+  source: 'worker_env' | 'oauth_org'
+): Promise<Record<string, unknown>> {
+  const fields = ['spend', 'impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'frequency'].join(',')
+  const iu = new URL(`https://graph.facebook.com/v21.0/${actId}/insights`)
+  iu.searchParams.set('fields', fields)
+  iu.searchParams.set('date_preset', 'last_30d')
+  iu.searchParams.set('access_token', token)
+
+  const ir = await fetch(iu.toString())
+  const idata = (await ir.json()) as {
+    data?: Record<string, string | number>[]
+    error?: { message?: string }
+  }
+
+  if (!ir.ok || idata.error) {
+    return {
+      configured: true,
+      source,
+      accountDisplay,
+      error: idata.error?.message || 'Graph API insights falhou',
+      detail: actId,
+      metrics: [] as Metric[],
+    }
+  }
+
+  const row = idata.data?.[0]
+  if (!row) {
+    return {
+      configured: true,
+      source,
+      accountDisplay,
+      error: 'Sem linhas de insights (período ou permissões).',
+      detail: actId,
+      metrics: [] as Metric[],
+    }
+  }
+
+  const spend = Number.parseFloat(String(row.spend ?? 0)) || 0
+  const impressions = Number.parseFloat(String(row.impressions ?? 0)) || 0
+  const reach = Number.parseFloat(String(row.reach ?? 0)) || 0
+  const clicks = Number.parseFloat(String(row.clicks ?? 0)) || 0
+  const ctr = Number.parseFloat(String(row.ctr ?? 0)) || 0
+  const cpc = Number.parseFloat(String(row.cpc ?? 0)) || 0
+  const cpm = Number.parseFloat(String(row.cpm ?? 0)) || 0
+  const frequency = Number.parseFloat(String(row.frequency ?? 0)) || 0
+
+  const metrics: Metric[] = [
+    { label: 'Gasto (30d)', value: fmtBRL(spend) },
+    { label: 'Impressões', value: fmtInt(impressions) },
+    { label: 'Alcance', value: fmtInt(reach) },
+    { label: 'Cliques', value: fmtInt(clicks) },
+    { label: 'CTR', value: `${ctr.toFixed(2)}%` },
+    { label: 'CPC', value: fmtBRL(cpc) },
+    { label: 'CPM', value: fmtBRL(cpm) },
+    { label: 'Frequência', value: frequency.toFixed(2) },
+  ]
+
+  return {
+    configured: true,
+    source,
+    accountDisplay,
+    error: null,
+    detail: `Conta ${actId} · últimos 30 dias (Graph)`,
+    metrics,
+  }
 }
 
 export async function onRequestGet(context: {
@@ -52,7 +126,50 @@ export async function onRequestGet(context: {
   env: WorkerEnv
   data: { user?: UserRow | null }
 }): Promise<Response> {
-  const denied = requireSuperAdmin(context.data.user)
+  const user = context.data.user
+  if (!user) return jsonError('Não autorizado', 401)
+
+  const url = new URL(context.request.url)
+  const orgId = url.searchParams.get('org_id')?.trim() || ''
+
+  if (orgId) {
+    if (!(await userCanAccessOrg(context.env.DB, user, orgId))) {
+      return jsonError('Sem acesso a esta organização', 403)
+    }
+    const conn = await getActiveConnectionForOrg(context.env.DB, orgId, 'meta_ads')
+    if (!conn) {
+      return json({
+        configured: false,
+        source: 'oauth_org',
+        accountDisplay: null,
+        error: null,
+        detail: 'Nenhuma conta Meta Ads ligada a esta organização (Conexões).',
+        metrics: [] as Metric[],
+      })
+    }
+    const token = await decryptMetaAccessToken(context.env.DB, context.env, conn.oauth_credential_id)
+    if (!token) {
+      return json({
+        configured: false,
+        source: 'oauth_org',
+        accountDisplay: conn.external_name,
+        error: null,
+        detail: 'Token Meta indisponível. Reconecte em Conexões.',
+        metrics: [] as Metric[],
+      })
+    }
+    const actId = normalizeActId(conn.external_id)
+    const accountDisplay =
+      conn.external_name?.trim() || (await fetchAdAccountDisplay(token, actId)) || actId
+    const body = await insightsPayload(token, actId, accountDisplay, 'oauth_org')
+    return json(body)
+  }
+
+  if (user.role !== 'super_admin') {
+    return jsonError('org_id é obrigatório', 400)
+  }
+
+  const denied = requireSuperAdmin(user)
   if (denied) return denied
 
   const token = context.env.META_ACCESS_TOKEN?.trim()
@@ -60,7 +177,7 @@ export async function onRequestGet(context: {
     return json({
       configured: false,
       source: 'worker_env',
-      accountDisplay: null as string | null,
+      accountDisplay: null,
       error: null,
       detail: 'Defina o secret META_ACCESS_TOKEN no Worker.',
       metrics: [] as Metric[],
@@ -75,90 +192,21 @@ export async function onRequestGet(context: {
         configured: true,
         source: 'worker_env',
         accountDisplay,
-        error: 'Nenhuma conta de anúncios acessível com este token. Defina META_AD_ACCOUNT_ID ou conceda ads_read/ads_management.',
+        error:
+          'Nenhuma conta de anúncios acessível com este token. Defina META_AD_ACCOUNT_ID ou conceda ads_read/ads_management.',
         detail: null,
         metrics: [] as Metric[],
       })
     }
 
-    const fields = [
-      'spend',
-      'impressions',
-      'reach',
-      'clicks',
-      'ctr',
-      'cpc',
-      'cpm',
-      'frequency',
-    ].join(',')
-    const iu = new URL(`https://graph.facebook.com/v21.0/${actId}/insights`)
-    iu.searchParams.set('fields', fields)
-    iu.searchParams.set('date_preset', 'last_30d')
-    iu.searchParams.set('access_token', token)
-
-    const ir = await fetch(iu.toString())
-    const idata = (await ir.json()) as {
-      data?: Record<string, string | number>[]
-      error?: { message?: string }
-    }
-
-    if (!ir.ok || idata.error) {
-      return json({
-        configured: true,
-        source: 'worker_env',
-        accountDisplay,
-        error: idata.error?.message || 'Graph API insights falhou',
-        detail: actId,
-        metrics: [] as Metric[],
-      })
-    }
-
-    const row = idata.data?.[0]
-    if (!row) {
-      return json({
-        configured: true,
-        source: 'worker_env',
-        accountDisplay,
-        error: 'Sem linhas de insights (período ou permissões).',
-        detail: actId,
-        metrics: [] as Metric[],
-      })
-    }
-
-    const spend = Number.parseFloat(String(row.spend ?? 0)) || 0
-    const impressions = Number.parseFloat(String(row.impressions ?? 0)) || 0
-    const reach = Number.parseFloat(String(row.reach ?? 0)) || 0
-    const clicks = Number.parseFloat(String(row.clicks ?? 0)) || 0
-    const ctr = Number.parseFloat(String(row.ctr ?? 0)) || 0
-    const cpc = Number.parseFloat(String(row.cpc ?? 0)) || 0
-    const cpm = Number.parseFloat(String(row.cpm ?? 0)) || 0
-    const frequency = Number.parseFloat(String(row.frequency ?? 0)) || 0
-
-    const metrics: Metric[] = [
-      { label: 'Gasto (30d)', value: fmtBRL(spend) },
-      { label: 'Impressões', value: fmtInt(impressions) },
-      { label: 'Alcance', value: fmtInt(reach) },
-      { label: 'Cliques', value: fmtInt(clicks) },
-      { label: 'CTR', value: `${ctr.toFixed(2)}%` },
-      { label: 'CPC', value: fmtBRL(cpc) },
-      { label: 'CPM', value: fmtBRL(cpm) },
-      { label: 'Frequência', value: frequency.toFixed(2) },
-    ]
-
-    return json({
-      configured: true,
-      source: 'worker_env',
-      accountDisplay,
-      error: null,
-      detail: `Conta ${actId} · últimos 30 dias (Graph)`,
-      metrics,
-    })
+    const body = await insightsPayload(token, actId, accountDisplay, 'worker_env')
+    return json(body)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Erro Meta'
     return json({
       configured: true,
       source: 'worker_env',
-      accountDisplay: null as string | null,
+      accountDisplay: null,
       error: msg,
       detail: null,
       metrics: [] as Metric[],

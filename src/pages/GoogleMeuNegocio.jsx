@@ -5,6 +5,7 @@ import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Cart
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminEnvLive from '@/components/SuperAdminEnvLive'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
+import ChannelAccountPicker from '@/components/ChannelAccountPicker'
 
 const kpis = [
   { label: 'Buscas Diretas', value: '2.840', delta: +18.3, icon: Search, desc: 'Pesquisaram pelo nome' },
@@ -239,6 +240,7 @@ const GMB_DASHBOARD_BLOCKS = [
           </div>
           <span className="text-xs font-sans text-muted-foreground">Janeiro 2025</span>
         </div>
+        <ChannelAccountPicker provider="google_business" className="shrink-0" />
         <SuperAdminAccountTitle
           className="flex-1"
           endpoint="/api/admin/platform/google-business-overview"
