@@ -22,5 +22,9 @@ Variáveis sensíveis: copie [`.dev.vars.example`](.dev.vars.example) para `.dev
 
 ## Banco (D1)
 
-- `npm run db:migrate` / `db:migrate:local`
+O `database_id` em [`wrangler.toml`](wrangler.toml) deve ser o D1 da **mesma conta** que o Workers Builds (`account_id`). Após trocar de conta, rode de novo:
+
+- `npm run db:migrate` — schema remoto
 - `npm run db:seed` — super admin a partir de `DASHBOARD_AUTH_USERS` no `.env`
+
+Local: `db:migrate:local`.
