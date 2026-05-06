@@ -1,3 +1,8 @@
+# Cloudflare Workers Builds (Git): em Settings > Build, defina:
+#   Deploy command: npm run deploy
+#   (NÃO deixe o padrão "npx wrangler deploy" — este app é Pages + functions/, não um Worker com main.)
+# Builds em branch não-produção: use pages deploy com --branch=$WORKERS_CI_BRANCH (ver README.md).
+
 name = "dashboard-v2"
 account_id = "922956353923d5563a21f8a5203202e9"
 compatibility_date = "2024-10-01"
