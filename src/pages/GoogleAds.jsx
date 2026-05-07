@@ -87,21 +87,28 @@ const CustomTooltip = ({ active, payload, label }) => {
 function GoogleKpiCard({ index }) {
   const period = useDashboardBlockPeriod()
   const src = period === 'previous' ? googleKPIsPrevious : googleKPIs
-  const { label, value, delta, icon: Icon, accent } = src[index] ?? googleKPIs[index]
+  const { label, value, delta } = src[index] ?? googleKPIs[index]
   const isPos = delta > 0
+  const isNeg = delta < 0
+  const deltaNote = period === 'previous' ? 'vs período ant.' : ''
   return (
-    <div className="kpi-card flex min-h-0 w-full shrink-0 flex-col">
-      <div className="flex items-center justify-between gap-1 min-w-0">
-        <span className="kpi-label truncate">{label}</span>
-        <div className={cn('w-6 h-6 shrink-0 rounded-md flex items-center justify-center', accent === 'brand' ? 'bg-brand/15' : 'bg-purple-accent/15')}>
-          <Icon size={12} className={accent === 'brand' ? 'text-brand' : 'text-accent-purple'} />
+    <div className="kpi-card min-h-0 w-full shrink-0">
+      <span className="kpi-label block truncate">{label}</span>
+      <span className="kpi-value block truncate tabular-nums">{value}</span>
+      <div className="kpi-delta-row min-w-0">
+        <div
+          className={cn(
+            'inline-flex shrink-0 items-center gap-1',
+            isPos ? 'text-green-400' : isNeg ? 'text-red-400' : 'text-muted-foreground'
+          )}
+        >
+          {isPos ? <TrendingUp size={12} strokeWidth={2} /> : isNeg ? <TrendingDown size={12} strokeWidth={2} /> : null}
+          <span>
+            {isPos ? '+' : ''}
+            {delta}%
+          </span>
         </div>
-      </div>
-      <span className="kpi-value mt-1 tabular-nums truncate">{value}</span>
-      <div className={cn('flex items-center gap-1 text-[10px] font-mono mt-1', isPos ? 'text-green-400' : 'text-red-400')}>
-        {isPos ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-        {isPos ? '+' : ''}
-        {delta}%
+        {deltaNote ? <span className="kpi-delta-note min-w-0 truncate">{deltaNote}</span> : null}
       </div>
     </div>
   )

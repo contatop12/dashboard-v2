@@ -1,157 +1,189 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { blockLayoutStorageKey } from '@/lib/dashboardGrid'
+import { useState, useCallback, useMemo } from 'react'
 
-function clampSpan(n, min, max) {
-  const v = Math.round(Number(n) || 1)
-  return Math.max(min, Math.min(max, v))
+const STORAGE_PREFIX = 'dashboard-rgl-'
+
+function storageKey(pageId) {
+  return `${STORAGE_PREFIX}${pageId}`
 }
 
-function primaryIdsFromDefinitions(definitions) {
-  return new Set(definitions.filter((d) => d.tier === 'primary').map((d) => d.id))
-}
+function buildDefaultLgLayout(definitions) {
+  const primary = definitions.filter((d) => d.tier === 'primary')
+  const secondary = definitions.filter((d) => d.tier !== 'primary')
 
-function secondaryIdsFromDefinitions(definitions) {
-  return new Set(definitions.filter((d) => d.tier !== 'primary').map((d) => d.id))
-}
-
-function normalizeOrder(savedList, allowedSet, definitionsDefaults) {
-  const seen = new Set()
-  const out = []
-  const list = Array.isArray(savedList) ? savedList : []
-  for (const id of list) {
-    if (allowedSet.has(id) && !seen.has(id)) {
-      seen.add(id)
-      out.push(id)
+  const primaryRowH = primary.length > 0 ? (primary[0].defaultLayout?.h ?? 2) : 0
+  let curX = 0
+  const primaryItems = primary.map((d) => {
+    const w = d.defaultLayout?.w ?? 2
+    const item = {
+      i: d.id,
+      x: curX,
+      y: 0,
+      w,
+      h: d.defaultLayout?.h ?? 2,
+      minW: d.defaultLayout?.minW ?? 1,
+      maxW: d.defaultLayout?.maxW ?? 12,
+      minH: d.defaultLayout?.minH ?? 1,
+      maxH: d.defaultLayout?.maxH ?? 12,
     }
-  }
-  for (const id of definitionsDefaults) {
-    if (allowedSet.has(id) && !seen.has(id)) out.push(id)
-  }
-  return out
-}
-
-/**
- * @param {Array<{ id: string, tier?: string }>} definitions
- * @param {object | null} saved
- */
-export function mergeBlockLayout(definitions, saved) {
-  const primarySet = primaryIdsFromDefinitions(definitions)
-  const secondarySet = secondaryIdsFromDefinitions(definitions)
-  const defaultPrimary = definitions.filter((d) => d.tier === 'primary').map((d) => d.id)
-  const defaultSecondary = definitions.filter((d) => d.tier !== 'primary').map((d) => d.id)
-
-  let primaryOrder
-  let secondaryOrder
-
-  if (Array.isArray(saved?.primaryOrder) && Array.isArray(saved?.secondaryOrder)) {
-    primaryOrder = normalizeOrder(saved.primaryOrder, primarySet, defaultPrimary)
-    secondaryOrder = normalizeOrder(saved.secondaryOrder, secondarySet, defaultSecondary)
-  } else if (Array.isArray(saved?.order)) {
-    primaryOrder = normalizeOrder(
-      saved.order.filter((id) => primarySet.has(id)),
-      primarySet,
-      defaultPrimary
-    )
-    secondaryOrder = normalizeOrder(
-      saved.order.filter((id) => secondarySet.has(id)),
-      secondarySet,
-      defaultSecondary
-    )
-  } else {
-    primaryOrder = [...defaultPrimary]
-    secondaryOrder = [...defaultSecondary]
-  }
-
-  const spans = {}
-  for (const d of definitions) {
-    const s = saved?.spans?.[d.id]
-    const minC = d.minColSpan ?? 1
-    const maxC = d.maxColSpan ?? 8
-    const minR = d.minRowSpan ?? 1
-    const maxR = d.maxRowSpan ?? 12
-    spans[d.id] = {
-      colSpan: clampSpan(s?.colSpan ?? d.defaultColSpan ?? 1, minC, maxC),
-      rowSpan: clampSpan(s?.rowSpan ?? d.defaultRowSpan ?? 1, minR, maxR),
-    }
-  }
-
-  return { primaryOrder, secondaryOrder, spans }
-}
-
-/**
- * @param {string} pageId
- * @param {Array<{ id: string, tier?: 'primary' | 'secondary', defaultColSpan?: number, defaultRowSpan?: number, minColSpan?: number, maxColSpan?: number, minRowSpan?: number, maxRowSpan?: number, render: () => import('react').ReactNode }>} definitions
- */
-export function useGridLayout(pageId, definitions) {
-  const defKey = useMemo(() => definitions.map((d) => d.id).join('|'), [definitions])
-  const definitionsRef = useRef(definitions)
-  definitionsRef.current = definitions
-
-  const defaults = useMemo(() => mergeBlockLayout(definitions, null), [defKey])
-
-  const [state, setState] = useState(() => {
-    try {
-      const raw = localStorage.getItem(blockLayoutStorageKey(pageId))
-      if (raw) return mergeBlockLayout(definitions, JSON.parse(raw))
-    } catch {
-      /* ignore */
-    }
-    return defaults
+    curX += w
+    return item
   })
 
-  useEffect(() => {
-    setState((prev) => mergeBlockLayout(definitionsRef.current, prev))
-  }, [pageId, defKey])
-
-  useEffect(() => {
-    try {
-      const { primaryOrder, secondaryOrder, spans } = state
-      localStorage.setItem(blockLayoutStorageKey(pageId), JSON.stringify({ primaryOrder, secondaryOrder, spans }))
-    } catch {
-      /* ignore */
+  let secX = 0
+  let secY = primaryRowH
+  const secondaryItems = secondary.map((d) => {
+    const w = d.defaultLayout?.w ?? 6
+    const h = d.defaultLayout?.h ?? 4
+    if (secX + w > 12) {
+      secX = 0
+      secY += h
     }
-  }, [pageId, state])
+    const item = {
+      i: d.id,
+      x: secX,
+      y: secY,
+      w,
+      h,
+      minW: d.defaultLayout?.minW ?? 2,
+      maxW: d.defaultLayout?.maxW ?? 12,
+      minH: d.defaultLayout?.minH ?? 1,
+      maxH: d.defaultLayout?.maxH ?? 12,
+    }
+    secX += w
+    if (secX >= 12) {
+      secX = 0
+      secY += h
+    }
+    return item
+  })
 
-  const setPrimaryOrder = useCallback((updater) => {
-    setState((s) => ({
-      ...s,
-      primaryOrder: typeof updater === 'function' ? updater(s.primaryOrder) : updater,
-    }))
-  }, [])
+  return [...primaryItems, ...secondaryItems]
+}
 
-  const setSecondaryOrder = useCallback((updater) => {
-    setState((s) => ({
-      ...s,
-      secondaryOrder: typeof updater === 'function' ? updater(s.secondaryOrder) : updater,
-    }))
-  }, [])
+function buildDefaultSmLayout(definitions) {
+  return definitions.map((d, i) => ({
+    i: d.id,
+    x: 0,
+    y: i * (d.defaultLayout?.h ?? 2),
+    w: 6,
+    h: d.defaultLayout?.h ?? 2,
+    minW: 1,
+    maxW: 6,
+    minH: 1,
+  }))
+}
 
-  const resizeBlock = useCallback((id, colSpan, rowSpan) => {
-    const def = definitionsRef.current.find((d) => d.id === id)
-    if (!def) return
-    const minC = def.minColSpan ?? 1
-    const maxC = def.maxColSpan ?? 8
-    const minR = def.minRowSpan ?? 1
-    const maxR = def.maxRowSpan ?? 12
-    setState((s) => ({
-      ...s,
-      spans: {
-        ...s.spans,
-        [id]: {
-          colSpan: clampSpan(colSpan, minC, maxC),
-          rowSpan: clampSpan(rowSpan, minR, maxR),
-        },
-      },
-    }))
-  }, [])
+function buildDefaultLayouts(definitions) {
+  return {
+    lg: buildDefaultLgLayout(definitions),
+    sm: buildDefaultSmLayout(definitions),
+  }
+}
+
+function loadFromStorage(pageId) {
+  try {
+    const raw = localStorage.getItem(storageKey(pageId))
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+function saveToStorage(pageId, data) {
+  try {
+    localStorage.setItem(storageKey(pageId), JSON.stringify(data))
+  } catch { /* ignore */ }
+}
+
+function mergeLayouts(saved, defaults, allIds) {
+  const idSet = new Set(allIds)
+  const merged = {}
+  for (const bp of Object.keys(defaults)) {
+    const savedBp = Array.isArray(saved?.[bp]) ? saved[bp] : []
+    const savedMap = Object.fromEntries(savedBp.map((item) => [item.i, item]))
+    const defaultMap = Object.fromEntries(defaults[bp].map((item) => [item.i, item]))
+    const items = allIds
+      .filter((id) => defaultMap[id])
+      .map((id) => ({ ...defaultMap[id], ...(savedMap[id] ?? {}) }))
+    const extras = savedBp.filter((item) => !idSet.has(item.i))
+    merged[bp] = [...items, ...extras]
+  }
+  return merged
+}
+
+export function useGridLayout(pageId, definitions) {
+  const defaultLayouts = useMemo(() => buildDefaultLayouts(definitions), [definitions])
+  const allIds = useMemo(() => definitions.map((d) => d.id), [definitions])
+
+  const [state, setState] = useState(() => {
+    const saved = loadFromStorage(pageId)
+    return {
+      layouts: mergeLayouts(saved?.layouts, buildDefaultLayouts(definitions), definitions.map((d) => d.id)),
+      customMetrics: Array.isArray(saved?.customMetrics) ? saved.customMetrics : [],
+    }
+  })
+
+  const onLayoutChange = useCallback(
+    (_currentLayout, allLayouts) => {
+      setState((prev) => {
+        const next = { ...prev, layouts: allLayouts }
+        saveToStorage(pageId, next)
+        return next
+      })
+    },
+    [pageId]
+  )
+
+  const addCustomMetric = useCallback(
+    (field) => {
+      const id = `kpi-custom-${field.key}`
+      setState((prev) => {
+        if (prev.customMetrics.find((m) => m.id === id)) return prev
+        const newMetric = { id, fieldKey: field.key, label: field.label, format: field.format }
+        const newItem = { i: id, x: 0, y: 0, w: 2, h: 2, minW: 1, maxW: 4, minH: 2, maxH: 4 }
+        const next = {
+          ...prev,
+          customMetrics: [...prev.customMetrics, newMetric],
+          layouts: {
+            ...prev.layouts,
+            lg: [...(prev.layouts.lg ?? []), newItem],
+            sm: [...(prev.layouts.sm ?? []), { ...newItem, w: 6, x: 0 }],
+          },
+        }
+        saveToStorage(pageId, next)
+        return next
+      })
+    },
+    [pageId]
+  )
+
+  const removeCustomMetric = useCallback(
+    (id) => {
+      setState((prev) => {
+        const next = {
+          ...prev,
+          customMetrics: prev.customMetrics.filter((m) => m.id !== id),
+          layouts: Object.fromEntries(
+            Object.entries(prev.layouts).map(([bp, items]) => [
+              bp,
+              items.filter((item) => item.i !== id),
+            ])
+          ),
+        }
+        saveToStorage(pageId, next)
+        return next
+      })
+    },
+    [pageId]
+  )
 
   return {
-    primaryOrder: state.primaryOrder,
-    secondaryOrder: state.secondaryOrder,
-    spans: state.spans,
-    setPrimaryOrder,
-    setSecondaryOrder,
-    resizeBlock,
-    defaults,
+    layouts: state.layouts,
+    customMetrics: state.customMetrics,
+    onLayoutChange,
+    addCustomMetric,
+    removeCustomMetric,
+    defaultLayouts,
   }
 }

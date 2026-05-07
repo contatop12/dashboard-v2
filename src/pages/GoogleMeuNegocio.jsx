@@ -69,24 +69,31 @@ const CustomTooltip = ({ active, payload, label }) => {
 function GmbKpiCard({ index }) {
   const period = useDashboardBlockPeriod()
   const src = period === 'previous' ? kpisPrevious : kpis
-  const { label, value, delta, icon: Icon, desc } = src[index] ?? kpis[index]
+  const { label, value, delta, desc } = src[index] ?? kpis[index]
   const isPos = delta > 0
+  const isNeg = delta < 0
   return (
-    <div className="kpi-card flex min-h-0 w-full shrink-0 flex-col">
-      <div className="flex items-center justify-between gap-1 min-w-0">
-        <span className="kpi-label truncate">{label}</span>
-        <div className="w-6 h-6 shrink-0 rounded-md bg-[#34A853]/15 flex items-center justify-center">
-          <Icon size={12} className="text-[#34A853]" />
+    <div className="kpi-card min-h-0 w-full shrink-0">
+      <span className="kpi-label block truncate">{label}</span>
+      <span className="kpi-value block truncate tabular-nums">{value}</span>
+      <div className="kpi-delta-row min-w-0">
+        <div
+          className={cn(
+            'inline-flex shrink-0 items-center gap-1',
+            isPos ? 'text-green-400' : isNeg ? 'text-red-400' : 'text-muted-foreground'
+          )}
+        >
+          {isPos ? <TrendingUp size={12} strokeWidth={2} /> : isNeg ? <TrendingDown size={12} strokeWidth={2} /> : null}
+          <span>
+            {isPos ? '+' : ''}
+            {delta}%
+          </span>
         </div>
-      </div>
-      <span className="kpi-value mt-1 tabular-nums truncate">{value}</span>
-      <div className="flex flex-wrap items-center gap-2 mt-0.5 min-w-0">
-        <div className={cn('flex items-center gap-0.5 text-[10px] font-mono shrink-0', isPos ? 'text-green-400' : 'text-red-400')}>
-          {isPos ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-          {isPos ? '+' : ''}
-          {delta}%
-        </div>
-        <span className="text-[10px] text-muted-foreground font-sans truncate min-w-0">{desc}</span>
+        {desc ? (
+          <span className="kpi-delta-note min-w-0 truncate" title={desc}>
+            {desc}
+          </span>
+        ) : null}
       </div>
     </div>
   )
