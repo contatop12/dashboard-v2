@@ -19,6 +19,7 @@ import {
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
+import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 
 const kpis = [
   { label: 'Seguidores', value: '12.840', delta: +4.2, icon: Users },
@@ -29,6 +30,17 @@ const kpis = [
   { label: 'Comentários', value: '312', delta: +8.9, icon: MessageCircle },
   { label: 'Salvamentos', value: '890', delta: +31.2, icon: Bookmark },
   { label: 'Novos Seguidores', value: '+348', delta: +15.6, icon: UserPlus },
+]
+
+const kpisPrevious = [
+  { label: 'Seguidores', value: '12.180', delta: +2.1, icon: Users },
+  { label: 'Alcance', value: '38.900', delta: +12.4, icon: Eye },
+  { label: 'Impressões', value: '69.200', delta: +9.8, icon: Eye },
+  { label: 'Engajamento', value: '3.5%', delta: -0.2, icon: Heart },
+  { label: 'Curtidas', value: '3.810', delta: +6.2, icon: Heart },
+  { label: 'Comentários', value: '278', delta: +3.4, icon: MessageCircle },
+  { label: 'Salvamentos', value: '720', delta: +18.0, icon: Bookmark },
+  { label: 'Novos Seguidores', value: '+301', delta: +8.2, icon: UserPlus },
 ]
 
 const dailyData = [
@@ -156,7 +168,10 @@ const CustomTooltip = ({ active, payload, label }) => {
   )
 }
 
-function IgKpiCard({ label, value, delta, icon: Icon }) {
+function IgKpiCard({ index }) {
+  const period = useDashboardBlockPeriod()
+  const src = period === 'previous' ? kpisPrevious : kpis
+  const { label, value, delta, icon: Icon } = src[index] ?? kpis[index]
   const isPos = delta > 0
   return (
     <div className="kpi-card flex min-h-0 w-full shrink-0 flex-col">
@@ -336,21 +351,23 @@ function IgTopPostsTable() {
   )
 }
 
-const KPI_BLOCKS = kpis.map((k, i) => ({
+const KPI_BLOCKS = kpis.map((_, i) => ({
   id: `ig-kpi-${i}`,
+  tier: 'primary',
   defaultColSpan: 1,
   defaultRowSpan: 1,
   minColSpan: 1,
   maxColSpan: 4,
   minRowSpan: 1,
   maxRowSpan: 3,
-  render: () => <IgKpiCard {...k} />,
+  render: () => <IgKpiCard index={i} />,
 }))
 
 const IG_DASHBOARD_BLOCKS = [
   ...KPI_BLOCKS,
   {
     id: 'ig-reach',
+    tier: 'secondary',
     defaultColSpan: 5,
     defaultRowSpan: 3,
     minColSpan: 2,
@@ -361,6 +378,7 @@ const IG_DASHBOARD_BLOCKS = [
   },
   {
     id: 'ig-content-types',
+    tier: 'secondary',
     defaultColSpan: 3,
     defaultRowSpan: 3,
     minColSpan: 2,
@@ -371,6 +389,7 @@ const IG_DASHBOARD_BLOCKS = [
   },
   {
     id: 'ig-carousel',
+    tier: 'secondary',
     defaultColSpan: 8,
     defaultRowSpan: 2,
     minColSpan: 2,
@@ -381,6 +400,7 @@ const IG_DASHBOARD_BLOCKS = [
   },
   {
     id: 'ig-top-posts',
+    tier: 'secondary',
     defaultColSpan: 8,
     defaultRowSpan: 3,
     minColSpan: 2,

@@ -9,6 +9,7 @@ import KeywordsHighlight from '@/components/KeywordsHighlight'
 
 const KPI_BLOCK_DEFS = GERAL_KPI_CARDS.map((c) => ({
   id: `kpi-${c.id}`,
+  tier: 'primary',
   defaultColSpan: 1,
   defaultRowSpan: 1,
   minColSpan: 1,
@@ -23,6 +24,7 @@ export const GERAL_DASHBOARD_BLOCKS = [
   ...KPI_BLOCK_DEFS,
   {
     id: 'timeline',
+    tier: 'secondary',
     defaultColSpan: 4,
     defaultRowSpan: 3,
     minColSpan: 2,
@@ -33,6 +35,7 @@ export const GERAL_DASHBOARD_BLOCKS = [
   },
   {
     id: 'funnel-geral',
+    tier: 'secondary',
     defaultColSpan: 4,
     defaultRowSpan: 3,
     minColSpan: 2,
@@ -43,6 +46,7 @@ export const GERAL_DASHBOARD_BLOCKS = [
   },
   {
     id: 'overview',
+    tier: 'secondary',
     defaultColSpan: 4,
     defaultRowSpan: 2,
     minColSpan: 2,
@@ -53,6 +57,7 @@ export const GERAL_DASHBOARD_BLOCKS = [
   },
   {
     id: 'demographics',
+    tier: 'secondary',
     defaultColSpan: 4,
     defaultRowSpan: 2,
     minColSpan: 2,
@@ -63,6 +68,7 @@ export const GERAL_DASHBOARD_BLOCKS = [
   },
   {
     id: 'investimento-chart',
+    tier: 'secondary',
     defaultColSpan: 3,
     defaultRowSpan: 2,
     minColSpan: 2,
@@ -73,6 +79,7 @@ export const GERAL_DASHBOARD_BLOCKS = [
   },
   {
     id: 'video-range',
+    tier: 'secondary',
     defaultColSpan: 3,
     defaultRowSpan: 2,
     minColSpan: 2,
@@ -83,6 +90,7 @@ export const GERAL_DASHBOARD_BLOCKS = [
   },
   {
     id: 'keywords',
+    tier: 'secondary',
     defaultColSpan: 2,
     defaultRowSpan: 2,
     minColSpan: 2,

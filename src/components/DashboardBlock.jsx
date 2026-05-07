@@ -38,6 +38,7 @@ export default function DashboardBlock({
   colUnit,
   rowStride,
   isLg,
+  isPrimaryKpi = false,
   draggingId,
   overId,
   onDragHandlePointerDown,
@@ -47,7 +48,7 @@ export default function DashboardBlock({
   const dragging = draggingId === blockId
   const over = overId === blockId
   const [preview, setPreview] = useState(null)
-  const isKpiSlot = /^kpi-/i.test(blockId)
+  const isKpiSlot = Boolean(isPrimaryKpi)
   const stretchCell = Boolean(isLg && !isKpiSlot)
 
   const displayCol = preview?.col ?? colSpan

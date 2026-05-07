@@ -6,6 +6,7 @@ import FilterBar from './components/FilterBar'
 import DashboardGrid from './components/DashboardGrid'
 import { GERAL_DASHBOARD_BLOCKS } from './dashboard/geralBlocks'
 import { useAuth } from './context/AuthContext'
+import { DashboardFiltersProvider } from './context/DashboardFiltersContext'
 import Login from './pages/Login'
 
 // Pages
@@ -77,34 +78,36 @@ export default function App() {
   const showFilterBar = effectivePage !== 'Configurações' && effectivePage !== 'Clientes'
 
   return (
-    <div className="flex flex-col h-screen bg-[#0F0F0F] overflow-hidden">
-      <Header onMenuToggle={() => setSidebarOpen((o) => !o)} sidebarOpen={sidebarOpen} />
+    <DashboardFiltersProvider>
+      <div className="flex flex-col h-screen bg-[#0F0F0F] overflow-hidden">
+        <Header onMenuToggle={() => setSidebarOpen((o) => !o)} sidebarOpen={sidebarOpen} />
 
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          activePage={effectivePage}
-          onNavigate={(page) => {
-            setActivePage(page)
-            setSidebarOpen(false)
-          }}
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          userRole={user.role}
-        />
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar
+            activePage={effectivePage}
+            onNavigate={(page) => {
+              setActivePage(page)
+              setSidebarOpen(false)
+            }}
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            userRole={user.role}
+          />
 
-        <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-          {showFilterBar && (
-            <FilterBar
-              activePage={effectivePage}
-              filters={filters}
-              onFiltersChange={setFilters}
-            />
-          )}
-          <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
-            <PageComponent />
-          </main>
+          <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+            {showFilterBar && (
+              <FilterBar
+                activePage={effectivePage}
+                filters={filters}
+                onFiltersChange={setFilters}
+              />
+            )}
+            <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+              <PageComponent />
+            </main>
+          </div>
         </div>
       </div>
-    </div>
+    </DashboardFiltersProvider>
   )
 }

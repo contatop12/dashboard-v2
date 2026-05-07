@@ -32,6 +32,7 @@ import CreativesCarousel from '@/components/CreativesCarousel'
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
+import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 
 const metaKPIs = [
   { label: 'Valor Gasto', value: 'R$1,30mil', delta: +12.4, icon: DollarSign, accent: 'brand' },
@@ -42,6 +43,17 @@ const metaKPIs = [
   { label: 'CPC (Link)', value: 'R$1,44', delta: -8.3, icon: Target, accent: 'brand' },
   { label: 'Frequência', value: '1,76', delta: +2.1, icon: Eye, accent: 'purple' },
   { label: 'Leads', value: '11', delta: -9.1, icon: Target, accent: 'brand' },
+]
+
+const metaKPIsPrevious = [
+  { label: 'Valor Gasto', value: 'R$1,12mil', delta: +4.2, icon: DollarSign, accent: 'brand' },
+  { label: 'Alcance', value: '24.100', delta: +9.5, icon: Users, accent: 'brand' },
+  { label: 'Impressões', value: '44.200', delta: +8.1, icon: Eye, accent: 'purple' },
+  { label: 'CPM', value: 'R$27,20', delta: +2.4, icon: DollarSign, accent: 'purple' },
+  { label: 'CTR (Link)', value: '1,65%', delta: -1.2, icon: MousePointer, accent: 'brand' },
+  { label: 'CPC (Link)', value: 'R$1,58', delta: +4.1, icon: Target, accent: 'brand' },
+  { label: 'Frequência', value: '1,68', delta: -0.8, icon: Eye, accent: 'purple' },
+  { label: 'Leads', value: '9', delta: -5.0, icon: Target, accent: 'brand' },
 ]
 
 const dailyData = [
@@ -166,8 +178,12 @@ const CustomTooltip = ({ active, payload, label }) => {
   )
 }
 
-function MetaKpiCard({ label, value, delta, icon: Icon, accent }) {
+function MetaKpiCard({ index }) {
+  const period = useDashboardBlockPeriod()
+  const src = period === 'previous' ? metaKPIsPrevious : metaKPIs
+  const { label, value, delta, icon: Icon, accent } = src[index] ?? metaKPIs[index]
   const isPos = delta > 0
+  const deltaSuffix = period === 'previous' ? ' período ant.' : ' mês ant.'
   return (
     <div className="kpi-card flex min-h-0 w-full shrink-0 flex-col">
       <div className="flex items-center justify-between gap-1 min-w-0">
@@ -185,7 +201,7 @@ function MetaKpiCard({ label, value, delta, icon: Icon, accent }) {
       <div className={cn('flex items-center gap-1 text-[10px] font-mono mt-1', isPos ? 'text-green-400' : 'text-red-400')}>
         {isPos ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
         {isPos ? '+' : ''}
-        {delta}% vs mês ant.
+        {delta}% vs{deltaSuffix}
       </div>
     </div>
   )
@@ -390,21 +406,23 @@ function MetaCampaignsTable() {
 }
 
 function buildMetaDefinitions(activeChart, setActiveChart) {
-  const kpiBlocks = metaKPIs.map((k, i) => ({
+  const kpiBlocks = metaKPIs.map((_, i) => ({
     id: `meta-kpi-${i}`,
+    tier: 'primary',
     defaultColSpan: 1,
     defaultRowSpan: 1,
     minColSpan: 1,
     maxColSpan: 4,
     minRowSpan: 1,
     maxRowSpan: 3,
-    render: () => <MetaKpiCard {...k} />,
+    render: () => <MetaKpiCard index={i} />,
   }))
 
   return [
     ...kpiBlocks,
     {
       id: 'meta-daily',
+      tier: 'secondary',
       defaultColSpan: 5,
       defaultRowSpan: 3,
       minColSpan: 2,
@@ -415,6 +433,7 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
     },
     {
       id: 'meta-placements',
+      tier: 'secondary',
       defaultColSpan: 3,
       defaultRowSpan: 3,
       minColSpan: 2,
@@ -425,6 +444,7 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
     },
     {
       id: 'meta-funnel',
+      tier: 'secondary',
       defaultColSpan: 4,
       defaultRowSpan: 4,
       minColSpan: 2,
@@ -435,6 +455,7 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
     },
     {
       id: 'meta-video',
+      tier: 'secondary',
       defaultColSpan: 4,
       defaultRowSpan: 2,
       minColSpan: 2,
@@ -445,6 +466,7 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
     },
     {
       id: 'meta-engagement',
+      tier: 'secondary',
       defaultColSpan: 4,
       defaultRowSpan: 2,
       minColSpan: 2,
@@ -455,6 +477,7 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
     },
     {
       id: 'meta-creatives',
+      tier: 'secondary',
       defaultColSpan: 8,
       defaultRowSpan: 2,
       minColSpan: 2,
@@ -471,6 +494,7 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
     },
     {
       id: 'meta-campaigns',
+      tier: 'secondary',
       defaultColSpan: 8,
       defaultRowSpan: 3,
       minColSpan: 2,

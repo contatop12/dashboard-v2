@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react'
-import { Calendar, ChevronDown, RefreshCw } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import { Calendar, ChevronDown, RefreshCw, Columns2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
+import { useDashboardFilters } from '@/context/DashboardFiltersContext'
+import { rangeLastNDays, rangeThisMonth } from '@/lib/dateRange'
 
 // Filter configs per page
 const PAGE_FILTERS = {
@@ -16,6 +20,15 @@ const PAGE_FILTERS = {
   'Relatórios': ['dateRange'],
   'Configurações': [],
 }
+
+/** Páginas com faixa de KPIs primários no DashboardGrid (toggle de comparação). */
+const DASHBOARD_KPI_PAGES = new Set(['Geral', 'Meta Ads', 'Google Ads', 'Google Meu Negócio', 'Instagram'])
+
+const DATE_PRESETS = [
+  { key: '7d', label: 'Últimos 7 dias', getRange: () => rangeLastNDays(7) },
+  { key: '30d', label: 'Últimos 30 dias', getRange: () => rangeLastNDays(30) },
+  { key: 'month', label: 'Este mês', getRange: () => rangeThisMonth() },
+]
 
 const FILTER_OPTIONS = {
   campanha: { label: 'Campanha', options: ['Todas', 'Campanha_Leads_SP', 'Campanha_Retarget_RJ', 'Campanha_Brand_MG'] },
@@ -67,10 +80,28 @@ function FilterSelect({ filterKey, value, onChange, optionsOverride }) {
 
 export default function FilterBar({ activePage, filters, onFiltersChange }) {
   const { activeOrgId } = useOrgWorkspace()
+  const { dateRange, setDateRange, comparePrimaryKpi, setComparePrimaryKpi } = useDashboardFilters()
   const [metaLive, setMetaLive] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [dateOpen, setDateOpen] = useState(false)
+  const dateMenuRef = useRef(null)
 
   const activeFilters = PAGE_FILTERS[activePage] ?? ['dateRange']
+  const showKpiCompare =
+    DASHBOARD_KPI_PAGES.has(activePage) && activeFilters.includes('dateRange')
+
+  const rangeLabelLong = `${format(dateRange.start, 'd MMM', { locale: ptBR })} – ${format(dateRange.end, 'd MMM yyyy', { locale: ptBR })}`
+  const rangeLabelShort = `${format(dateRange.start, 'd MMM', { locale: ptBR })} – ${format(dateRange.end, 'MMM', { locale: ptBR })}`
+
+  useEffect(() => {
+    if (!dateOpen) return
+    const onDown = (e) => {
+      if (dateMenuRef.current?.contains(e.target)) return
+      setDateOpen(false)
+    }
+    window.addEventListener('pointerdown', onDown)
+    return () => window.removeEventListener('pointerdown', onDown)
+  }, [dateOpen])
 
   useEffect(() => {
     if (activePage !== 'Meta Ads' || !activeOrgId) {
@@ -135,12 +166,50 @@ export default function FilterBar({ activePage, filters, onFiltersChange }) {
     <div className="min-h-12 bg-[#0F0F0F] border-b border-surface-border flex items-center px-4 gap-2 shrink-0 flex-wrap py-2">
       {activeFilters.includes('dateRange') && (
         <>
-          <button className="filter-select">
-            <Calendar size={11} className="text-muted-foreground" />
-            <span className="text-white text-xs hidden sm:block">1 jan – 31 jan 2025</span>
-            <span className="text-white text-xs sm:hidden">Jan 2025</span>
-            <ChevronDown size={10} className="text-muted-foreground" />
-          </button>
+          <div className="relative" ref={dateMenuRef}>
+            <button
+              type="button"
+              onClick={() => setDateOpen((o) => !o)}
+              className="filter-select max-w-[min(100vw-8rem,280px)]"
+            >
+              <Calendar size={11} className="text-muted-foreground shrink-0" />
+              <span className="text-white text-xs hidden sm:block truncate">{rangeLabelLong}</span>
+              <span className="text-white text-xs sm:hidden truncate">{rangeLabelShort}</span>
+              <ChevronDown size={10} className="text-muted-foreground shrink-0" />
+            </button>
+            {dateOpen && (
+              <div className="absolute top-full left-0 mt-2 z-50 min-w-[200px] rounded-lg border border-surface-border bg-surface-card py-2 shadow-xl animate-scale-in">
+                {DATE_PRESETS.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => {
+                      setDateRange(p.getRange())
+                      setDateOpen(false)
+                    }}
+                    className="w-full px-4 py-2 text-left text-xs text-white hover:bg-surface-hover transition-colors"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {showKpiCompare && (
+            <button
+              type="button"
+              aria-pressed={comparePrimaryKpi}
+              onClick={() => setComparePrimaryKpi((v) => !v)}
+              title="Exibir KPIs primários do período anterior (mesma duração, antes do intervalo atual)"
+              className={cn(
+                'filter-select shrink-0',
+                comparePrimaryKpi && 'border-brand/40 bg-brand/10 text-brand'
+              )}
+            >
+              <Columns2 size={11} className={comparePrimaryKpi ? 'text-brand' : 'text-muted-foreground'} />
+              <span className="text-white text-xs hidden md:inline">Comparar KPIs</span>
+            </button>
+          )}
           <div className="w-px h-4 bg-surface-border mx-2 hidden sm:block" />
         </>
       )}

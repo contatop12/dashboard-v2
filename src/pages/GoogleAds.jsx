@@ -6,6 +6,7 @@ import { FunnelChart } from '@/components/FunnelChart'
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
+import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 
 const googleKPIs = [
   { label: 'Investimento', value: 'R$1,30mil', delta: +12.4, icon: DollarSign, accent: 'brand' },
@@ -16,6 +17,17 @@ const googleKPIs = [
   { label: 'Conversões', value: '11', delta: -9.1, icon: Target, accent: 'brand' },
   { label: 'Custo/Conv.', value: 'R$118,18', delta: -5.4, icon: DollarSign, accent: 'purple' },
   { label: 'Taxa de Conv.', value: '0,55%', delta: +2.1, icon: TrendingUp, accent: 'brand' },
+]
+
+const googleKPIsPrevious = [
+  { label: 'Investimento', value: 'R$1,08mil', delta: +5.2, icon: DollarSign, accent: 'brand' },
+  { label: 'Impressões', value: '43.800', delta: +6.8, icon: Eye, accent: 'purple' },
+  { label: 'Cliques', value: '1.752', delta: +3.1, icon: MousePointer, accent: 'brand' },
+  { label: 'CTR', value: '3,72%', delta: -0.4, icon: Target, accent: 'brand' },
+  { label: 'CPC Médio', value: 'R$0,62', delta: -6.2, icon: DollarSign, accent: 'purple' },
+  { label: 'Conversões', value: '8', delta: -4.0, icon: Target, accent: 'brand' },
+  { label: 'Custo/Conv.', value: 'R$135,00', delta: +2.1, icon: DollarSign, accent: 'purple' },
+  { label: 'Taxa de Conv.', value: '0,46%', delta: -0.9, icon: TrendingUp, accent: 'brand' },
 ]
 
 const dailyData = [
@@ -72,7 +84,10 @@ const CustomTooltip = ({ active, payload, label }) => {
   )
 }
 
-function GoogleKpiCard({ label, value, delta, icon: Icon, accent }) {
+function GoogleKpiCard({ index }) {
+  const period = useDashboardBlockPeriod()
+  const src = period === 'previous' ? googleKPIsPrevious : googleKPIs
+  const { label, value, delta, icon: Icon, accent } = src[index] ?? googleKPIs[index]
   const isPos = delta > 0
   return (
     <div className="kpi-card flex min-h-0 w-full shrink-0 flex-col">
@@ -238,21 +253,23 @@ function GoogleCampaignsTable() {
   )
 }
 
-const KPI_BLOCKS = googleKPIs.map((k, i) => ({
+const KPI_BLOCKS = googleKPIs.map((_, i) => ({
   id: `google-kpi-${i}`,
+  tier: 'primary',
   defaultColSpan: 1,
   defaultRowSpan: 1,
   minColSpan: 1,
   maxColSpan: 4,
   minRowSpan: 1,
   maxRowSpan: 3,
-  render: () => <GoogleKpiCard {...k} />,
+  render: () => <GoogleKpiCard index={i} />,
 }))
 
 const GOOGLE_DASHBOARD_BLOCKS = [
   ...KPI_BLOCKS,
   {
     id: 'google-clicks',
+    tier: 'secondary',
     defaultColSpan: 5,
     defaultRowSpan: 3,
     minColSpan: 2,
@@ -263,6 +280,7 @@ const GOOGLE_DASHBOARD_BLOCKS = [
   },
   {
     id: 'google-quality',
+    tier: 'secondary',
     defaultColSpan: 3,
     defaultRowSpan: 3,
     minColSpan: 2,
@@ -273,6 +291,7 @@ const GOOGLE_DASHBOARD_BLOCKS = [
   },
   {
     id: 'google-funnel',
+    tier: 'secondary',
     defaultColSpan: 3,
     defaultRowSpan: 4,
     minColSpan: 2,
@@ -283,6 +302,7 @@ const GOOGLE_DASHBOARD_BLOCKS = [
   },
   {
     id: 'google-campaigns',
+    tier: 'secondary',
     defaultColSpan: 5,
     defaultRowSpan: 4,
     minColSpan: 2,

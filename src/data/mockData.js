@@ -7,6 +7,16 @@ export const kpiData = {
   ctr: { value: 3.98, formatted: '3,98%', delta: +0.5, deltaLabel: 'vs mês ant.' },
 }
 
+/** Mock do período anterior (comparação de KPIs — Geral). */
+export const kpiDataPrevious = {
+  investimento: { value: 1180, formatted: 'R$1,18mil', delta: +6.1, deltaLabel: 'vs período anterior' },
+  resultado: { value: 9, formatted: '9', delta: -4.2, deltaLabel: 'vs período anterior' },
+  custoResultado: { value: 7.45, formatted: 'R$7,45', delta: -2.8, deltaLabel: 'vs período anterior' },
+  retorno: { value: 13200, formatted: 'R$13,2mil', delta: +3.1, deltaLabel: 'vs período anterior' },
+  cpm: { value: 16.02, formatted: 'R$16,02', delta: +1.4, deltaLabel: 'vs período anterior' },
+  ctr: { value: 3.72, formatted: '3,72%', delta: -0.6, deltaLabel: 'vs período anterior' },
+}
+
 export const funnelData = [
   { label: 'Impressões', value: 50000, pct: 100, color: '#F5C518' },
   { label: 'Alcance', value: 1000, pct: 2.0, color: '#F5C518' },

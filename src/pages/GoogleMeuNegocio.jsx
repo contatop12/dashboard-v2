@@ -5,6 +5,7 @@ import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Cart
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
+import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 
 const kpis = [
   { label: 'Buscas Diretas', value: '2.840', delta: +18.3, icon: Search, desc: 'Pesquisaram pelo nome' },
@@ -15,6 +16,17 @@ const kpis = [
   { label: 'Rotas Solicitadas', value: '312', delta: +11.5, icon: Navigation, desc: 'Como chegar' },
   { label: 'Avaliação Média', value: '4.8★', delta: +0.2, icon: Star, desc: 'Google Reviews' },
   { label: 'Total Avaliações', value: '148', delta: +12, icon: MessageSquare, desc: 'Reviews recebidos' },
+]
+
+const kpisPrevious = [
+  { label: 'Buscas Diretas', value: '2.410', delta: +11.2, icon: Search, desc: 'Pesquisaram pelo nome' },
+  { label: 'Buscas por Descoberta', value: '4.380', delta: +14.5, icon: Globe, desc: 'Pesquisaram por categoria' },
+  { label: 'Visualizações', value: '10.900', delta: +8.4, icon: Eye, desc: 'Total Maps + Pesquisa' },
+  { label: 'Cliques no Site', value: '756', delta: +4.1, icon: Globe, desc: 'Visitas ao website' },
+  { label: 'Ligações', value: '118', delta: -1.2, icon: Phone, desc: 'Chamadas recebidas' },
+  { label: 'Rotas Solicitadas', value: '278', delta: +6.0, icon: Navigation, desc: 'Como chegar' },
+  { label: 'Avaliação Média', value: '4.7★', delta: +0.1, icon: Star, desc: 'Google Reviews' },
+  { label: 'Total Avaliações', value: '132', delta: +8, icon: MessageSquare, desc: 'Reviews recebidos' },
 ]
 
 const weeklyData = [
@@ -54,7 +66,10 @@ const CustomTooltip = ({ active, payload, label }) => {
   )
 }
 
-function GmbKpiCard({ label, value, delta, icon: Icon, desc }) {
+function GmbKpiCard({ index }) {
+  const period = useDashboardBlockPeriod()
+  const src = period === 'previous' ? kpisPrevious : kpis
+  const { label, value, delta, icon: Icon, desc } = src[index] ?? kpis[index]
   const isPos = delta > 0
   return (
     <div className="kpi-card flex min-h-0 w-full shrink-0 flex-col">
@@ -210,21 +225,23 @@ function GmbReviews() {
   )
 }
 
-const KPI_BLOCKS = kpis.map((k, i) => ({
+const KPI_BLOCKS = kpis.map((_, i) => ({
   id: `gmb-kpi-${i}`,
+  tier: 'primary',
   defaultColSpan: 1,
   defaultRowSpan: 1,
   minColSpan: 1,
   maxColSpan: 4,
   minRowSpan: 1,
   maxRowSpan: 3,
-  render: () => <GmbKpiCard {...k} />,
+  render: () => <GmbKpiCard index={i} />,
 }))
 
 const GMB_DASHBOARD_BLOCKS = [
   ...KPI_BLOCKS,
   {
     id: 'gmb-weekly-bars',
+    tier: 'secondary',
     defaultColSpan: 4,
     defaultRowSpan: 3,
     minColSpan: 2,
@@ -235,6 +252,7 @@ const GMB_DASHBOARD_BLOCKS = [
   },
   {
     id: 'gmb-weekly-area',
+    tier: 'secondary',
     defaultColSpan: 4,
     defaultRowSpan: 3,
     minColSpan: 2,
@@ -245,6 +263,7 @@ const GMB_DASHBOARD_BLOCKS = [
   },
   {
     id: 'gmb-terms',
+    tier: 'secondary',
     defaultColSpan: 4,
     defaultRowSpan: 4,
     minColSpan: 2,
@@ -255,6 +274,7 @@ const GMB_DASHBOARD_BLOCKS = [
   },
   {
     id: 'gmb-reviews',
+    tier: 'secondary',
     defaultColSpan: 4,
     defaultRowSpan: 4,
     minColSpan: 2,
