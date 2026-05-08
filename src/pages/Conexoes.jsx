@@ -51,6 +51,7 @@ export default function Conexoes() {
   const [connections, setConnections] = useState([])
   const [loadingConn, setLoadingConn] = useState(false)
   const [error, setError] = useState('')
+  const [refreshResult, setRefreshResult] = useState(null)
   const [newOrgName, setNewOrgName] = useState('')
   const [creatingOrg, setCreatingOrg] = useState(false)
   const [createError, setCreateError] = useState('')
@@ -131,9 +132,23 @@ export default function Conexoes() {
         </div>
         <button
           type="button"
-          onClick={() => {
+          onClick={async () => {
             void refreshOrgs()
-            void loadConnections()
+            await loadConnections()
+            if (!orgId) return
+            try {
+              const r = await fetch(`/api/orgs/${orgId}/accounts/refresh`, {
+                method: 'POST',
+                credentials: 'include',
+              })
+              if (r.ok) {
+                const d = await r.json()
+                setRefreshResult(d)
+                await loadConnections()
+              }
+            } catch {
+              // silent — refresh still useful even if deep scan fails
+            }
           }}
           disabled={loadingConn || !orgId}
           className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-white border border-surface-border rounded-md px-4 py-2 font-sans disabled:opacity-50"
@@ -222,6 +237,16 @@ export default function Conexoes() {
           .
         </p>
       </div>
+
+      {refreshResult && (
+        <div className="rounded-xl border border-brand/20 bg-brand/5 px-4 py-3">
+          <p className="text-xs text-brand font-sans">
+            Varredura concluída —{' '}
+            <strong>{refreshResult.added ?? 0}</strong> nova(s) conta(s),{' '}
+            <strong>{refreshResult.updated ?? 0}</strong> atualizada(s).
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {CHANNELS.map((c) => {

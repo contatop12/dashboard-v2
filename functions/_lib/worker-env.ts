@@ -7,6 +7,8 @@ export type WorkerEnv = {
   META_APP_SECRET?: string
   /** Token de usuário/sistema (Graph API) — uso exclusivo super admin nas páginas do dashboard. */
   META_ACCESS_TOKEN?: string
+  /** ID do Business Manager (BM) para descoberta de contas no modo super admin. */
+  META_BUSINESS_ID?: string
   /** Conta de anúncios `act_…` ou só o número; se vazio, usa a primeira de `me/adaccounts`. */
   META_AD_ACCOUNT_ID?: string
   /** ID numérico do usuário Instagram Business (Graph API). */

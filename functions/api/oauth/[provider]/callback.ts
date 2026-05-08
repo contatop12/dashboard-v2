@@ -112,8 +112,10 @@ async function finishMeta(
 
   await deleteOrgConnections(db, orgId, ['meta_ads', 'instagram'])
 
+  const insertedMetaIds = new Set<string>()
+
   const adR = await fetch(
-    `https://graph.facebook.com/v21.0/me/adaccounts?fields=name,account_id&limit=20&access_token=${encodeURIComponent(access)}`
+    `https://graph.facebook.com/v21.0/me/adaccounts?fields=name,account_id&limit=50&access_token=${encodeURIComponent(access)}`
   )
   const adD = (await adR.json()) as {
     data?: { name?: string; account_id?: string }[]
@@ -124,6 +126,33 @@ async function finishMeta(
       const ext = a.account_id || ''
       if (!ext) continue
       await insertConnection(db, orgId, 'meta_ads', ext, a.name ?? ext, credId)
+      insertedMetaIds.add(ext)
+    }
+  }
+
+  const bizR = await fetch(
+    `https://graph.facebook.com/v21.0/me/businesses?limit=5&access_token=${encodeURIComponent(access)}`
+  )
+  const bizD = (await bizR.json()) as { data?: { id?: string }[] }
+  for (const biz of bizD.data ?? []) {
+    if (!biz.id) continue
+    const [oaR, caR] = await Promise.all([
+      fetch(
+        `https://graph.facebook.com/v21.0/${biz.id}/owned_ad_accounts?fields=name,account_id&limit=20&access_token=${encodeURIComponent(access)}`
+      ),
+      fetch(
+        `https://graph.facebook.com/v21.0/${biz.id}/client_ad_accounts?fields=name,account_id&limit=20&access_token=${encodeURIComponent(access)}`
+      ),
+    ])
+    const [oaD, caD] = (await Promise.all([oaR.json(), caR.json()])) as [
+      { data?: { name?: string; account_id?: string }[] },
+      { data?: { name?: string; account_id?: string }[] },
+    ]
+    for (const a of [...(oaD.data ?? []), ...(caD.data ?? [])]) {
+      const ext = a.account_id || ''
+      if (!ext || insertedMetaIds.has(ext)) continue
+      await insertConnection(db, orgId, 'meta_ads', ext, a.name ?? ext, credId)
+      insertedMetaIds.add(ext)
     }
   }
 
@@ -220,9 +249,40 @@ async function finishGoogle(
     })
     const adsD = (await adsR.json()) as { resourceNames?: string[] }
     if (adsR.ok && adsD.resourceNames?.length) {
-      for (const rn of adsD.resourceNames.slice(0, 10)) {
-        const id = rn.replace('customers/', '').replace(/-/g, '')
-        await insertConnection(db, orgId, 'google_ads', id, `Cliente ${id}`, credId)
+      const rns = adsD.resourceNames.slice(0, 50)
+      const nameResults = await Promise.all(
+        rns.map(async (rn) => {
+          const id = rn.replace('customers/', '').replace(/-/g, '')
+          let name: string | null = null
+          try {
+            const sr = await fetch(
+              `https://googleads.googleapis.com/${ver}/customers/${id}/googleAds:search`,
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${access}`,
+                  'developer-token': devToken,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  query: 'SELECT customer.id, customer.descriptive_name FROM customer LIMIT 1',
+                }),
+              }
+            )
+            if (sr.ok) {
+              const sd = (await sr.json()) as {
+                results?: Array<{ customer?: { descriptiveName?: string } }>
+              }
+              name = sd.results?.[0]?.customer?.descriptiveName?.trim() || null
+            }
+          } catch {
+            // skip — use fallback name
+          }
+          return { id, name }
+        })
+      )
+      for (const { id, name } of nameResults) {
+        await insertConnection(db, orgId, 'google_ads', id, name ?? `Cliente ${id}`, credId)
       }
     }
   }
@@ -234,7 +294,7 @@ async function finishGoogle(
     accounts?: { name?: string; accountName?: string }[]
   }
   if (bmR.ok && bmD.accounts?.length) {
-    for (const acc of bmD.accounts.slice(0, 10)) {
+    for (const acc of bmD.accounts.slice(0, 50)) {
       const name = acc.name || ''
       const ext = name.replace('accounts/', '') || name
       if (!ext) continue

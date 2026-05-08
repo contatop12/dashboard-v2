@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { Palette, User, Bell, Shield, Zap } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Palette, User, Bell, Shield, Zap, Search } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
+import { useAuth } from '@/context/AuthContext'
 import { normalizeLayout } from '@/lib/dashboardGrid'
 import DesignSystem from './DesignSystem'
 import Conexoes from './Conexoes'
@@ -77,9 +78,100 @@ function NotificacoesTab() {
   )
 }
 
+function AdminAccountsCard() {
+  const [discovering, setDiscovering] = useState(false)
+  const [discoverResult, setDiscoverResult] = useState(null)
+  const [accounts, setAccounts] = useState(null)
+  const [loadingAccounts, setLoadingAccounts] = useState(false)
+
+  useEffect(() => {
+    setLoadingAccounts(true)
+    fetch('/api/admin/accounts', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => setAccounts(d))
+      .catch(() => {})
+      .finally(() => setLoadingAccounts(false))
+  }, [discoverResult])
+
+  async function handleDiscover() {
+    setDiscovering(true)
+    try {
+      const r = await fetch('/api/admin/accounts/discover', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (r.ok) setDiscoverResult(await r.json())
+    } catch {
+      // silent
+    } finally {
+      setDiscovering(false)
+    }
+  }
+
+  const LABELS = {
+    meta_ads: 'Meta Ads',
+    instagram: 'Instagram',
+    google_ads: 'Google Ads',
+    google_business: 'Google Meu Negócio',
+  }
+
+  return (
+    <div className="rounded-xl border border-surface-border bg-surface-card p-4 flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-display font-semibold text-white text-sm">Contas da empresa (BM)</h3>
+        <button
+          type="button"
+          onClick={handleDiscover}
+          disabled={discovering}
+          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-brand/10 border border-brand/30 text-brand hover:bg-brand/20 disabled:opacity-50 font-sans transition-colors"
+        >
+          <Search size={12} />
+          {discovering ? 'A descobrir…' : 'Descobrir contas'}
+        </button>
+      </div>
+
+      {discoverResult && (
+        <p className="text-xs text-brand font-sans bg-brand/5 border border-brand/20 rounded-md px-3 py-2">
+          Meta Ads: <strong>{discoverResult.meta_ads}</strong> · Instagram:{' '}
+          <strong>{discoverResult.instagram}</strong> · Google Ads:{' '}
+          <strong>{discoverResult.google_ads}</strong> · Google Meu Negócio:{' '}
+          <strong>{discoverResult.google_business}</strong>
+        </p>
+      )}
+
+      {loadingAccounts ? (
+        <p className="text-xs text-muted-foreground font-sans">A carregar…</p>
+      ) : accounts ? (
+        <div className="flex flex-col gap-3">
+          {Object.entries(LABELS).map(([key, label]) => {
+            const rows = accounts[key] ?? []
+            if (rows.length === 0) return null
+            return (
+              <div key={key}>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-sans mb-1">
+                  {label} ({rows.length})
+                </p>
+                <ul className="flex flex-col gap-0.5 max-h-28 overflow-y-auto">
+                  {rows.map((row) => (
+                    <li key={row.id} className="text-[11px] text-white/80 font-sans truncate">
+                      {row.external_name || row.external_id}
+                      <span className="ml-1 text-muted-foreground/60">({row.external_id})</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export default function Configuracoes() {
   const [activeTab, setActiveTab] = useState('design')
   const { theme } = useTheme()
+  const { user } = useAuth()
   const L = normalizeLayout(theme.layout)
 
   const contentPad = {
@@ -118,7 +210,7 @@ export default function Configuracoes() {
           {activeTab === 'notificacoes' && <NotificacoesTab />}
           {activeTab === 'integracoes' && <Conexoes />}
           {activeTab === 'permissoes' && (
-            <div className="max-w-lg">
+            <div className="max-w-lg flex flex-col gap-4">
               <div className="rounded-xl border border-surface-border bg-surface-card p-4">
                 <h3 className="mb-2 font-display text-sm font-semibold text-white">Gerenciamento de Usuários</h3>
                 <p className="font-sans text-xs text-muted-foreground">Super Admin — módulo de atribuição de contas por usuário em desenvolvimento.</p>
@@ -126,6 +218,7 @@ export default function Configuracoes() {
                   <p className="font-sans text-xs text-brand">Em breve: atribua contas (Meta Ads, Google Ads) a usuários específicos. Cada usuário verá apenas os dados das contas autorizadas.</p>
                 </div>
               </div>
+              {user?.role === 'super_admin' && <AdminAccountsCard />}
             </div>
           )}
         </div>
