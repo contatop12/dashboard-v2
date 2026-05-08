@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { WidthProvider, Responsive } from 'react-grid-layout'
+import { WidthProvider, Responsive } from 'react-grid-layout/legacy'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import { Settings2, Plus, Check } from 'lucide-react'
