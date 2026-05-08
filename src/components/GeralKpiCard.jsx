@@ -34,7 +34,7 @@ export default function GeralKpiCard({ id, label }) {
   const isNegative = delta < 0
 
   return (
-    <div className="kpi-card min-w-0 w-full shrink-0">
+    <div className={cn('kpi-card min-w-0 w-full shrink-0', period === 'previous' && 'kpi-card--compare')}>
       <span className="kpi-label block truncate">{label}</span>
       <span className="kpi-value block truncate tabular-nums">{value}</span>
       {delta !== undefined && (

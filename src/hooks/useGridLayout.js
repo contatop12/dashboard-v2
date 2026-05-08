@@ -1,83 +1,107 @@
 import { useState, useCallback, useMemo } from 'react'
 
-const STORAGE_PREFIX = 'dashboard-rgl-'
+const STORAGE_PREFIX = 'dashboard-rgl2-'
 
 function storageKey(pageId) {
   return `${STORAGE_PREFIX}${pageId}`
 }
 
-function buildDefaultLgLayout(definitions) {
-  const primary = definitions.filter((d) => d.tier === 'primary')
-  const secondary = definitions.filter((d) => d.tier !== 'primary')
-
-  const primaryRowH = primary.length > 0 ? (primary[0].defaultLayout?.h ?? 2) : 0
+function buildPrimaryLg(defs) {
   let curX = 0
-  const primaryItems = primary.map((d) => {
+  return defs.map((d) => {
     const w = d.defaultLayout?.w ?? 2
+    const h = d.defaultLayout?.h ?? 2
+    if (curX + w > 12) curX = 0
     const item = {
       i: d.id,
       x: curX,
       y: 0,
       w,
-      h: d.defaultLayout?.h ?? 2,
+      h,
       minW: d.defaultLayout?.minW ?? 1,
-      maxW: d.defaultLayout?.maxW ?? 12,
+      maxW: d.defaultLayout?.maxW ?? 6,
       minH: d.defaultLayout?.minH ?? 1,
-      maxH: d.defaultLayout?.maxH ?? 12,
+      maxH: d.defaultLayout?.maxH ?? 4,
     }
     curX += w
     return item
   })
-
-  let secX = 0
-  let secY = primaryRowH
-  const secondaryItems = secondary.map((d) => {
-    const w = d.defaultLayout?.w ?? 6
-    const h = d.defaultLayout?.h ?? 4
-    if (secX + w > 12) {
-      secX = 0
-      secY += h
-    }
-    const item = {
-      i: d.id,
-      x: secX,
-      y: secY,
-      w,
-      h,
-      minW: d.defaultLayout?.minW ?? 2,
-      maxW: d.defaultLayout?.maxW ?? 12,
-      minH: d.defaultLayout?.minH ?? 1,
-      maxH: d.defaultLayout?.maxH ?? 12,
-    }
-    secX += w
-    if (secX >= 12) {
-      secX = 0
-      secY += h
-    }
-    return item
-  })
-
-  return [...primaryItems, ...secondaryItems]
 }
 
-function buildDefaultSmLayout(definitions) {
-  return definitions.map((d, i) => ({
+function buildPrimaryLayouts(defs) {
+  const lg = buildPrimaryLg(defs)
+  const sm = defs.map((d, i) => ({
     i: d.id,
-    x: 0,
-    y: i * (d.defaultLayout?.h ?? 2),
-    w: 6,
+    x: i % 2 === 0 ? 0 : 3,
+    y: Math.floor(i / 2) * (d.defaultLayout?.h ?? 2),
+    w: 3,
     h: d.defaultLayout?.h ?? 2,
     minW: 1,
     maxW: 6,
     minH: 1,
   }))
+  return { lg, sm }
 }
 
-function buildDefaultLayouts(definitions) {
-  return {
-    lg: buildDefaultLgLayout(definitions),
-    sm: buildDefaultSmLayout(definitions),
+function buildSecondaryLg(defs) {
+  let curX = 0
+  let curY = 0
+  return defs.map((d) => {
+    const w = d.defaultLayout?.w ?? 6
+    const h = d.defaultLayout?.h ?? 4
+    if (curX + w > 12) {
+      curX = 0
+      curY += h
+    }
+    const item = {
+      i: d.id,
+      x: curX,
+      y: curY,
+      w,
+      h,
+      minW: d.defaultLayout?.minW ?? 2,
+      maxW: d.defaultLayout?.maxW ?? 12,
+      minH: d.defaultLayout?.minH ?? 2,
+      maxH: d.defaultLayout?.maxH ?? 12,
+    }
+    curX += w
+    if (curX >= 12) {
+      curX = 0
+      curY += h
+    }
+    return item
+  })
+}
+
+function buildSecondaryLayouts(defs) {
+  const lg = buildSecondaryLg(defs)
+  const sm = defs.map((d, i) => ({
+    i: d.id,
+    x: 0,
+    y: i * (d.defaultLayout?.h ?? 4),
+    w: 6,
+    h: d.defaultLayout?.h ?? 4,
+    minW: 1,
+    maxW: 6,
+    minH: 2,
+  }))
+  return { lg, sm }
+}
+
+function mergeLayouts(saved, defaults, ids) {
+  const idSet = new Set(ids)
+  const merged = {}
+  for (const bp of Object.keys(defaults)) {
+    const savedBp = Array.isArray(saved?.[bp]) ? saved[bp] : []
+    const savedMap = Object.fromEntries(savedBp.map((item) => [item.i, item]))
+    const defaultMap = Object.fromEntries(defaults[bp].map((item) => [item.i, item]))
+    const items = ids
+      .filter((id) => defaultMap[id])
+      .map((id) => ({ ...defaultMap[id], ...(savedMap[id] ?? {}) }))
+    const extras = savedBp.filter((item) => !idSet.has(item.i))
+    merged[bp] = [...items, ...extras]
   }
+  return merged
 }
 
 function loadFromStorage(pageId) {
@@ -96,38 +120,39 @@ function saveToStorage(pageId, data) {
   } catch { /* ignore */ }
 }
 
-function mergeLayouts(saved, defaults, allIds) {
-  const idSet = new Set(allIds)
-  const merged = {}
-  for (const bp of Object.keys(defaults)) {
-    const savedBp = Array.isArray(saved?.[bp]) ? saved[bp] : []
-    const savedMap = Object.fromEntries(savedBp.map((item) => [item.i, item]))
-    const defaultMap = Object.fromEntries(defaults[bp].map((item) => [item.i, item]))
-    const items = allIds
-      .filter((id) => defaultMap[id])
-      .map((id) => ({ ...defaultMap[id], ...(savedMap[id] ?? {}) }))
-    const extras = savedBp.filter((item) => !idSet.has(item.i))
-    merged[bp] = [...items, ...extras]
-  }
-  return merged
-}
-
 export function useGridLayout(pageId, definitions) {
-  const defaultLayouts = useMemo(() => buildDefaultLayouts(definitions), [definitions])
-  const allIds = useMemo(() => definitions.map((d) => d.id), [definitions])
+  const primaryDefs = useMemo(() => definitions.filter((d) => d.tier === 'primary'), [definitions])
+  const secondaryDefs = useMemo(() => definitions.filter((d) => d.tier !== 'primary'), [definitions])
+  const primaryIds = useMemo(() => primaryDefs.map((d) => d.id), [primaryDefs])
+  const secondaryIds = useMemo(() => secondaryDefs.map((d) => d.id), [secondaryDefs])
+
+  const defaultPrimary = useMemo(() => buildPrimaryLayouts(primaryDefs), [primaryDefs])
+  const defaultSecondary = useMemo(() => buildSecondaryLayouts(secondaryDefs), [secondaryDefs])
 
   const [state, setState] = useState(() => {
     const saved = loadFromStorage(pageId)
     return {
-      layouts: mergeLayouts(saved?.layouts, buildDefaultLayouts(definitions), definitions.map((d) => d.id)),
+      primaryLayouts: mergeLayouts(saved?.primaryLayouts, buildPrimaryLayouts(primaryDefs), primaryDefs.map((d) => d.id)),
+      secondaryLayouts: mergeLayouts(saved?.secondaryLayouts, buildSecondaryLayouts(secondaryDefs), secondaryDefs.map((d) => d.id)),
       customMetrics: Array.isArray(saved?.customMetrics) ? saved.customMetrics : [],
     }
   })
 
-  const onLayoutChange = useCallback(
-    (_currentLayout, allLayouts) => {
+  const onPrimaryLayoutChange = useCallback(
+    (_cur, allLayouts) => {
       setState((prev) => {
-        const next = { ...prev, layouts: allLayouts }
+        const next = { ...prev, primaryLayouts: allLayouts }
+        saveToStorage(pageId, next)
+        return next
+      })
+    },
+    [pageId]
+  )
+
+  const onSecondaryLayoutChange = useCallback(
+    (_cur, allLayouts) => {
+      setState((prev) => {
+        const next = { ...prev, secondaryLayouts: allLayouts }
         saveToStorage(pageId, next)
         return next
       })
@@ -141,14 +166,14 @@ export function useGridLayout(pageId, definitions) {
       setState((prev) => {
         if (prev.customMetrics.find((m) => m.id === id)) return prev
         const newMetric = { id, fieldKey: field.key, label: field.label, format: field.format }
-        const newItem = { i: id, x: 0, y: 0, w: 2, h: 2, minW: 1, maxW: 4, minH: 2, maxH: 4 }
+        const newItem = { i: id, x: 0, y: 0, w: 2, h: 2, minW: 1, maxW: 6, minH: 2, maxH: 4 }
         const next = {
           ...prev,
           customMetrics: [...prev.customMetrics, newMetric],
-          layouts: {
-            ...prev.layouts,
-            lg: [...(prev.layouts.lg ?? []), newItem],
-            sm: [...(prev.layouts.sm ?? []), { ...newItem, w: 6, x: 0 }],
+          primaryLayouts: {
+            ...prev.primaryLayouts,
+            lg: [...(prev.primaryLayouts.lg ?? []), newItem],
+            sm: [...(prev.primaryLayouts.sm ?? []), { ...newItem, w: 3, x: 0 }],
           },
         }
         saveToStorage(pageId, next)
@@ -164,11 +189,8 @@ export function useGridLayout(pageId, definitions) {
         const next = {
           ...prev,
           customMetrics: prev.customMetrics.filter((m) => m.id !== id),
-          layouts: Object.fromEntries(
-            Object.entries(prev.layouts).map(([bp, items]) => [
-              bp,
-              items.filter((item) => item.i !== id),
-            ])
+          primaryLayouts: Object.fromEntries(
+            Object.entries(prev.primaryLayouts).map(([bp, items]) => [bp, items.filter((item) => item.i !== id)])
           ),
         }
         saveToStorage(pageId, next)
@@ -179,11 +201,12 @@ export function useGridLayout(pageId, definitions) {
   )
 
   return {
-    layouts: state.layouts,
+    primaryLayouts: state.primaryLayouts,
+    secondaryLayouts: state.secondaryLayouts,
     customMetrics: state.customMetrics,
-    onLayoutChange,
+    onPrimaryLayoutChange,
+    onSecondaryLayoutChange,
     addCustomMetric,
     removeCustomMetric,
-    defaultLayouts,
   }
 }
