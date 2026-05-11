@@ -105,3 +105,94 @@ export async function onRequestPost(context: {
       'Guarde a senha temporária ou altere após primeiro login (OAuth / recuperação na próxima onda).',
   })
 }
+
+export async function onRequestPatch(context: {
+  request: Request
+  env: Env
+  data: { user?: UserRow | null }
+}): Promise<Response> {
+  const admin = context.data.user
+  if (!admin) return jsonError('Não autorizado', 401)
+  if (admin.role !== 'super_admin') return jsonError('Apenas super admin', 403)
+
+  let body: {
+    user_id?: string
+    organizationName?: string
+    name?: string | null
+    email?: string
+    password?: string
+  }
+  try {
+    body = await context.request.json()
+  } catch {
+    return jsonError('JSON inválido', 400)
+  }
+
+  const userId = String(body.user_id ?? '').trim()
+  if (!userId) return jsonError('user_id obrigatório', 400)
+
+  const target = await context.env.DB.prepare(
+    `SELECT id, email, role FROM users WHERE id = ? LIMIT 1`
+  )
+    .bind(userId)
+    .first<{ id: string; email: string; role: string }>()
+  if (!target || target.role !== 'client') return jsonError('Cliente não encontrado', 404)
+
+  const orgRow = await context.env.DB.prepare(
+    `SELECT o.id as org_id FROM organizations o
+     INNER JOIN organization_members m ON m.org_id = o.id AND m.user_id = ? AND m.role = 'owner'
+     LIMIT 1`
+  )
+    .bind(userId)
+    .first<{ org_id: string }>()
+
+  const updatesUser: string[] = []
+  const bindsUser: unknown[] = []
+
+  if (body.email !== undefined) {
+    const email = String(body.email).trim().toLowerCase()
+    if (!email) return jsonError('E-mail inválido', 400)
+    const taken = await context.env.DB.prepare(`SELECT id FROM users WHERE email = ? AND id != ?`)
+      .bind(email, userId)
+      .first<{ id: string }>()
+    if (taken) return jsonError('E-mail já cadastrado', 409)
+    updatesUser.push('email = ?')
+    bindsUser.push(email)
+  }
+
+  if (body.name !== undefined) {
+    updatesUser.push('name = ?')
+    bindsUser.push(body.name ? String(body.name).trim() : null)
+  }
+
+  if (body.password !== undefined && String(body.password).length > 0) {
+    const password = String(body.password)
+    const salt = crypto.getRandomValues(new Uint8Array(16))
+    const hashBuf = await derivePasswordHash(password, salt)
+    const saltHex = bytesToHex(salt)
+    const hashHex = bytesToHex(hashBuf)
+    updatesUser.push('password_hash = ?', 'password_salt = ?')
+    bindsUser.push(hashHex, saltHex)
+  }
+
+  if (updatesUser.length > 0) {
+    updatesUser.push(`updated_at = datetime('now')`)
+    bindsUser.push(userId)
+    await context.env.DB.prepare(
+      `UPDATE users SET ${updatesUser.join(', ')} WHERE id = ? AND role = 'client'`
+    )
+      .bind(...bindsUser)
+      .run()
+  }
+
+  if (body.organizationName !== undefined && orgRow?.org_id) {
+    const orgName = String(body.organizationName).trim()
+    if (orgName) {
+      await context.env.DB.prepare(`UPDATE organizations SET name = ? WHERE id = ?`)
+        .bind(orgName, orgRow.org_id)
+        .run()
+    }
+  }
+
+  return json({ ok: true })
+}

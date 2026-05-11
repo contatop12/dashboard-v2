@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useDashboardFilters } from '@/context/DashboardFiltersContext'
 import {
   Facebook,
   TrendingUp,
@@ -349,13 +350,39 @@ function MetaEngagement() {
   )
 }
 
+function campaignRowMatchesFilters(c, f) {
+  const camp = f.campanha
+  if (camp && camp !== 'Todas') {
+    const n = c.name.toLowerCase()
+    const fl = camp.toLowerCase()
+    if (fl.includes('leads') && !(n.includes('lead') || n.includes('prospeccao'))) return false
+    if (fl.includes('retarget') && !n.includes('retarget')) return false
+    if (fl.includes('brand') && !n.includes('brand')) return false
+    if (!fl.includes('leads') && !fl.includes('retarget') && !fl.includes('brand')) {
+      const tail = fl.replace(/^campanha_/, '').replace(/_/g, '')
+      if (tail && !n.includes(tail)) return false
+    }
+  }
+  const obj = f.objetivo
+  if (obj && obj !== 'Todos') {
+    if (c.objetivo !== obj && !(obj === 'Reconhecimento' && c.objetivo.startsWith('Reconhec'))) return false
+  }
+  return true
+}
+
 function MetaCampaignsTable() {
+  const { dimensionFilters } = useDashboardFilters()
+  const visible = useMemo(
+    () => campaigns.filter((c) => campaignRowMatchesFilters(c, dimensionFilters)),
+    [dimensionFilters]
+  )
+
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg overflow-hidden min-w-0 h-full flex flex-col">
       <div className="px-4 py-4 border-b border-surface-border flex items-center justify-between shrink-0">
         <span className="section-title">Campanhas Meta Ads</span>
         <span className="text-[10px] text-muted-foreground font-mono">
-          {campaigns.filter((c) => c.status === 'active').length} ativas
+          {visible.filter((c) => c.status === 'active').length} ativas · {visible.length} linhas
         </span>
       </div>
       <div className="overflow-x-auto flex-1 min-h-0">
@@ -376,7 +403,7 @@ function MetaCampaignsTable() {
             </tr>
           </thead>
           <tbody>
-            {campaigns.map((c) => (
+            {visible.map((c) => (
               <tr key={c.name} className="border-b border-surface-border/50 last:border-0 hover:bg-surface-hover/40 transition-colors">
                 <td className="px-4 py-4 font-sans text-white font-medium truncate max-w-[180px]">{c.name}</td>
                 <td className="px-4 py-4 text-right">

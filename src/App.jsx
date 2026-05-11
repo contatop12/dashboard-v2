@@ -34,7 +34,6 @@ export default function App() {
   const { user, loading } = useAuth()
   const [activePage, setActivePage] = useState('Geral')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [filters, setFilters] = useState({})
 
   useEffect(() => {
     if (user?.role !== 'super_admin' && activePage === 'Clientes') {
@@ -95,14 +94,8 @@ export default function App() {
           />
 
           <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-            {showFilterBar && (
-              <FilterBar
-                activePage={effectivePage}
-                filters={filters}
-                onFiltersChange={setFilters}
-              />
-            )}
-            <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+            {showFilterBar && <FilterBar activePage={effectivePage} />}
+            <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden px-4 sm:px-6">
               <PageComponent />
             </main>
           </div>

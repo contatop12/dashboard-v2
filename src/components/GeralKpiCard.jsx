@@ -21,11 +21,18 @@ export const GERAL_KPI_CARDS = [
   { id: 'ctr', label: 'CTR' },
 ]
 
-export default function GeralKpiCard({ id, label }) {
+export default function GeralKpiCard({ id, label, variant = 'metric', fieldKey }) {
   const period = useDashboardBlockPeriod()
-  const key = METRIC_KEY[id] ?? id
   const src = period === 'previous' ? kpiDataPrevious : kpiData
-  const row = src[key]
+
+  let row
+  if (variant === 'field' && fieldKey) {
+    row = src[fieldKey]
+  } else {
+    const key = METRIC_KEY[id] ?? id
+    row = src[key]
+  }
+
   if (!row) return null
   const value = row.formatted
   const delta = row.delta

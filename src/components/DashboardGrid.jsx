@@ -2,14 +2,13 @@ import { useState, useMemo } from 'react'
 import { WidthProvider, Responsive } from 'react-grid-layout/legacy'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
-import { Settings2, Plus, Check, BarChart2 } from 'lucide-react'
+import { Settings2, Plus, Check, BarChart2, ListOrdered } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useGridLayout } from '@/hooks/useGridLayout'
 import DashboardBlock from '@/components/DashboardBlock'
 import AddMetricModal from '@/components/AddMetricModal'
-import GeralKpiCard from '@/components/GeralKpiCard'
-import { formatFieldValue } from '@/lib/apiFields'
-import { kpiData } from '@/data/mockData'
+import KpiOrderModal from '@/components/KpiOrderModal'
+import GeralKpiCard, { GERAL_KPI_CARDS } from '@/components/GeralKpiCard'
 import { DashboardBlockPeriodContext } from '@/context/DashboardBlockPeriodContext'
 import { useDashboardFiltersOptional } from '@/context/DashboardFiltersContext'
 
@@ -19,13 +18,22 @@ const BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }
 const COLS = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }
 
 function buildCustomDef(metric) {
-  const rawValue = kpiData[metric.fieldKey]?.value ?? null
-  const formatted = rawValue != null ? formatFieldValue(rawValue, metric.format) : '—'
   return {
     id: metric.id,
     tier: 'primary',
-    render: () => <GeralKpiCard label={metric.label} value={formatted} accent="brand" />,
+    render: () => (
+      <GeralKpiCard variant="field" fieldKey={metric.fieldKey} label={metric.label} />
+    ),
   }
+}
+
+function labelForPrimaryDef(def, customMetrics) {
+  if (def.id.startsWith('kpi-custom-')) {
+    return customMetrics.find((m) => m.id === def.id)?.label ?? def.id
+  }
+  const suffix = def.id.replace(/^kpi-/, '')
+  const c = GERAL_KPI_CARDS.find((k) => k.id === suffix)
+  return c?.label ?? def.id
 }
 
 const RGL_PROPS = {
@@ -40,6 +48,7 @@ const RGL_PROPS = {
 export default function DashboardGrid({ pageId, definitions, className }) {
   const [isEditing, setIsEditing] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [orderModalOpen, setOrderModalOpen] = useState(false)
 
   const filters = useDashboardFiltersOptional()
   const comparePrimaryKpi = filters?.comparePrimaryKpi ?? false
@@ -48,9 +57,11 @@ export default function DashboardGrid({ pageId, definitions, className }) {
     primaryLayouts,
     secondaryLayouts,
     customMetrics,
+    primaryKpiOrder,
     onPrimaryLayoutChange,
     onSecondaryLayoutChange,
     addCustomMetric,
+    reorderPrimaryKpis,
   } = useGridLayout(pageId, definitions)
 
   const primaryDefs = useMemo(
@@ -67,24 +78,60 @@ export default function DashboardGrid({ pageId, definitions, className }) {
     return [...primaryDefs, ...customDefs]
   }, [primaryDefs, customMetrics])
 
+  const orderedPrimaryDefs = useMemo(() => {
+    const map = Object.fromEntries(allPrimaryDefs.map((d) => [d.id, d]))
+    const baseOrder = allPrimaryDefs.map((d) => d.id)
+    const head =
+      primaryKpiOrder?.length > 0
+        ? primaryKpiOrder.filter((id) => map[id])
+        : baseOrder
+    const seen = new Set(head)
+    const tail = baseOrder.filter((id) => !seen.has(id))
+    return [...head, ...tail].map((id) => map[id]).filter(Boolean)
+  }, [allPrimaryDefs, primaryKpiOrder])
+
+  const kpiOrderItems = useMemo(
+    () =>
+      orderedPrimaryDefs.map((d) => ({
+        id: d.id,
+        label: labelForPrimaryDef(d, customMetrics),
+      })),
+    [orderedPrimaryDefs, customMetrics]
+  )
+
   const existingCustomIds = useMemo(
     () => customMetrics.map((m) => m.id),
     [customMetrics]
   )
 
+  const primaryOrderForModal = useMemo(() => {
+    const valid = new Set(orderedPrimaryDefs.map((d) => d.id))
+    return (primaryKpiOrder ?? []).filter((id) => valid.has(id))
+  }, [primaryKpiOrder, orderedPrimaryDefs])
+
   return (
     <div className={cn('relative w-full dashboard-dot-bg min-h-screen', className)}>
       {/* Toolbar */}
-      <div className="absolute right-4 top-4 z-50 flex items-center gap-2">
+      <div className="absolute right-4 top-4 z-50 flex max-w-[min(100%,calc(100vw-2rem))] flex-wrap items-center justify-end gap-2">
         {isEditing && (
-          <button
-            type="button"
-            onClick={() => setModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-surface-card border border-white/10 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors shadow"
-          >
-            <Plus size={12} />
-            Métrica
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setOrderModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-surface-card border border-white/10 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors shadow"
+            >
+              <ListOrdered size={12} />
+              Ordem
+            </button>
+            <button
+              type="button"
+              onClick={() => setModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-surface-card border border-white/10 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors shadow"
+            >
+              <Plus size={12} />
+              Métrica
+            </button>
+          </>
         )}
         <button
           type="button"
@@ -123,7 +170,7 @@ export default function DashboardGrid({ pageId, definitions, className }) {
           isResizable={isEditing}
           onLayoutChange={onPrimaryLayoutChange}
         >
-          {allPrimaryDefs.map((def) => (
+          {orderedPrimaryDefs.map((def) => (
             <div key={def.id} className="group">
               <DashboardBlock blockId={def.id} isEditing={isEditing}>
                 {def.render()}
@@ -139,9 +186,11 @@ export default function DashboardGrid({ pageId, definitions, className }) {
             <DashboardBlockPeriodContext.Provider value="previous">
               <div
                 className="grid gap-4"
-                style={{ gridTemplateColumns: `repeat(${Math.min(allPrimaryDefs.length, 6)}, minmax(0, 1fr))` }}
+                style={{
+                  gridTemplateColumns: `repeat(${Math.min(orderedPrimaryDefs.length, 6)}, minmax(0, 1fr))`,
+                }}
               >
-                {allPrimaryDefs.map((def) => (
+                {orderedPrimaryDefs.map((def) => (
                   <div key={`cmp-${def.id}`}>
                     {def.render()}
                   </div>
@@ -188,6 +237,14 @@ export default function DashboardGrid({ pageId, definitions, className }) {
         onOpenChange={setModalOpen}
         onAdd={addCustomMetric}
         existingIds={existingCustomIds}
+      />
+
+      <KpiOrderModal
+        open={orderModalOpen}
+        onOpenChange={setOrderModalOpen}
+        items={kpiOrderItems}
+        order={primaryOrderForModal.length ? primaryOrderForModal : orderedPrimaryDefs.map((d) => d.id)}
+        onApply={reorderPrimaryKpis}
       />
     </div>
   )

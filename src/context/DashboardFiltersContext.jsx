@@ -11,6 +11,7 @@ export function DashboardFiltersProvider({ children }) {
     return { start, end }
   })
   const [comparePrimaryKpi, setComparePrimaryKpi] = useState(false)
+  const [dimensionFilters, setDimensionFilters] = useState({})
 
   const previousPeriod = useMemo(
     () => getPreviousPeriodOfSameLength(dateRange.start, dateRange.end),
@@ -32,8 +33,10 @@ export function DashboardFiltersProvider({ children }) {
       comparePrimaryKpi,
       setComparePrimaryKpi,
       previousPeriod,
+      dimensionFilters,
+      setDimensionFilters,
     }),
-    [dateRange, setDateRangeSafe, comparePrimaryKpi, previousPeriod]
+    [dateRange, setDateRangeSafe, comparePrimaryKpi, previousPeriod, dimensionFilters]
   )
 
   return <DashboardFiltersContext.Provider value={value}>{children}</DashboardFiltersContext.Provider>

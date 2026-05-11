@@ -1,8 +1,19 @@
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { overviewTableData } from '@/data/mockData'
 import { formatNumber, formatCurrency, formatPercent } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { useDashboardFiltersOptional } from '@/context/DashboardFiltersContext'
+
+function rowMatchesCampanhaFilter(rowCampanha, filterVal) {
+  if (!filterVal || filterVal === 'Todas') return true
+  const r = rowCampanha.toLowerCase()
+  const f = filterVal.toLowerCase().replace(/^campanha_/, '')
+  if (f.includes('leads')) return r.includes('leads')
+  if (f.includes('retarget')) return r.includes('retarget')
+  if (f.includes('brand')) return r.includes('brand')
+  return r.includes(f.replace(/_/g, ''))
+}
 
 const columns = [
   { key: 'campanha', label: 'Campanha', align: 'left' },
@@ -13,10 +24,17 @@ const columns = [
 ]
 
 export default function OverviewTable() {
+  const filters = useDashboardFiltersOptional()
+  const campanhaFilter = filters?.dimensionFilters?.campanha
   const [sortKey, setSortKey] = useState('impressoes')
   const [sortDir, setSortDir] = useState('desc')
 
-  const sorted = [...overviewTableData].sort((a, b) => {
+  const baseRows = useMemo(
+    () => overviewTableData.filter((row) => rowMatchesCampanhaFilter(row.campanha, campanhaFilter)),
+    [campanhaFilter]
+  )
+
+  const sorted = [...baseRows].sort((a, b) => {
     const mult = sortDir === 'desc' ? -1 : 1
     return (a[sortKey] > b[sortKey] ? 1 : -1) * mult
   })
@@ -30,7 +48,9 @@ export default function OverviewTable() {
     <div className="flex h-full min-h-0 flex-col gap-4 rounded-lg border border-surface-border bg-surface-card p-4">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <span className="section-title">Visão Geral</span>
-        <span className="text-[10px] text-muted-foreground font-mono">{overviewTableData.length} campanhas</span>
+        <span className="text-[10px] text-muted-foreground font-mono">
+          {sorted.length} de {overviewTableData.length} campanhas
+        </span>
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto">

@@ -5,6 +5,17 @@ export const kpiData = {
   retorno: { value: 15000, formatted: 'R$15mil', delta: +6.7, deltaLabel: 'vs mês ant.' },
   cpm: { value: 15.26, formatted: 'R$15,26', delta: -2.1, deltaLabel: 'vs mês ant.' },
   ctr: { value: 3.98, formatted: '3,98%', delta: +0.5, deltaLabel: 'vs mês ant.' },
+  // Chaves alinhadas a `API_FIELDS` (métricas custom no painel Geral)
+  impressoes: { value: 50000, formatted: '50.000', delta: +14.5, deltaLabel: 'vs mês ant.' },
+  alcance: { value: 28500, formatted: '28.500', delta: +18.2, deltaLabel: 'vs mês ant.' },
+  cliques: { value: 1990, formatted: '1.990', delta: +9.2, deltaLabel: 'vs mês ant.' },
+  cpc: { value: 0.65, formatted: 'R$0,65', delta: -3.1, deltaLabel: 'vs mês ant.' },
+  frequencia: { value: 1.76, formatted: '1,76', delta: +2.1, deltaLabel: 'vs mês ant.' },
+  conversoes: { value: 11, formatted: '11', delta: -9.1, deltaLabel: 'vs mês ant.' },
+  leads: { value: 11, formatted: '11', delta: -5.4, deltaLabel: 'vs mês ant.' },
+  visualizacoes: { value: 890, formatted: '890', delta: +7.3, deltaLabel: 'vs mês ant.' },
+  roas: { value: 2.85, formatted: '2,85', delta: +4.8, deltaLabel: 'vs mês ant.' },
+  cpl: { value: 118.18, formatted: 'R$118,18', delta: -5.4, deltaLabel: 'vs mês ant.' },
 }
 
 /** Mock do período anterior (comparação de KPIs — Geral). */
@@ -15,6 +26,16 @@ export const kpiDataPrevious = {
   retorno: { value: 13200, formatted: 'R$13,2mil', delta: +3.1, deltaLabel: 'vs período anterior' },
   cpm: { value: 16.02, formatted: 'R$16,02', delta: +1.4, deltaLabel: 'vs período anterior' },
   ctr: { value: 3.72, formatted: '3,72%', delta: -0.6, deltaLabel: 'vs período anterior' },
+  impressoes: { value: 43800, formatted: '43.800', delta: +6.8, deltaLabel: 'vs período anterior' },
+  alcance: { value: 24100, formatted: '24.100', delta: +9.5, deltaLabel: 'vs período anterior' },
+  cliques: { value: 1752, formatted: '1.752', delta: +3.1, deltaLabel: 'vs período anterior' },
+  cpc: { value: 0.62, formatted: 'R$0,62', delta: -6.2, deltaLabel: 'vs período anterior' },
+  frequencia: { value: 1.68, formatted: '1,68', delta: -0.8, deltaLabel: 'vs período anterior' },
+  conversoes: { value: 8, formatted: '8', delta: -4.0, deltaLabel: 'vs período anterior' },
+  leads: { value: 9, formatted: '9', delta: -5.0, deltaLabel: 'vs período anterior' },
+  visualizacoes: { value: 720, formatted: '720', delta: +2.1, deltaLabel: 'vs período anterior' },
+  roas: { value: 2.62, formatted: '2,62', delta: +1.2, deltaLabel: 'vs período anterior' },
+  cpl: { value: 135.0, formatted: 'R$135,00', delta: +2.1, deltaLabel: 'vs período anterior' },
 }
 
 export const funnelData = [

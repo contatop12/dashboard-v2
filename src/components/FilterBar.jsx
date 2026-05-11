@@ -5,20 +5,21 @@ import { Calendar, ChevronDown, RefreshCw, Columns2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
+import { useAuth } from '@/context/AuthContext'
 import { rangeLastNDays, rangeThisMonth } from '@/lib/dateRange'
 
 // Filter configs per page
 const PAGE_FILTERS = {
-  'Geral': ['dateRange', 'campanha', 'grupoAnuncios', 'palavrasChave', 'objetivo'],
+  Geral: ['dateRange', 'campanha', 'grupoAnuncios', 'palavrasChave', 'objetivo'],
   'Meta Ads': ['dateRange', 'campanha', 'conjuntoAnuncios', 'anuncio', 'objetivo', 'posicionamento'],
   'Google Ads': ['dateRange', 'campanha', 'grupoAnuncios', 'palavrasChave', 'tipoCampanha'],
   'Google Meu Negócio': ['dateRange', 'local'],
-  'Instagram': ['dateRange', 'perfil', 'tipoConteudo'],
-  'Campanhas': ['dateRange', 'campanha', 'objetivo'],
-  'Anúncios': ['dateRange', 'campanha', 'tipoAnuncio'],
+  Instagram: ['dateRange', 'perfil', 'tipoConteudo'],
+  Campanhas: ['dateRange', 'campanha', 'objetivo'],
+  Anúncios: ['dateRange', 'campanha', 'tipoAnuncio'],
   'Palavras-chave': ['dateRange', 'campanha', 'palavrasChave', 'tipoCorrespondencia'],
-  'Relatórios': ['dateRange'],
-  'Configurações': [],
+  Relatórios: ['dateRange'],
+  Configurações: [],
 }
 
 /** Páginas com faixa de KPIs primários no DashboardGrid (toggle de comparação). */
@@ -48,26 +49,45 @@ const FILTER_OPTIONS = {
 
 function FilterSelect({ filterKey, value, onChange, optionsOverride }) {
   const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
   const config = FILTER_OPTIONS[filterKey]
   if (!config) return null
   const options = optionsOverride ?? config.options
 
+  useEffect(() => {
+    if (!open) return
+    const close = (e) => {
+      if (wrapRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
+    window.addEventListener('pointerdown', close, true)
+    return () => window.removeEventListener('pointerdown', close, true)
+  }, [open])
+
   return (
-    <div className="relative">
+    <div className="relative z-[60]" ref={wrapRef}>
       <button
-        onClick={() => setOpen(!open)}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
         className="filter-select"
       >
-        <span className="text-white max-w-[120px] truncate">{value || config.label}</span>
+        <span className="text-white max-w-[140px] truncate">{value || config.label}</span>
         <ChevronDown size={10} className="text-muted-foreground shrink-0" />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-2 max-h-60 overflow-y-auto bg-surface-card border border-surface-border rounded-lg shadow-xl z-50 min-w-[160px] py-2 animate-scale-in">
+        <div className="absolute top-full left-0 mt-2 max-h-60 overflow-y-auto bg-surface-card border border-surface-border rounded-lg shadow-xl z-[70] min-w-[180px] py-2 animate-scale-in">
           {options.map((opt) => (
             <button
               key={opt}
-              onClick={() => { onChange(filterKey, opt); setOpen(false) }}
-              className={cn('w-full text-left px-4 py-2 text-xs hover:bg-surface-hover transition-colors', value === opt ? 'text-brand' : 'text-white')}
+              type="button"
+              onClick={() => {
+                onChange(filterKey, opt)
+                setOpen(false)
+              }}
+              className={cn(
+                'w-full text-left px-4 py-2 text-xs hover:bg-surface-hover transition-colors',
+                value === opt ? 'text-brand' : 'text-white'
+              )}
             >
               {opt}
             </button>
@@ -78,9 +98,17 @@ function FilterSelect({ filterKey, value, onChange, optionsOverride }) {
   )
 }
 
-export default function FilterBar({ activePage, filters, onFiltersChange }) {
+export default function FilterBar({ activePage }) {
+  const { user } = useAuth()
   const { activeOrgId } = useOrgWorkspace()
-  const { dateRange, setDateRange, comparePrimaryKpi, setComparePrimaryKpi } = useDashboardFilters()
+  const {
+    dateRange,
+    setDateRange,
+    comparePrimaryKpi,
+    setComparePrimaryKpi,
+    dimensionFilters,
+    setDimensionFilters,
+  } = useDashboardFilters()
   const [metaLive, setMetaLive] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [dateOpen, setDateOpen] = useState(false)
@@ -92,6 +120,10 @@ export default function FilterBar({ activePage, filters, onFiltersChange }) {
 
   const rangeLabelLong = `${format(dateRange.start, 'd MMM', { locale: ptBR })} – ${format(dateRange.end, 'd MMM yyyy', { locale: ptBR })}`
   const rangeLabelShort = `${format(dateRange.start, 'd MMM', { locale: ptBR })} – ${format(dateRange.end, 'MMM', { locale: ptBR })}`
+
+  useEffect(() => {
+    setDimensionFilters({})
+  }, [activePage, setDimensionFilters])
 
   useEffect(() => {
     if (!dateOpen) return
@@ -162,79 +194,96 @@ export default function FilterBar({ activePage, filters, onFiltersChange }) {
     setTimeout(() => setRefreshing(false), 800)
   }
 
+  const showWorkerHint = user?.role === 'super_admin' && !activeOrgId
+
   return (
-    <div className="min-h-12 bg-[#0F0F0F] border-b border-surface-border flex items-center px-4 gap-2 shrink-0 flex-wrap py-2">
-      {activeFilters.includes('dateRange') && (
-        <>
-          <div className="relative" ref={dateMenuRef}>
-            <button
-              type="button"
-              onClick={() => setDateOpen((o) => !o)}
-              className="filter-select max-w-[min(100vw-8rem,280px)]"
-            >
-              <Calendar size={11} className="text-muted-foreground shrink-0" />
-              <span className="text-white text-xs hidden sm:block truncate">{rangeLabelLong}</span>
-              <span className="text-white text-xs sm:hidden truncate">{rangeLabelShort}</span>
-              <ChevronDown size={10} className="text-muted-foreground shrink-0" />
-            </button>
-            {dateOpen && (
-              <div className="absolute top-full left-0 mt-2 z-50 min-w-[200px] rounded-lg border border-surface-border bg-surface-card py-2 shadow-xl animate-scale-in">
-                {DATE_PRESETS.map((p) => (
-                  <button
-                    key={p.key}
-                    type="button"
-                    onClick={() => {
-                      setDateRange(p.getRange())
-                      setDateOpen(false)
-                    }}
-                    className="w-full px-4 py-2 text-left text-xs text-white hover:bg-surface-hover transition-colors"
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {showKpiCompare && (
-            <button
-              type="button"
-              aria-pressed={comparePrimaryKpi}
-              onClick={() => setComparePrimaryKpi((v) => !v)}
-              title="Exibir KPIs primários do período anterior (mesma duração, antes do intervalo atual)"
-              className={cn(
-                'filter-select shrink-0',
-                comparePrimaryKpi && 'border-brand/40 bg-brand/10 text-brand'
-              )}
-            >
-              <Columns2 size={11} className={comparePrimaryKpi ? 'text-brand' : 'text-muted-foreground'} />
-              <span className="text-white text-xs hidden md:inline">Comparar KPIs</span>
-            </button>
-          )}
-          <div className="w-px h-4 bg-surface-border mx-2 hidden sm:block" />
-        </>
+    <div className="shrink-0 flex flex-col border-b border-surface-border bg-[#0F0F0F]">
+      {showWorkerHint && (
+        <div className="border-b border-amber-500/25 bg-amber-500/10 px-4 py-1.5 text-[10px] text-amber-100/90 font-sans">
+          Modo <span className="font-semibold">Secrets (.env)</span>: selecione uma organização no topo para OAuth,
+          filtros vivos da Meta e contas por canal.
+        </div>
       )}
+      <div className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
+        {activeFilters.includes('dateRange') && (
+          <>
+            <div className="relative z-[60]" ref={dateMenuRef}>
+              <button
+                type="button"
+                onClick={() => setDateOpen((o) => !o)}
+                className="filter-select max-w-[min(100vw-8rem,280px)]"
+              >
+                <Calendar size={11} className="text-muted-foreground shrink-0" />
+                <span className="text-white text-xs hidden sm:block truncate">{rangeLabelLong}</span>
+                <span className="text-white text-xs sm:hidden truncate">{rangeLabelShort}</span>
+                <ChevronDown size={10} className="text-muted-foreground shrink-0" />
+              </button>
+              {dateOpen && (
+                <div className="absolute top-full left-0 z-[70] mt-2 min-w-[200px] rounded-lg border border-surface-border bg-surface-card py-2 shadow-xl animate-scale-in">
+                  {DATE_PRESETS.map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => {
+                        setDateRange(p.getRange())
+                        setDateOpen(false)
+                      }}
+                      className="w-full px-4 py-2 text-left text-xs text-white hover:bg-surface-hover transition-colors"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {showKpiCompare && (
+              <button
+                type="button"
+                aria-pressed={comparePrimaryKpi}
+                onClick={() => setComparePrimaryKpi((v) => !v)}
+                title="Exibir KPIs primários do período anterior (mesma duração, antes do intervalo atual)"
+                className={cn(
+                  'filter-select shrink-0',
+                  comparePrimaryKpi && 'border-brand/40 bg-brand/10 text-brand'
+                )}
+              >
+                <Columns2 size={11} className={comparePrimaryKpi ? 'text-brand' : 'text-muted-foreground'} />
+                <span className="text-white text-xs hidden md:inline">Comparar KPIs</span>
+              </button>
+            )}
+            <div className="mx-1 hidden h-4 w-px bg-surface-border sm:block" />
+          </>
+        )}
 
-      <div className="flex items-center gap-2 flex-wrap">
-        {activeFilters.filter(f => f !== 'dateRange').map(filterKey => (
-          <FilterSelect
-            key={filterKey}
-            filterKey={filterKey}
-            value={filters[filterKey] || ''}
-            optionsOverride={metaOptionsFor(filterKey)}
-            onChange={(key, val) => onFiltersChange({ ...filters, [key]: val })}
-          />
-        ))}
-      </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          {activeFilters
+            .filter((f) => f !== 'dateRange')
+            .map((filterKey) => (
+              <FilterSelect
+                key={filterKey}
+                filterKey={filterKey}
+                value={dimensionFilters[filterKey] || ''}
+                optionsOverride={metaOptionsFor(filterKey)}
+                onChange={(key, val) =>
+                  setDimensionFilters((prev) => ({
+                    ...prev,
+                    [key]: val,
+                  }))
+                }
+              />
+            ))}
+        </div>
 
-      <div className="ml-auto flex items-center gap-1">
-        <button
-          type="button"
-          onClick={handleRefresh}
-          className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-white hover:bg-surface-card transition-all"
-          title="Atualizar"
-        >
-          <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
-        </button>
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-all hover:bg-surface-card hover:text-white"
+            title="Atualizar opções da Meta (quando houver organização selecionada)"
+          >
+            <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
     </div>
   )

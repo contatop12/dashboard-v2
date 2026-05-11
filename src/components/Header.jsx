@@ -120,7 +120,7 @@ export default function Header({ onMenuToggle, sidebarOpen }) {
 
       <div className="ml-auto flex items-center gap-2">
         {!loadingOrgs && user?.role === 'super_admin' && (
-          <div className="hidden lg:flex items-center gap-2 mr-2">
+          <div className="hidden md:flex items-center gap-2 mr-2">
             <select
               value={activeOrgId ?? ''}
               onChange={(e) => setActiveOrgId(e.target.value || null)}

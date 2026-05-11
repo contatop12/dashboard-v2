@@ -1,18 +1,25 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Search, TrendingUp, TrendingDown, ArrowUpDown } from 'lucide-react'
 import { keywordsData } from '@/data/mockData'
+import { useDashboardFiltersOptional } from '@/context/DashboardFiltersContext'
 import { formatNumber, formatCurrency, formatPercent } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 
 const metrics = ['Impressões', 'CTR', 'CPC']
 
 export default function KeywordsHighlight() {
+  const filters = useDashboardFiltersOptional()
+  const palavraBarra = filters?.dimensionFilters?.palavrasChave
   const [activeMetric, setActiveMetric] = useState('CTR')
   const [search, setSearch] = useState('')
 
-  const filtered = keywordsData.filter(k =>
-    k.keyword.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = useMemo(() => {
+    return keywordsData.filter((k) => {
+      if (!k.keyword.toLowerCase().includes(search.toLowerCase())) return false
+      if (!palavraBarra || palavraBarra === 'Todas') return true
+      return k.keyword.toLowerCase().includes(palavraBarra.toLowerCase())
+    })
+  }, [search, palavraBarra])
 
   const getMetricValue = (kw) => {
     if (activeMetric === 'Impressões') return formatNumber(kw.impressoes)
