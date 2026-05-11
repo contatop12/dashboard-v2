@@ -186,16 +186,7 @@ async function fetchInsightsDaily(
   actId: string,
   since: string,
   until: string
-): Promise<
-  Array<{
-    date: string
-    spend: number
-    reach: number
-    impressions: number
-    clicks: number
-    leads: number
-  }>
-> {
+): Promise<DailyRow[]> {
   const fields = ['spend', 'impressions', 'reach', 'clicks', 'actions', 'date_start'].join(',')
   const iu = new URL(`https://graph.facebook.com/v21.0/${actId}/insights`)
   iu.searchParams.set('fields', fields)
@@ -244,6 +235,163 @@ async function fetchPlacementsBreakdown(
   return [...map.entries()].map(([name, spend]) => ({ name, spend }))
 }
 
+type DailyRow = {
+  date: string
+  spend: number
+  reach: number
+  impressions: number
+  clicks: number
+  leads: number
+}
+
+function ymdAddOne(ymd: string): string {
+  const d = new Date(ymd + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
+/** Garante um ponto por dia no intervalo (Meta às vezes omite dias zerados). */
+function fillDailyGaps(since: string, until: string, daily: DailyRow[]): DailyRow[] {
+  const map = new Map(daily.map((r) => [r.date, r]))
+  const out: DailyRow[] = []
+  for (let d = since; d <= until; d = ymdAddOne(d)) {
+    out.push(
+      map.get(d) ?? {
+        date: d,
+        spend: 0,
+        reach: 0,
+        impressions: 0,
+        clicks: 0,
+        leads: 0,
+      }
+    )
+    if (daysBetweenInclusive(since, d) > MAX_RANGE_DAYS) break
+  }
+  return out
+}
+
+type AdInsightRow = { ad_id: string; ad_name: string; spend: number; leads: number }
+
+async function fetchAdLevelInsights(
+  token: string,
+  actId: string,
+  since: string,
+  until: string
+): Promise<AdInsightRow[]> {
+  const fields = ['ad_id', 'ad_name', 'spend', 'actions'].join(',')
+  const merged = new Map<string, AdInsightRow>()
+  let url: string | null =
+    `https://graph.facebook.com/v21.0/${actId}/insights?fields=${encodeURIComponent(fields)}&level=ad&time_range=${encodeURIComponent(JSON.stringify({ since, until }))}&limit=500&access_token=${encodeURIComponent(token)}`
+
+  for (let page = 0; page < 20 && url; page++) {
+    const r = await fetch(url)
+    const j = (await r.json()) as {
+      data?: { ad_id?: string; ad_name?: string; spend?: string; actions?: unknown[] }[]
+      paging?: { next?: string }
+      error?: { message?: string }
+    }
+    if (!r.ok || j.error) break
+    for (const row of j.data ?? []) {
+      const id = String(row.ad_id ?? '').trim()
+      if (!id) continue
+      const spend = Number.parseFloat(String(row.spend ?? 0)) || 0
+      const leads = parseLeadsFromRow(row as Record<string, unknown>)
+      const name = String(row.ad_name ?? 'Anúncio').trim() || 'Anúncio'
+      const cur = merged.get(id)
+      if (!cur) merged.set(id, { ad_id: id, ad_name: name, spend, leads })
+      else {
+        cur.spend += spend
+        cur.leads += leads
+        if (name && name !== 'Anúncio') cur.ad_name = name
+      }
+    }
+    url = j.paging?.next ?? null
+  }
+
+  return [...merged.values()].sort((a, b) => b.spend - a.spend).slice(0, 15)
+}
+
+type AdObj = {
+  name?: string
+  effective_status?: string
+  creative?: { thumbnail_url?: string; image_url?: string }
+  error?: { message?: string }
+}
+
+async function fetchAdsByIdsBatch(
+  token: string,
+  adIds: string[]
+): Promise<Map<string, AdObj>> {
+  const map = new Map<string, AdObj>()
+  const chunk = 45
+  for (let i = 0; i < adIds.length; i += chunk) {
+    const slice = adIds.slice(i, i + chunk)
+    const u = new URL('https://graph.facebook.com/v21.0/')
+    u.searchParams.set('ids', slice.join(','))
+    u.searchParams.set('fields', 'name,effective_status,creative{thumbnail_url,image_url}')
+    u.searchParams.set('access_token', token)
+    const r = await fetch(u.toString())
+    const j = (await r.json()) as Record<string, AdObj | { error?: { message?: string } }>
+    for (const id of slice) {
+      const o = j[id]
+      if (o && typeof o === 'object' && !('error' in o && (o as AdObj).error)) {
+        map.set(id, o as AdObj)
+      }
+    }
+  }
+  return map
+}
+
+const CREATIVE_GRADIENTS = [
+  'linear-gradient(145deg, #1a3a5c 0%, #0d1b2a 100%)',
+  'linear-gradient(145deg, #2d1b69 0%, #1a0f3c 100%)',
+  'linear-gradient(145deg, #0f3d2b 0%, #061a12 100%)',
+  'linear-gradient(145deg, #3d2b0a 0%, #1f1505 100%)',
+  'linear-gradient(145deg, #1a2d3d 0%, #0a151f 100%)',
+  'linear-gradient(145deg, #3d1a1a 0%, #200d0d 100%)',
+]
+
+async function fetchCreativesForPeriod(
+  token: string,
+  actId: string,
+  since: string,
+  until: string
+): Promise<Record<string, unknown>[]> {
+  try {
+    const rows = await fetchAdLevelInsights(token, actId, since, until)
+    if (!rows.length) return []
+    const thumbs = await fetchAdsByIdsBatch(
+      token,
+      rows.map((r) => r.ad_id)
+    )
+    return rows.map((row, i) => {
+      const ad = thumbs.get(row.ad_id)
+      const img = ad?.creative?.thumbnail_url || ad?.creative?.image_url || null
+      const st = String(ad?.effective_status ?? 'ACTIVE').toUpperCase()
+      const status =
+        st.includes('PAUSED') || st.includes('ARCHIVED') || st.includes('DELETED') ? 'paused' : 'active'
+      const leads = row.leads
+      const spend = row.spend
+      const cpl = leads > 0 ? spend / leads : null
+      const name = (ad?.name?.trim() || row.ad_name).trim() || 'Anúncio'
+      return {
+        id: row.ad_id,
+        name,
+        image: img,
+        gradient: CREATIVE_GRADIENTS[i % CREATIVE_GRADIENTS.length],
+        status,
+        metrics: [
+          { label: 'Leads (Form.)', value: String(Math.round(leads)), highlight: leads > 0 },
+          { label: 'Custo/Lead', value: cpl != null ? fmtBRL(cpl) : '—' },
+          { label: 'Investimento', value: fmtBRL(spend) },
+        ],
+      }
+    })
+  } catch {
+    return []
+  }
+}
+
 function parseRangeParams(url: URL): { since: string; until: string; compareSince: string | null; compareUntil: string | null } {
   const ds = url.searchParams.get('since')?.trim() ?? ''
   const du = url.searchParams.get('until')?.trim() ?? ''
@@ -279,11 +427,14 @@ async function buildMetaResponse(
   compareSince: string | null,
   compareUntil: string | null
 ): Promise<Record<string, unknown>> {
-  const [agg, daily, places] = await Promise.all([
+  const [agg, dailyRaw, places, creatives] = await Promise.all([
     fetchInsightsAggregate(token, actId, since, until),
     fetchInsightsDaily(token, actId, since, until),
     fetchPlacementsBreakdown(token, actId, since, until),
+    fetchCreativesForPeriod(token, actId, since, until),
   ])
+
+  const daily = fillDailyGaps(since, until, dailyRaw)
 
   if (agg.error || !agg.row) {
     return {
@@ -297,8 +448,9 @@ async function buildMetaResponse(
       primaryRange: { since, until },
       compareRange: null,
       compareMetrics: null as Metric[] | null,
-      daily: [] as { date: string; spend: number; reach: number; impressions: number; clicks: number }[],
+      daily: [] as DailyRow[],
       placements: [] as { name: string; value: number }[],
+      creatives: [] as Record<string, unknown>[],
     }
   }
 
@@ -317,6 +469,7 @@ async function buildMetaResponse(
       compareMetrics: null as Metric[] | null,
       daily,
       placements: [],
+      creatives,
     }
   }
 
@@ -359,6 +512,7 @@ async function buildMetaResponse(
     compareMetrics,
     daily,
     placements,
+    creatives,
   }
 }
 
@@ -401,6 +555,7 @@ export async function onRequestGet(context: {
         compareRange: null,
         daily: [],
         placements: [],
+        creatives: [],
       })
     }
     const token = await decryptMetaAccessToken(context.env.DB, context.env, conn.oauth_credential_id)
@@ -416,6 +571,7 @@ export async function onRequestGet(context: {
         compareRange: null,
         daily: [],
         placements: [],
+        creatives: [],
       })
     }
     const actId = normalizeActId(conn.external_id)
@@ -454,6 +610,7 @@ export async function onRequestGet(context: {
       compareRange: null,
       daily: [],
       placements: [],
+      creatives: [],
     })
   }
 
@@ -479,6 +636,7 @@ export async function onRequestGet(context: {
         compareRange: null,
         daily: [],
         placements: [],
+        creatives: [],
       })
     }
 
@@ -506,6 +664,7 @@ export async function onRequestGet(context: {
       compareRange: null,
       daily: [],
       placements: [],
+      creatives: [],
     })
   }
 }

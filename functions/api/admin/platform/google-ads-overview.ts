@@ -251,6 +251,38 @@ function aggregateDaily(
     }))
 }
 
+type GoogleDailyRow = {
+  date: string
+  spend: number
+  impressions: number
+  clicks: number
+  conversions: number
+}
+
+function ymdAddOneGoogle(ymd: string): string {
+  const d = new Date(ymd + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
+function fillGoogleDailyGaps(since: string, until: string, daily: GoogleDailyRow[]): GoogleDailyRow[] {
+  const map = new Map(daily.map((r) => [r.date, r]))
+  const out: GoogleDailyRow[] = []
+  for (let d = since; d <= until; d = ymdAddOneGoogle(d)) {
+    out.push(
+      map.get(d) ?? {
+        date: d,
+        spend: 0,
+        impressions: 0,
+        clicks: 0,
+        conversions: 0,
+      }
+    )
+    if (daysBetweenInclusive(since, d) > MAX_RANGE_DAYS) break
+  }
+  return out
+}
+
 async function buildGoogleOverviewBody(
   env: WorkerEnv,
   access: string,
@@ -341,7 +373,8 @@ async function buildGoogleOverviewBody(
   const metrics = buildGoogleMetrics(primaryRaw, compareRaw)
   const compareMetrics =
     compareSince && compareUntil && compareRaw ? buildCompareStrip(compareRaw) : null
-  const daily = aggregateDaily(dailyRes.rows as Parameters<typeof aggregateDaily>[0])
+  const dailyRaw = aggregateDaily(dailyRes.rows as Parameters<typeof aggregateDaily>[0])
+  const daily = fillGoogleDailyGaps(since, until, dailyRaw)
 
   return {
     configured: true,

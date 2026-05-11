@@ -115,16 +115,41 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
     setLoading(true)
     setErr('')
     fetch(listEndpoint, { credentials: 'include' })
-      .then((r) => r.json())
-      .then((d) => {
+      .then(async (r) => {
+        const text = await r.text()
+        const trimmed = text.trimStart()
+        let d
+        try {
+          d = JSON.parse(text)
+        } catch {
+          if (cancelled) return
+          setAccounts([])
+          setErr(
+            trimmed.startsWith('<')
+              ? 'A API devolveu HTML em vez de JSON (SPA ou proxy sem Worker). Com Vite em dev, arranque o Worker na porta 8788 (npm run dev:cf). Em produção, faça deploy após npm run build.'
+              : 'Falha ao carregar contas (resposta não é JSON válido).'
+          )
+          return
+        }
         if (cancelled) return
+        if (!r.ok) {
+          setAccounts([])
+          setErr(typeof d?.error === 'string' ? d.error : `Erro HTTP ${r.status}`)
+          return
+        }
         setAccounts(Array.isArray(d.accounts) ? d.accounts : [])
         if (d.error) setErr(String(d.error))
       })
-      .catch(() => {
+      .catch((e) => {
         if (!cancelled) {
           setAccounts([])
-          setErr('Falha ao carregar contas')
+          const net =
+            e instanceof TypeError && String(e.message || '').toLowerCase().includes('fetch')
+          setErr(
+            net
+              ? 'Não foi possível contactar a API. Confirme se o Worker está a correr na porta 8788 (proxy do Vite).'
+              : 'Falha ao carregar contas'
+          )
         }
       })
       .finally(() => {

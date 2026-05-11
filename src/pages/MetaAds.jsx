@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { format, parseISO } from 'date-fns'
+import { format, parse } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
@@ -64,7 +64,8 @@ function mapMetaDailyToChart(daily) {
   return daily.map((d) => {
     let dia = d.date || '—'
     try {
-      if (d.date) dia = format(parseISO(d.date), 'dd/MM', { locale: ptBR })
+      // date_start vem como YYYY-MM-DD (dia da conta); parseISO desloca para UTC e distorce o rótulo no BR
+      if (d.date) dia = format(parse(d.date, 'yyyy-MM-dd', new Date()), 'dd/MM', { locale: ptBR })
     } catch {
       /* keep raw */
     }
@@ -91,7 +92,7 @@ const engMetrics = [
   { label: 'Compartilhamentos', value: 87, icon: Share2, color: '#4A9BFF' },
 ]
 
-const metaCreatives = [
+const META_CREATIVES_MOCK = [
   {
     name: 'Casa dos Sonhos — Leads SP',
     gradient: 'linear-gradient(145deg, #1a3a5c 0%, #0d1b2a 100%)',
@@ -468,6 +469,27 @@ function MetaCampaignsTable() {
   )
 }
 
+function MetaCreativesCarouselBlock() {
+  const { data } = usePlatformOverview()
+  const cards = useMemo(() => {
+    const c = data?.creatives
+    if (Array.isArray(c)) return c
+    return META_CREATIVES_MOCK
+  }, [data?.creatives])
+
+  const empty = Array.isArray(data?.creatives) && data.creatives.length === 0
+  const activeCount = cards.filter((c) => c.status === 'active').length
+
+  return (
+    <CreativesCarousel
+      title="Criativos — Meta Ads"
+      badge={empty ? '0 no período' : `${activeCount} ativos`}
+      cards={empty ? [] : cards}
+      emptyMessage="Nenhum anúncio com gasto no período selecionado. Ajuste as datas ou verifique as campanhas."
+    />
+  )
+}
+
 function buildMetaDefinitions(activeChart, setActiveChart) {
   const kpiBlocks = META_KPI_SHELL.map((_, i) => ({
     id: `meta-kpi-${i}`,
@@ -547,13 +569,7 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
       maxColSpan: 8,
       minRowSpan: 2,
       maxRowSpan: 8,
-      render: () => (
-        <CreativesCarousel
-          title="Criativos — Meta Ads"
-          badge={`${metaCreatives.filter((c) => c.status === 'active').length} ativos`}
-          cards={metaCreatives}
-        />
-      ),
+      render: () => <MetaCreativesCarouselBlock />,
     },
     {
       id: 'meta-campaigns',

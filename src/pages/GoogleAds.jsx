@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { format, parseISO } from 'date-fns'
+import { format, parse } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Search, TrendingUp, TrendingDown, Eye, MousePointer, DollarSign, Target, Award } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -36,7 +36,7 @@ function mapGoogleDailyToChart(daily) {
   return daily.map((d) => {
     let dia = d.date || '—'
     try {
-      if (d.date) dia = format(parseISO(d.date), 'dd/MM', { locale: ptBR })
+      if (d.date) dia = format(parse(d.date, 'yyyy-MM-dd', new Date()), 'dd/MM', { locale: ptBR })
     } catch {
       /* ignore */
     }

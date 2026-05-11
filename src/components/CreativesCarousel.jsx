@@ -11,7 +11,12 @@ function CreativeCard({ card }) {
       {/* Thumbnail */}
       <div className="relative w-full" style={{ aspectRatio: '4/5', background: card.gradient }}>
         {card.image ? (
-          <img src={card.image} alt={card.name} className="w-full h-full object-cover" />
+          <img
+            src={card.image}
+            alt={card.name}
+            referrerPolicy="no-referrer"
+            className="h-full w-full object-cover"
+          />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 opacity-40">
             <div className="w-12 h-8 rounded-sm border border-white/20" />
@@ -60,7 +65,7 @@ function CreativeCard({ card }) {
   )
 }
 
-export default function CreativesCarousel({ title, cards, badge }) {
+export default function CreativesCarousel({ title, cards, badge, emptyMessage }) {
   const scrollRef = useRef(null)
 
   function scroll(dir) {
@@ -99,9 +104,15 @@ export default function CreativesCarousel({ title, cards, badge }) {
         className="flex gap-4 overflow-x-auto px-4 py-4"
         style={{ scrollSnapType: 'x mandatory', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {cards.map((card, i) => (
-          <CreativeCard key={i} card={card} />
-        ))}
+        {cards.length === 0 ? (
+          <p className="w-full py-6 text-center font-sans text-xs text-muted-foreground">
+            {emptyMessage ?? 'Nenhum item para exibir.'}
+          </p>
+        ) : (
+          cards.map((card, i) => (
+            <CreativeCard key={card.id != null ? String(card.id) : `creative-${i}`} card={card} />
+          ))
+        )}
       </div>
     </div>
   )
