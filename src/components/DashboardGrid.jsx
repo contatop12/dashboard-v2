@@ -11,6 +11,7 @@ import KpiOrderModal from '@/components/KpiOrderModal'
 import GeralKpiCard, { GERAL_KPI_CARDS } from '@/components/GeralKpiCard'
 import { DashboardBlockPeriodContext } from '@/context/DashboardBlockPeriodContext'
 import { useDashboardFiltersOptional } from '@/context/DashboardFiltersContext'
+import { labelForMetaPrimaryKpiId } from '@/lib/metaPrimaryKpiLabels'
 
 const ResponsiveGridLayout = WidthProvider(Responsive)
 
@@ -31,6 +32,8 @@ function labelForPrimaryDef(def, customMetrics) {
   if (def.id.startsWith('kpi-custom-')) {
     return customMetrics.find((m) => m.id === def.id)?.label ?? def.id
   }
+  const metaLabel = labelForMetaPrimaryKpiId(def.id)
+  if (metaLabel) return metaLabel
   const suffix = def.id.replace(/^kpi-/, '')
   const c = GERAL_KPI_CARDS.find((k) => k.id === suffix)
   return c?.label ?? def.id

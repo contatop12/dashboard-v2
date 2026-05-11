@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 function CreativeCard({ card }) {
   return (
     <div
-      className="flex flex-col shrink-0 w-44 rounded-xl overflow-hidden bg-surface-input border border-surface-border hover:border-brand/40 transition-all duration-200 group"
+      className="flex flex-col shrink-0 w-52 rounded-xl overflow-hidden bg-surface-input border border-surface-border hover:border-brand/40 transition-all duration-200 group"
       style={{ scrollSnapAlign: 'start' }}
     >
       {/* Thumbnail */}
@@ -15,6 +15,8 @@ function CreativeCard({ card }) {
             src={card.image}
             alt={card.name}
             referrerPolicy="no-referrer"
+            sizes="(max-width: 768px) 45vw, 208px"
+            decoding="async"
             className="h-full w-full object-cover"
           />
         ) : (
@@ -50,7 +52,7 @@ function CreativeCard({ card }) {
         </p>
 
         <div className="flex flex-col gap-2 pt-2 border-t border-surface-border">
-          {card.metrics.map(({ label, value, highlight }) => (
+          {(card.metrics ?? []).map(({ label, value, highlight }) => (
             <div key={label} className="flex items-center justify-between gap-1">
               <span className="text-[10px] font-sans text-muted-foreground truncate">{label}</span>
               <span className={cn('text-[11px] font-mono font-semibold shrink-0',
@@ -65,11 +67,11 @@ function CreativeCard({ card }) {
   )
 }
 
-export default function CreativesCarousel({ title, cards, badge, emptyMessage }) {
+export default function CreativesCarousel({ title, cards, badge, emptyMessage, headerExtra }) {
   const scrollRef = useRef(null)
 
   function scroll(dir) {
-    scrollRef.current?.scrollBy({ left: dir * 200, behavior: 'smooth' })
+    scrollRef.current?.scrollBy({ left: dir * 228, behavior: 'smooth' })
   }
 
   return (
@@ -84,6 +86,7 @@ export default function CreativesCarousel({ title, cards, badge, emptyMessage })
           )}
         </div>
         <div className="flex items-center gap-1">
+          {headerExtra}
           <button
             onClick={() => scroll(-1)}
             className="w-6 h-6 rounded flex items-center justify-center bg-surface-hover hover:bg-surface-border transition-colors"

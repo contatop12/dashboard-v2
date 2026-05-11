@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { X, ChevronUp, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { CORNER_DIALOG_CONTENT_CLASS } from '@/lib/cornerDialogClass'
 
 export default function KpiOrderModal({ open, onOpenChange, items, order, onApply }) {
   function move(index, dir) {
@@ -15,7 +16,7 @@ export default function KpiOrderModal({ open, onOpenChange, items, order, onAppl
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm animate-fade-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[91] flex w-[min(100vw-1.5rem,28rem)] max-h-[min(90vh,calc(100dvh-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-white/10 bg-surface-card p-5 shadow-2xl animate-fade-in outline-none focus:outline-none">
+        <Dialog.Content className={CORNER_DIALOG_CONTENT_CLASS}>
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
             <Dialog.Title className="text-sm font-semibold text-white font-display">
               Ordem dos KPIs

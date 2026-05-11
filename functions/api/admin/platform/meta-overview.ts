@@ -270,7 +270,14 @@ function fillDailyGaps(since: string, until: string, daily: DailyRow[]): DailyRo
   return out
 }
 
-type AdInsightRow = { ad_id: string; ad_name: string; spend: number; leads: number }
+type AdInsightRow = {
+  ad_id: string
+  ad_name: string
+  spend: number
+  leads: number
+  impressions: number
+  linkClicks: number
+}
 
 async function fetchAdLevelInsights(
   token: string,
@@ -278,7 +285,7 @@ async function fetchAdLevelInsights(
   since: string,
   until: string
 ): Promise<AdInsightRow[]> {
-  const fields = ['ad_id', 'ad_name', 'spend', 'actions'].join(',')
+  const fields = ['ad_id', 'ad_name', 'spend', 'impressions', 'inline_link_clicks', 'actions'].join(',')
   const merged = new Map<string, AdInsightRow>()
   let url: string | null =
     `https://graph.facebook.com/v21.0/${actId}/insights?fields=${encodeURIComponent(fields)}&level=ad&time_range=${encodeURIComponent(JSON.stringify({ since, until }))}&limit=500&access_token=${encodeURIComponent(token)}`
@@ -286,7 +293,14 @@ async function fetchAdLevelInsights(
   for (let page = 0; page < 20 && url; page++) {
     const r = await fetch(url)
     const j = (await r.json()) as {
-      data?: { ad_id?: string; ad_name?: string; spend?: string; actions?: unknown[] }[]
+      data?: {
+        ad_id?: string
+        ad_name?: string
+        spend?: string
+        impressions?: string
+        inline_link_clicks?: string
+        actions?: unknown[]
+      }[]
       paging?: { next?: string }
       error?: { message?: string }
     }
@@ -295,13 +309,18 @@ async function fetchAdLevelInsights(
       const id = String(row.ad_id ?? '').trim()
       if (!id) continue
       const spend = Number.parseFloat(String(row.spend ?? 0)) || 0
+      const impressions = Number.parseFloat(String(row.impressions ?? 0)) || 0
+      const linkClicks = Number.parseFloat(String(row.inline_link_clicks ?? 0)) || 0
       const leads = parseLeadsFromRow(row as Record<string, unknown>)
       const name = String(row.ad_name ?? 'Anúncio').trim() || 'Anúncio'
       const cur = merged.get(id)
-      if (!cur) merged.set(id, { ad_id: id, ad_name: name, spend, leads })
+      if (!cur)
+        merged.set(id, { ad_id: id, ad_name: name, spend, leads, impressions, linkClicks })
       else {
         cur.spend += spend
         cur.leads += leads
+        cur.impressions += impressions
+        cur.linkClicks += linkClicks
         if (name && name !== 'Anúncio') cur.ad_name = name
       }
     }
@@ -366,13 +385,14 @@ async function fetchCreativesForPeriod(
     )
     return rows.map((row, i) => {
       const ad = thumbs.get(row.ad_id)
-      const img = ad?.creative?.thumbnail_url || ad?.creative?.image_url || null
+      const img = ad?.creative?.image_url || ad?.creative?.thumbnail_url || null
       const st = String(ad?.effective_status ?? 'ACTIVE').toUpperCase()
       const status =
         st.includes('PAUSED') || st.includes('ARCHIVED') || st.includes('DELETED') ? 'paused' : 'active'
       const leads = row.leads
       const spend = row.spend
-      const cpl = leads > 0 ? spend / leads : null
+      const impressions = row.impressions
+      const linkClicks = row.linkClicks
       const name = (ad?.name?.trim() || row.ad_name).trim() || 'Anúncio'
       return {
         id: row.ad_id,
@@ -380,11 +400,10 @@ async function fetchCreativesForPeriod(
         image: img,
         gradient: CREATIVE_GRADIENTS[i % CREATIVE_GRADIENTS.length],
         status,
-        metrics: [
-          { label: 'Leads (Form.)', value: String(Math.round(leads)), highlight: leads > 0 },
-          { label: 'Custo/Lead', value: cpl != null ? fmtBRL(cpl) : '—' },
-          { label: 'Investimento', value: fmtBRL(spend) },
-        ],
+        spend,
+        leads,
+        impressions,
+        linkClicks,
       }
     })
   } catch {

@@ -18,6 +18,7 @@ import {
   Share2,
   Heart,
   MessageCircle,
+  Cog,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
@@ -35,6 +36,7 @@ import {
 } from 'recharts'
 import FunnelGeral from '@/components/FunnelGeral'
 import CreativesCarousel from '@/components/CreativesCarousel'
+import MetaCreativesSettingsModal from '@/components/MetaCreativesSettingsModal'
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
@@ -42,18 +44,23 @@ import WorkerSecretsAccountPicker, {
   readWorkerMetaQueryFromStorage,
 } from '@/components/WorkerSecretsAccountPicker'
 import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
+import { META_PRIMARY_KPI_LABELS } from '@/lib/metaPrimaryKpiLabels'
+import {
+  readMetaCreativesSort,
+  writeMetaCreativesSort,
+  readMetaCreativesMetricKeys,
+  writeMetaCreativesMetricKeys,
+} from '@/lib/metaCreativesPreferences'
 
-/** Shell visual dos KPIs (ícones); valores vêm da API. */
-const META_KPI_SHELL = [
-  { label: 'Valor gasto', icon: DollarSign, accent: 'brand' },
-  { label: 'Alcance', icon: Users, accent: 'brand' },
-  { label: 'Impressões', icon: Eye, accent: 'purple' },
-  { label: 'CPM', icon: DollarSign, accent: 'purple' },
-  { label: 'CTR (link)', icon: MousePointer, accent: 'brand' },
-  { label: 'CPC (link)', icon: Target, accent: 'brand' },
-  { label: 'Frequência', icon: Eye, accent: 'purple' },
-  { label: 'Leads', icon: Target, accent: 'brand' },
-]
+const META_KPI_ICONS = [DollarSign, Users, Eye, DollarSign, MousePointer, Target, Eye, Target]
+const META_KPI_ACCENT = ['brand', 'brand', 'purple', 'purple', 'brand', 'brand', 'purple', 'brand']
+
+/** Shell visual dos KPIs (ícones); valores vêm da API. Labels alinhados a `metaPrimaryKpiLabels`. */
+const META_KPI_SHELL = META_PRIMARY_KPI_LABELS.map((label, i) => ({
+  label,
+  icon: META_KPI_ICONS[i],
+  accent: META_KPI_ACCENT[i],
+}))
 
 const PLACEMENT_COLORS = ['#F5C518', '#9B8EFF', '#4A9BFF', '#FF6B6B', '#22c55e', '#f97316']
 
@@ -94,64 +101,64 @@ const engMetrics = [
 
 const META_CREATIVES_MOCK = [
   {
+    id: 'mock-meta-creative-1',
     name: 'Casa dos Sonhos — Leads SP',
     gradient: 'linear-gradient(145deg, #1a3a5c 0%, #0d1b2a 100%)',
     status: 'active',
-    metrics: [
-      { label: 'Leads (Form.)', value: '3', highlight: true },
-      { label: 'Custo/Lead', value: 'R$97,14' },
-      { label: 'Investimento', value: 'R$291,43' },
-    ],
+    spend: 291.43,
+    leads: 3,
+    impressions: 18400,
+    linkClicks: 412,
   },
   {
+    id: 'mock-meta-creative-2',
     name: 'Retargeting — Visitantes Q4',
     gradient: 'linear-gradient(145deg, #2d1b69 0%, #1a0f3c 100%)',
     status: 'active',
-    metrics: [
-      { label: 'Leads (Form.)', value: '2', highlight: true },
-      { label: 'Custo/Lead', value: 'R$106,67' },
-      { label: 'Investimento', value: 'R$213,33' },
-    ],
+    spend: 213.33,
+    leads: 2,
+    impressions: 12100,
+    linkClicks: 268,
   },
   {
+    id: 'mock-meta-creative-3',
     name: 'Lookalike — Top 20% Audiência',
     gradient: 'linear-gradient(145deg, #0f3d2b 0%, #061a12 100%)',
     status: 'active',
-    metrics: [
-      { label: 'Leads (Form.)', value: '1', highlight: true },
-      { label: 'Custo/Lead', value: 'R$200,00' },
-      { label: 'Investimento', value: 'R$200,00' },
-    ],
+    spend: 200,
+    leads: 1,
+    impressions: 8900,
+    linkClicks: 142,
   },
   {
+    id: 'mock-meta-creative-4',
     name: 'Brand Awareness — Vídeo',
     gradient: 'linear-gradient(145deg, #3d2b0a 0%, #1f1505 100%)',
     status: 'paused',
-    metrics: [
-      { label: 'Leads (Form.)', value: '0', highlight: false },
-      { label: 'Custo/Lead', value: '—' },
-      { label: 'Investimento', value: 'R$100,00' },
-    ],
+    spend: 100,
+    leads: 0,
+    impressions: 5600,
+    linkClicks: 89,
   },
   {
+    id: 'mock-meta-creative-5',
     name: 'Leads Novos — Fevereiro 25',
     gradient: 'linear-gradient(145deg, #1a2d3d 0%, #0a151f 100%)',
     status: 'active',
-    metrics: [
-      { label: 'Leads (Form.)', value: '2', highlight: true },
-      { label: 'Custo/Lead', value: 'R$87,50' },
-      { label: 'Investimento', value: 'R$175,00' },
-    ],
+    spend: 175,
+    leads: 2,
+    impressions: 10200,
+    linkClicks: 301,
   },
   {
+    id: 'mock-meta-creative-6',
     name: 'Captação — Imóveis Alto Padrão',
     gradient: 'linear-gradient(145deg, #3d1a1a 0%, #200d0d 100%)',
     status: 'active',
-    metrics: [
-      { label: 'Leads (Form.)', value: '3', highlight: true },
-      { label: 'Custo/Lead', value: 'R$73,33' },
-      { label: 'Investimento', value: 'R$220,00' },
-    ],
+    spend: 220,
+    leads: 3,
+    impressions: 15600,
+    linkClicks: 355,
   },
 ]
 
@@ -469,24 +476,131 @@ function MetaCampaignsTable() {
   )
 }
 
+function normaliseMetaCreativeRow(raw) {
+  const spend = Number(raw?.spend) || 0
+  const leads = Number(raw?.leads) || 0
+  const impressions = Number(raw?.impressions) || 0
+  const linkClicks = Number(raw?.linkClicks ?? raw?.clicks) || 0
+  return { ...raw, spend, leads, impressions, linkClicks }
+}
+
+function buildCreativeMetricRow(metricKey, card) {
+  const { spend, leads, impressions, linkClicks } = card
+  const cpl = leads > 0 ? spend / leads : null
+  const ctr = impressions > 0 ? (linkClicks / impressions) * 100 : null
+  const highlight = metricKey === 'leads'
+  switch (metricKey) {
+    case 'leads':
+      return { label: 'Leads (form.)', value: String(Math.round(leads)), highlight }
+    case 'cpl':
+      return { label: 'Custo/Lead', value: cpl != null ? formatCurrency(cpl) : '—', highlight: false }
+    case 'spend':
+      return { label: 'Investimento', value: formatCurrency(spend), highlight: false }
+    case 'impressions':
+      return { label: 'Impressões', value: formatNumber(impressions), highlight: false }
+    case 'clicks':
+      return { label: 'Cliques (link)', value: formatNumber(linkClicks), highlight: false }
+    case 'ctr': {
+      const ok = impressions > 0 && linkClicks >= 0 && !Number.isNaN(ctr)
+      return { label: 'CTR (link)', value: ok ? formatPercent(ctr) : '—', highlight: false }
+    }
+    default:
+      return { label: '—', value: '—', highlight: false }
+  }
+}
+
+function compareMetaCreatives(a, b, sortId) {
+  const nameA = String(a.name ?? '').toLowerCase()
+  const nameB = String(b.name ?? '').toLowerCase()
+  const cplA = a.leads > 0 ? a.spend / a.leads : null
+  const cplB = b.leads > 0 ? b.spend / b.leads : null
+  const ctrA = a.impressions > 0 ? (a.linkClicks / a.impressions) * 100 : 0
+  const ctrB = b.impressions > 0 ? (b.linkClicks / b.impressions) * 100 : 0
+  switch (sortId) {
+    case 'spend_desc':
+      return (b.spend || 0) - (a.spend || 0)
+    case 'leads_desc':
+      return (b.leads || 0) - (a.leads || 0)
+    case 'cpl_asc': {
+      const ca = cplA ?? Number.POSITIVE_INFINITY
+      const cb = cplB ?? Number.POSITIVE_INFINITY
+      if (ca !== cb) return ca - cb
+      return (b.spend || 0) - (a.spend || 0)
+    }
+    case 'impressions_desc':
+      return (b.impressions || 0) - (a.impressions || 0)
+    case 'ctr_desc':
+      return ctrB - ctrA
+    case 'clicks_desc':
+      return (b.linkClicks || 0) - (a.linkClicks || 0)
+    case 'name_asc':
+      return nameA.localeCompare(nameB, 'pt')
+    default:
+      return 0
+  }
+}
+
 function MetaCreativesCarouselBlock() {
   const { data } = usePlatformOverview()
-  const cards = useMemo(() => {
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sortId, setSortId] = useState(() => readMetaCreativesSort())
+  const [metricKeys, setMetricKeys] = useState(() => readMetaCreativesMetricKeys())
+
+  const baseCards = useMemo(() => {
     const c = data?.creatives
-    if (Array.isArray(c)) return c
-    return META_CREATIVES_MOCK
+    if (Array.isArray(c)) return c.map(normaliseMetaCreativeRow)
+    return META_CREATIVES_MOCK.map(normaliseMetaCreativeRow)
   }, [data?.creatives])
 
   const empty = Array.isArray(data?.creatives) && data.creatives.length === 0
-  const activeCount = cards.filter((c) => c.status === 'active').length
+  const activeCount = baseCards.filter((c) => c.status === 'active').length
+
+  const cards = useMemo(() => {
+    if (empty) return []
+    const sorted = [...baseCards].sort((a, b) => compareMetaCreatives(a, b, sortId))
+    return sorted.map((card) => ({
+      ...card,
+      metrics: metricKeys.map((k) => buildCreativeMetricRow(k, card)),
+    }))
+  }, [baseCards, empty, sortId, metricKeys])
+
+  const onSortIdChange = (id) => {
+    setSortId(id)
+    writeMetaCreativesSort(id)
+  }
+
+  const onMetricKeysChange = (keys) => {
+    setMetricKeys(keys)
+    writeMetaCreativesMetricKeys(keys)
+  }
 
   return (
-    <CreativesCarousel
-      title="Criativos — Meta Ads"
-      badge={empty ? '0 no período' : `${activeCount} ativos`}
-      cards={empty ? [] : cards}
-      emptyMessage="Nenhum anúncio com gasto no período selecionado. Ajuste as datas ou verifique as campanhas."
-    />
+    <>
+      <CreativesCarousel
+        title="Criativos — Meta Ads"
+        badge={empty ? '0 no período' : `${activeCount} ativos`}
+        cards={cards}
+        emptyMessage="Nenhum anúncio com gasto no período selecionado. Ajuste as datas ou verifique as campanhas."
+        headerExtra={
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-surface-hover hover:text-white"
+            aria-label="Configurar criativos"
+          >
+            <Cog size={14} />
+          </button>
+        }
+      />
+      <MetaCreativesSettingsModal
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        sortId={sortId}
+        onSortIdChange={onSortIdChange}
+        metricKeys={metricKeys}
+        onMetricKeysChange={onMetricKeysChange}
+      />
+    </>
   )
 }
 
