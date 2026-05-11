@@ -144,7 +144,8 @@ export async function onRequestGet(context: {
   const denied = requireSuperAdmin(user)
   if (denied) return denied
 
-  const cid = env.GOOGLE_ADS_CUSTOMER_ID?.trim()
+  const paramCid = url.searchParams.get('customer_id')?.trim()
+  const cid = paramCid || env.GOOGLE_ADS_CUSTOMER_ID?.trim()
   const devToken = env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim()
 
   if (!cid || !devToken) {
@@ -153,7 +154,8 @@ export async function onRequestGet(context: {
       source: 'worker_env',
       accountDisplay: null,
       error: null,
-      detail: 'Defina GOOGLE_ADS_CUSTOMER_ID e GOOGLE_ADS_DEVELOPER_TOKEN no Worker.',
+      detail:
+        'Defina GOOGLE_ADS_DEVELOPER_TOKEN no Worker e escolha um cliente na página (ou GOOGLE_ADS_CUSTOMER_ID).',
       metrics: [] as Metric[],
     })
   }

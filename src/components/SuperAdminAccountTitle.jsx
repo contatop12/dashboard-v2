@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 import { cn } from '@/lib/utils'
@@ -6,18 +6,26 @@ import { cn } from '@/lib/utils'
 /**
  * Nome da conta / perfil nas APIs de plataforma.
  * Com `org_id` usa OAuth da organização; sem org (super_admin) usa secrets do Worker.
+ * `workerPlatformQuery`: ex. `ad_account_id=act_123` (sem `?`; só no modo sem org).
  */
 export default function SuperAdminAccountTitle({
   endpoint,
   emptyLabel = 'Conta não configurada',
   className,
+  workerPlatformQuery = '',
 }) {
   const { user } = useAuth()
   const { platformApiSuffix } = useOrgWorkspace()
   const [label, setLabel] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  const url = `${endpoint}${platformApiSuffix}`
+  const url = useMemo(() => {
+    const base = `${endpoint}${platformApiSuffix}`
+    if (platformApiSuffix) return base
+    const q = typeof workerPlatformQuery === 'string' ? workerPlatformQuery.trim() : ''
+    if (q) return `${endpoint}?${q}`
+    return base
+  }, [endpoint, platformApiSuffix, workerPlatformQuery])
 
   useEffect(() => {
     if (!user) return

@@ -33,6 +33,9 @@ import CreativesCarousel from '@/components/CreativesCarousel'
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
+import WorkerSecretsAccountPicker, {
+  readWorkerMetaQueryFromStorage,
+} from '@/components/WorkerSecretsAccountPicker'
 import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 
 const metaKPIs = [
@@ -534,7 +537,7 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
   ]
 }
 
-function MetaAdsPageHeader() {
+function MetaAdsPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange }) {
   return (
     <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-4">
       <div className="flex w-full min-w-0 flex-col gap-2">
@@ -549,6 +552,11 @@ function MetaAdsPageHeader() {
           endpoint="/api/admin/platform/meta-overview"
           emptyLabel="Nome da conta de anúncios"
           className="w-full min-w-0 text-left"
+          workerPlatformQuery={workerPlatformQuery}
+        />
+        <WorkerSecretsAccountPicker
+          provider="meta_ads"
+          onWorkerQueryChange={onWorkerPlatformQueryChange}
         />
         <ChannelAccountPicker provider="meta_ads" className="shrink-0" />
       </div>
@@ -558,11 +566,17 @@ function MetaAdsPageHeader() {
 
 export default function MetaAds() {
   const [activeChart, setActiveChart] = useState('gasto')
+  const [workerPlatformQuery, setWorkerPlatformQuery] = useState(() =>
+    typeof window !== 'undefined' ? readWorkerMetaQueryFromStorage() : ''
+  )
   const definitions = useMemo(() => buildMetaDefinitions(activeChart, setActiveChart), [activeChart])
 
   return (
     <div className="flex min-h-full min-w-0 flex-col">
-      <MetaAdsPageHeader />
+      <MetaAdsPageHeader
+        workerPlatformQuery={workerPlatformQuery}
+        onWorkerPlatformQueryChange={setWorkerPlatformQuery}
+      />
       <div className="min-h-0 flex-1">
         <DashboardGrid pageId="MetaAds" definitions={definitions} className="min-h-full" />
       </div>

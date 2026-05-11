@@ -15,8 +15,8 @@ export default function KpiOrderModal({ open, onOpenChange, items, order, onAppl
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm animate-fade-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[91] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-white/10 bg-surface-card p-5 shadow-2xl animate-fade-in">
-          <div className="flex items-center justify-between mb-3">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[91] flex w-[min(100vw-1.5rem,28rem)] max-h-[min(90vh,calc(100dvh-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-white/10 bg-surface-card p-5 shadow-2xl animate-fade-in outline-none focus:outline-none">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
             <Dialog.Title className="text-sm font-semibold text-white font-display">
               Ordem dos KPIs
             </Dialog.Title>
@@ -30,11 +30,11 @@ export default function KpiOrderModal({ open, onOpenChange, items, order, onAppl
               </button>
             </Dialog.Close>
           </div>
-          <p className="text-[11px] text-muted-foreground font-sans mb-4">
+          <p className="shrink-0 pt-3 text-[11px] leading-relaxed text-muted-foreground font-sans">
             A ordem vale para a faixa &quot;Período anterior&quot; e o layout em linha. O grid continua editável por
             arrastar.
           </p>
-          <ul className="flex flex-col gap-1 max-h-[min(60vh,360px)] overflow-y-auto pr-1">
+          <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden overscroll-contain pr-1 [-webkit-overflow-scrolling:touch]">
             {order.map((id, index) => {
               const label = items.find((x) => x.id === id)?.label ?? id
               return (
@@ -74,7 +74,7 @@ export default function KpiOrderModal({ open, onOpenChange, items, order, onAppl
               )
             })}
           </ul>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex shrink-0 justify-end border-t border-white/[0.06] pt-4">
             <Dialog.Close asChild>
               <button
                 type="button"

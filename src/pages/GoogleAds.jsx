@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Search, TrendingUp, TrendingDown, Eye, MousePointer, DollarSign, Target, Award } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
@@ -6,6 +7,9 @@ import { FunnelChart } from '@/components/FunnelChart'
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
+import WorkerSecretsAccountPicker, {
+  readWorkerGoogleAdsQueryFromStorage,
+} from '@/components/WorkerSecretsAccountPicker'
 import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 
 const googleKPIs = [
@@ -320,7 +324,7 @@ const GOOGLE_DASHBOARD_BLOCKS = [
   },
 ]
 
-function GoogleAdsPageHeader() {
+function GoogleAdsPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange }) {
   return (
     <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-4">
       <div className="flex w-full min-w-0 flex-col gap-2">
@@ -335,6 +339,11 @@ function GoogleAdsPageHeader() {
           endpoint="/api/admin/platform/google-ads-overview"
           emptyLabel="Nome da conta Google Ads"
           className="w-full min-w-0 text-left"
+          workerPlatformQuery={workerPlatformQuery}
+        />
+        <WorkerSecretsAccountPicker
+          provider="google_ads"
+          onWorkerQueryChange={onWorkerPlatformQueryChange}
         />
         <ChannelAccountPicker provider="google_ads" className="shrink-0" />
       </div>
@@ -343,9 +352,16 @@ function GoogleAdsPageHeader() {
 }
 
 export default function GoogleAds() {
+  const [workerPlatformQuery, setWorkerPlatformQuery] = useState(() =>
+    typeof window !== 'undefined' ? readWorkerGoogleAdsQueryFromStorage() : ''
+  )
+
   return (
     <div className="flex min-h-full min-w-0 flex-col">
-      <GoogleAdsPageHeader />
+      <GoogleAdsPageHeader
+        workerPlatformQuery={workerPlatformQuery}
+        onWorkerPlatformQueryChange={setWorkerPlatformQuery}
+      />
       <div className="min-h-0 flex-1">
         <DashboardGrid pageId="GoogleAds" definitions={GOOGLE_DASHBOARD_BLOCKS} className="min-h-full" />
       </div>

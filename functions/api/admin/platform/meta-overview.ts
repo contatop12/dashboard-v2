@@ -185,7 +185,13 @@ export async function onRequestGet(context: {
   }
 
   try {
-    const actId = await resolveAdAccountId(token, context.env)
+    const paramAct = url.searchParams.get('ad_account_id')?.trim()
+    let actId: string | null = null
+    if (paramAct) {
+      actId = normalizeActId(paramAct)
+    } else {
+      actId = await resolveAdAccountId(token, context.env)
+    }
     const accountDisplay = actId ? (await fetchAdAccountDisplay(token, actId)) || actId : null
     if (!actId) {
       return json({
