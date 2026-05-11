@@ -163,13 +163,6 @@ const META_CREATIVES_MOCK = [
   },
 ]
 
-const campaigns = [
-  { name: 'Leads_Prospeccao_SP', status: 'active', objetivo: 'Geração de Leads', gasto: 680, alcance: 14200, impressoes: 26400, cliques: 476, ctr: 1.8, cpm: 25.76, leads: 7, custoLead: 97.14 },
-  { name: 'Retargeting_Visitantes', status: 'active', objetivo: 'Conversão', gasto: 320, alcance: 8900, impressoes: 15200, cliques: 274, ctr: 1.8, cpm: 21.05, leads: 3, custoLead: 106.67 },
-  { name: 'Lookalike_TOP20', status: 'active', objetivo: 'Geração de Leads', gasto: 200, alcance: 5350, impressoes: 8400, cliques: 151, ctr: 1.8, cpm: 23.81, leads: 1, custoLead: 200.0 },
-  { name: 'Brand_Awareness_Video', status: 'paused', objetivo: 'Reconhecimento', gasto: 100, alcance: 0, impressoes: 0, cliques: 0, ctr: 0, cpm: 0, leads: 0, custoLead: null },
-]
-
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
@@ -394,41 +387,54 @@ function MetaEngagement() {
   )
 }
 
+function normFilter(s) {
+  return String(s ?? '')
+    .trim()
+    .toLowerCase()
+}
+
 function campaignRowMatchesFilters(c, f) {
   const camp = f.campanha
   if (camp && camp !== 'Todas') {
-    const n = c.name.toLowerCase()
-    const fl = camp.toLowerCase()
-    if (fl.includes('leads') && !(n.includes('lead') || n.includes('prospeccao'))) return false
-    if (fl.includes('retarget') && !n.includes('retarget')) return false
-    if (fl.includes('brand') && !n.includes('brand')) return false
-    if (!fl.includes('leads') && !fl.includes('retarget') && !fl.includes('brand')) {
-      const tail = fl.replace(/^campanha_/, '').replace(/_/g, '')
-      if (tail && !n.includes(tail)) return false
-    }
+    const n = normFilter(c.name)
+    const fl = normFilter(camp)
+    if (n !== fl && !n.includes(fl) && !fl.includes(n)) return false
   }
   const obj = f.objetivo
   if (obj && obj !== 'Todos') {
-    if (c.objetivo !== obj && !(obj === 'Reconhecimento' && c.objetivo.startsWith('Reconhec'))) return false
+    const fo = normFilter(obj)
+    const rowObj = normFilter(c.objetivo)
+    const rowLabel = normFilter(c.objetivoLabel)
+    if (rowObj !== fo && rowLabel !== fo && !rowObj.includes(fo) && !rowLabel.includes(fo)) return false
   }
   return true
 }
 
 function MetaCampaignsTable() {
   const { dimensionFilters } = useDashboardFilters()
+  const { loading, data } = usePlatformOverview()
+  const rawCampaigns = Array.isArray(data?.campaigns) ? data.campaigns : []
   const visible = useMemo(
-    () => campaigns.filter((c) => campaignRowMatchesFilters(c, dimensionFilters)),
-    [dimensionFilters]
+    () => rawCampaigns.filter((c) => campaignRowMatchesFilters(c, dimensionFilters)),
+    [rawCampaigns, dimensionFilters]
   )
+  const activeCount = visible.filter((c) => c.status === 'active').length
 
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg overflow-hidden min-w-0 h-full flex flex-col">
       <div className="px-4 py-4 border-b border-surface-border flex items-center justify-between shrink-0">
         <span className="section-title">Campanhas Meta Ads</span>
         <span className="text-[10px] text-muted-foreground font-mono">
-          {visible.filter((c) => c.status === 'active').length} ativas · {visible.length} linhas
+          {activeCount} ativas · {visible.length} linhas
         </span>
       </div>
+      {data?.campaignsError && !loading ? (
+        <p className="px-4 pt-2 text-[10px] text-amber-400/90 font-sans">{String(data.campaignsError)}</p>
+      ) : null}
+      {loading ? <p className="px-4 pt-2 text-[10px] text-muted-foreground font-sans">Carregando campanhas…</p> : null}
+      {!loading && !data?.error && rawCampaigns.length === 0 && !data?.campaignsError ? (
+        <p className="px-4 pt-2 text-[10px] text-muted-foreground font-sans">Nenhuma campanha no período.</p>
+      ) : null}
       <div className="overflow-x-auto flex-1 min-h-0">
         <table className="w-full text-xs min-w-[800px]">
           <thead>
@@ -448,25 +454,36 @@ function MetaCampaignsTable() {
           </thead>
           <tbody>
             {visible.map((c) => (
-              <tr key={c.name} className="border-b border-surface-border/50 last:border-0 hover:bg-surface-hover/40 transition-colors">
+              <tr
+                key={c.id || c.name}
+                className="border-b border-surface-border/50 last:border-0 hover:bg-surface-hover/40 transition-colors"
+              >
                 <td className="px-4 py-4 font-sans text-white font-medium truncate max-w-[180px]">{c.name}</td>
                 <td className="px-4 py-4 text-right">
                   <span
                     className={cn(
                       'text-[10px] font-mono px-2 py-0.5 rounded',
-                      c.status === 'active' ? 'text-green-400 bg-green-400/10' : 'text-yellow-400 bg-yellow-400/10'
+                      c.status === 'active'
+                        ? 'text-green-400 bg-green-400/10'
+                        : c.status === 'paused'
+                          ? 'text-yellow-400 bg-yellow-400/10'
+                          : 'text-muted-foreground bg-surface-border/40'
                     )}
                   >
-                    {c.status === 'active' ? '● Ativo' : '● Pausado'}
+                    {c.status === 'active' ? '● Ativo' : c.status === 'paused' ? '● Pausado' : '● Outro'}
                   </span>
                 </td>
-                <td className="px-4 py-4 text-right font-sans text-muted-foreground text-[11px]">{c.objetivo}</td>
-                <td className="px-4 py-4 text-right font-mono text-white">{formatCurrency(c.gasto)}</td>
+                <td className="px-4 py-4 text-right font-sans text-muted-foreground text-[11px]">
+                  {c.objetivoLabel || c.objetivo || '—'}
+                </td>
+                <td className="px-4 py-4 text-right font-mono text-white">{formatCurrency(Number(c.gasto) || 0)}</td>
                 <td className="px-4 py-4 text-right font-mono text-white">{c.alcance ? formatNumber(c.alcance) : '—'}</td>
                 <td className="px-4 py-4 text-right font-mono text-white">{c.impressoes ? formatNumber(c.impressoes) : '—'}</td>
-                <td className="px-4 py-4 text-right font-mono text-white">{c.ctr ? formatPercent(c.ctr) : '—'}</td>
+                <td className="px-4 py-4 text-right font-mono text-white">
+                  {c.impressoes ? formatPercent(Number(c.ctr) || 0) : '—'}
+                </td>
                 <td className="px-4 py-4 text-right font-mono text-white">{c.cpm ? formatCurrency(c.cpm) : '—'}</td>
-                <td className="px-4 py-4 text-right font-mono text-white">{c.leads}</td>
+                <td className="px-4 py-4 text-right font-mono text-white">{formatNumber(Number(c.leads) || 0)}</td>
                 <td className="px-4 py-4 text-right font-mono text-white">{c.custoLead ? formatCurrency(c.custoLead) : '—'}</td>
               </tr>
             ))}

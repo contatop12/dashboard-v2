@@ -370,6 +370,207 @@ const CREATIVE_GRADIENTS = [
   'linear-gradient(145deg, #3d1a1a 0%, #200d0d 100%)',
 ]
 
+type CampaignCatalogRow = {
+  id: string
+  name: string
+  objective: string
+  effectiveStatus: string
+}
+
+type CampaignInsightAgg = {
+  name: string
+  spend: number
+  impressions: number
+  reach: number
+  clicks: number
+  leads: number
+}
+
+function objectiveLabelPt(raw: string): string {
+  const o = (raw || '').toUpperCase().trim()
+  const map: Record<string, string> = {
+    OUTCOME_LEADS: 'Leads',
+    OUTCOME_SALES: 'Vendas',
+    OUTCOME_TRAFFIC: 'Tráfego',
+    OUTCOME_ENGAGEMENT: 'Engajamento',
+    OUTCOME_APP_PROMOTION: 'Promoção do app',
+    OUTCOME_AWARENESS: 'Reconhecimento',
+    OUTCOME_LINK_CLICKS: 'Tráfego (cliques)',
+    LINK_CLICKS: 'Tráfego (cliques)',
+    CONVERSIONS: 'Conversões',
+    LEAD_GENERATION: 'Geração de leads',
+    BRAND_AWARENESS: 'Reconhecimento da marca',
+    REACH: 'Alcance',
+    MESSAGES: 'Mensagens',
+    VIDEO_VIEWS: 'Visualizações de vídeo',
+  }
+  return map[o] || (raw ? raw.replace(/_/g, ' ') : '—')
+}
+
+function mapCampaignUiStatus(effective: string): 'active' | 'paused' | 'other' {
+  const u = (effective || '').toUpperCase()
+  if (u === 'ACTIVE') return 'active'
+  if (u === 'PAUSED' || u === 'ARCHIVED' || u === 'DELETED' || u === 'CAMPAIGN_PAUSED') return 'paused'
+  return 'other'
+}
+
+async function fetchCampaignsCatalog(
+  token: string,
+  actId: string
+): Promise<{ map: Map<string, CampaignCatalogRow>; error?: string }> {
+  const map = new Map<string, CampaignCatalogRow>()
+  let url: string | null =
+    `https://graph.facebook.com/v21.0/${actId}/campaigns?fields=id,name,objective,effective_status&limit=500&access_token=${encodeURIComponent(token)}`
+  for (let page = 0; page < 25 && url; page++) {
+    const r = await fetch(url)
+    const j = (await r.json()) as {
+      data?: { id?: string; name?: string; objective?: string; effective_status?: string }[]
+      paging?: { next?: string }
+      error?: { message?: string }
+    }
+    if (!r.ok || j.error) {
+      return { map, error: j.error?.message || `Graph campaigns (${r.status})` }
+    }
+    for (const row of j.data ?? []) {
+      const id = String(row.id ?? '').trim()
+      if (!id) continue
+      map.set(id, {
+        id,
+        name: String(row.name ?? '').trim() || id,
+        objective: String(row.objective ?? '').trim(),
+        effectiveStatus: String(row.effective_status ?? '').trim(),
+      })
+    }
+    url = j.paging?.next ?? null
+  }
+  return { map }
+}
+
+async function fetchCampaignInsightsByCampaign(
+  token: string,
+  actId: string,
+  since: string,
+  until: string
+): Promise<{ map: Map<string, CampaignInsightAgg>; error?: string }> {
+  const fields = [
+    'campaign_id',
+    'campaign_name',
+    'spend',
+    'impressions',
+    'reach',
+    'clicks',
+    'ctr',
+    'cpc',
+    'cpm',
+    'actions',
+  ].join(',')
+  const map = new Map<string, CampaignInsightAgg>()
+  let url: string | null =
+    `https://graph.facebook.com/v21.0/${actId}/insights?fields=${encodeURIComponent(fields)}&level=campaign&time_range=${encodeURIComponent(JSON.stringify({ since, until }))}&limit=500&access_token=${encodeURIComponent(token)}`
+
+  for (let page = 0; page < 25 && url; page++) {
+    const r = await fetch(url)
+    const j = (await r.json()) as {
+      data?: Record<string, string | number | unknown>[]
+      paging?: { next?: string }
+      error?: { message?: string }
+    }
+    if (!r.ok || j.error) {
+      return { map, error: j.error?.message || `Graph insights campaign (${r.status})` }
+    }
+    for (const row of j.data ?? []) {
+      const ro = row as Record<string, unknown>
+      const id = String(ro.campaign_id ?? ro.campaignId ?? '').trim()
+      if (!id) continue
+      const spend = Number.parseFloat(String(ro.spend ?? 0)) || 0
+      const impressions = Number.parseFloat(String(ro.impressions ?? 0)) || 0
+      const reach = Number.parseFloat(String(ro.reach ?? 0)) || 0
+      const clicks = Number.parseFloat(String(ro.clicks ?? 0)) || 0
+      const leads = parseLeadsFromRow(ro)
+      const name = String(ro.campaign_name ?? ro.campaignName ?? '').trim()
+      const cur = map.get(id)
+      if (!cur) {
+        map.set(id, {
+          name,
+          spend,
+          impressions,
+          reach,
+          clicks,
+          leads,
+        })
+      } else {
+        cur.spend += spend
+        cur.impressions += impressions
+        cur.reach += reach
+        cur.clicks += clicks
+        cur.leads += leads
+        if (name) cur.name = name
+      }
+    }
+    url = j.paging?.next ?? null
+  }
+  return { map }
+}
+
+function buildMetaCampaignsTable(
+  catalog: Map<string, CampaignCatalogRow>,
+  insights: Map<string, CampaignInsightAgg>
+): Record<string, unknown>[] {
+  const allIds = new Set<string>([...insights.keys(), ...catalog.keys()])
+  const rows: Record<string, unknown>[] = []
+  for (const id of allIds) {
+    const meta = catalog.get(id)
+    const ins = insights.get(id)
+    const name = (ins?.name || meta?.name || id).trim() || id
+    const objectiveRaw = meta?.objective ?? ''
+    const objetivoFilter = objectiveRaw.replace(/_/g, ' ')
+    const status = mapCampaignUiStatus(meta?.effectiveStatus ?? '')
+    const impressions = ins?.impressions ?? 0
+    const clicks = ins?.clicks ?? 0
+    const spend = ins?.spend ?? 0
+    const reach = ins?.reach ?? 0
+    const leads = ins?.leads ?? 0
+    const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0
+    const cpc = clicks > 0 ? spend / clicks : 0
+    const cpm = impressions > 0 ? spend / (impressions / 1000) : 0
+    const custoLead = leads > 0 ? spend / leads : null
+    rows.push({
+      id,
+      name,
+      status,
+      objetivo: objetivoFilter || '—',
+      objetivoLabel: objectiveLabelPt(objectiveRaw),
+      gasto: spend,
+      alcance: Math.round(reach),
+      impressoes: Math.round(impressions),
+      cliques: Math.round(clicks),
+      ctr: Math.round(ctr * 100) / 100,
+      cpm: Math.round(cpm * 100) / 100,
+      cpc: Math.round(cpc * 100) / 100,
+      leads: Math.round(leads * 100) / 100,
+      custoLead: custoLead != null ? Math.round(custoLead * 100) / 100 : null,
+    })
+  }
+  rows.sort((a, b) => Number(b.gasto) - Number(a.gasto) || String(a.name).localeCompare(String(b.name)))
+  return rows.slice(0, 200)
+}
+
+async function fetchMetaCampaignsForOverview(
+  token: string,
+  actId: string,
+  since: string,
+  until: string
+): Promise<{ campaigns: Record<string, unknown>[]; campaignsError: string | null }> {
+  const [catRes, insRes] = await Promise.all([
+    fetchCampaignsCatalog(token, actId),
+    fetchCampaignInsightsByCampaign(token, actId, since, until),
+  ])
+  const campaigns = buildMetaCampaignsTable(catRes.map, insRes.map)
+  const campaignsError =
+    campaigns.length === 0 ? insRes.error || catRes.error || null : null
+  return { campaigns, campaignsError }
+}
+
 async function fetchCreativesForPeriod(
   token: string,
   actId: string,
@@ -446,14 +647,17 @@ async function buildMetaResponse(
   compareSince: string | null,
   compareUntil: string | null
 ): Promise<Record<string, unknown>> {
-  const [agg, dailyRaw, places, creatives] = await Promise.all([
+  const [agg, dailyRaw, places, creatives, campPack] = await Promise.all([
     fetchInsightsAggregate(token, actId, since, until),
     fetchInsightsDaily(token, actId, since, until),
     fetchPlacementsBreakdown(token, actId, since, until),
     fetchCreativesForPeriod(token, actId, since, until),
+    fetchMetaCampaignsForOverview(token, actId, since, until),
   ])
 
   const daily = fillDailyGaps(since, until, dailyRaw)
+  const campaigns = campPack.campaigns
+  const campaignsError = campPack.campaignsError
 
   if (agg.error || !agg.row) {
     return {
@@ -470,6 +674,8 @@ async function buildMetaResponse(
       daily: [] as DailyRow[],
       placements: [] as { name: string; value: number }[],
       creatives: [] as Record<string, unknown>[],
+      campaigns,
+      campaignsError,
     }
   }
 
@@ -489,6 +695,8 @@ async function buildMetaResponse(
       daily,
       placements: [],
       creatives,
+      campaigns,
+      campaignsError,
     }
   }
 
@@ -532,6 +740,8 @@ async function buildMetaResponse(
     daily,
     placements,
     creatives,
+    campaigns,
+    campaignsError,
   }
 }
 
@@ -575,6 +785,8 @@ export async function onRequestGet(context: {
         daily: [],
         placements: [],
         creatives: [],
+        campaigns: [],
+        campaignsError: null,
       })
     }
     const token = await decryptMetaAccessToken(context.env.DB, context.env, conn.oauth_credential_id)
@@ -591,6 +803,8 @@ export async function onRequestGet(context: {
         daily: [],
         placements: [],
         creatives: [],
+        campaigns: [],
+        campaignsError: null,
       })
     }
     const actId = normalizeActId(conn.external_id)
@@ -630,6 +844,8 @@ export async function onRequestGet(context: {
       daily: [],
       placements: [],
       creatives: [],
+      campaigns: [],
+      campaignsError: null,
     })
   }
 
@@ -656,6 +872,8 @@ export async function onRequestGet(context: {
         daily: [],
         placements: [],
         creatives: [],
+        campaigns: [],
+        campaignsError: null,
       })
     }
 
@@ -684,6 +902,8 @@ export async function onRequestGet(context: {
       daily: [],
       placements: [],
       creatives: [],
+      campaigns: [],
+      campaignsError: null,
     })
   }
 }
