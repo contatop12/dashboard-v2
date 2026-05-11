@@ -1,5 +1,10 @@
 import { useMemo, useState } from 'react'
+import { format, parseISO } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
+import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
+import { buildPlatformOverviewUrl } from '@/lib/platformOverviewUrl'
+import { PlatformOverviewProvider, usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import {
   Facebook,
   TrendingUp,
@@ -38,50 +43,40 @@ import WorkerSecretsAccountPicker, {
 } from '@/components/WorkerSecretsAccountPicker'
 import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 
-const metaKPIs = [
-  { label: 'Valor Gasto', value: 'R$1,30mil', delta: +12.4, icon: DollarSign, accent: 'brand' },
-  { label: 'Alcance', value: '28.450', delta: +18.2, icon: Users, accent: 'brand' },
-  { label: 'Impressões', value: '50.000', delta: +14.5, icon: Eye, accent: 'purple' },
-  { label: 'CPM', value: 'R$26,00', delta: -5.1, icon: DollarSign, accent: 'purple' },
-  { label: 'CTR (Link)', value: '1,80%', delta: +3.2, icon: MousePointer, accent: 'brand' },
-  { label: 'CPC (Link)', value: 'R$1,44', delta: -8.3, icon: Target, accent: 'brand' },
-  { label: 'Frequência', value: '1,76', delta: +2.1, icon: Eye, accent: 'purple' },
-  { label: 'Leads', value: '11', delta: -9.1, icon: Target, accent: 'brand' },
+/** Shell visual dos KPIs (ícones); valores vêm da API. */
+const META_KPI_SHELL = [
+  { label: 'Valor gasto', icon: DollarSign, accent: 'brand' },
+  { label: 'Alcance', icon: Users, accent: 'brand' },
+  { label: 'Impressões', icon: Eye, accent: 'purple' },
+  { label: 'CPM', icon: DollarSign, accent: 'purple' },
+  { label: 'CTR (link)', icon: MousePointer, accent: 'brand' },
+  { label: 'CPC (link)', icon: Target, accent: 'brand' },
+  { label: 'Frequência', icon: Eye, accent: 'purple' },
+  { label: 'Leads', icon: Target, accent: 'brand' },
 ]
 
-const metaKPIsPrevious = [
-  { label: 'Valor Gasto', value: 'R$1,12mil', delta: +4.2, icon: DollarSign, accent: 'brand' },
-  { label: 'Alcance', value: '24.100', delta: +9.5, icon: Users, accent: 'brand' },
-  { label: 'Impressões', value: '44.200', delta: +8.1, icon: Eye, accent: 'purple' },
-  { label: 'CPM', value: 'R$27,20', delta: +2.4, icon: DollarSign, accent: 'purple' },
-  { label: 'CTR (Link)', value: '1,65%', delta: -1.2, icon: MousePointer, accent: 'brand' },
-  { label: 'CPC (Link)', value: 'R$1,58', delta: +4.1, icon: Target, accent: 'brand' },
-  { label: 'Frequência', value: '1,68', delta: -0.8, icon: Eye, accent: 'purple' },
-  { label: 'Leads', value: '9', delta: -5.0, icon: Target, accent: 'brand' },
-]
+const PLACEMENT_COLORS = ['#F5C518', '#9B8EFF', '#4A9BFF', '#FF6B6B', '#22c55e', '#f97316']
 
-const dailyData = [
-  { dia: '01', gasto: 42, alcance: 920, leads: 0, impressoes: 1600 },
-  { dia: '05', gasto: 65, alcance: 1450, leads: 1, impressoes: 2500 },
-  { dia: '08', gasto: 38, alcance: 780, leads: 0, impressoes: 1300 },
-  { dia: '10', gasto: 92, alcance: 2100, leads: 2, impressoes: 3800 },
-  { dia: '12', gasto: 55, alcance: 1200, leads: 1, impressoes: 2100 },
-  { dia: '15', gasto: 120, alcance: 2800, leads: 3, impressoes: 4900 },
-  { dia: '17', gasto: 78, alcance: 1750, leads: 1, impressoes: 3100 },
-  { dia: '19', gasto: 145, alcance: 3200, leads: 2, impressoes: 5600 },
-  { dia: '22', gasto: 98, alcance: 2200, leads: 1, impressoes: 3900 },
-  { dia: '24', gasto: 62, alcance: 1380, leads: 0, impressoes: 2400 },
-  { dia: '26', gasto: 110, alcance: 2500, leads: 1, impressoes: 4200 },
-  { dia: '28', gasto: 85, alcance: 1900, leads: 0, impressoes: 3300 },
-  { dia: '31', gasto: 47, alcance: 1050, leads: 0, impressoes: 1900 },
-]
+const EMPTY_CHART = [{ dia: '—', gasto: 0, alcance: 0, leads: 0, impressoes: 0 }]
 
-const placements = [
-  { name: 'Feed', value: 45, color: '#F5C518' },
-  { name: 'Stories', value: 28, color: '#9B8EFF' },
-  { name: 'Reels', value: 18, color: '#4A9BFF' },
-  { name: 'Audience Net.', value: 9, color: '#FF6B6B' },
-]
+function mapMetaDailyToChart(daily) {
+  if (!Array.isArray(daily) || daily.length === 0) return EMPTY_CHART
+  return daily.map((d) => {
+    let dia = d.date || '—'
+    try {
+      if (d.date) dia = format(parseISO(d.date), 'dd/MM', { locale: ptBR })
+    } catch {
+      /* keep raw */
+    }
+    return {
+      dia,
+      gasto: Math.round(Number(d.spend) * 100) / 100,
+      alcance: Math.round(Number(d.reach) || 0),
+      leads: Math.round(Number(d.leads) || 0),
+      impressoes: Math.round(Number(d.impressions) || 0),
+    }
+  })
+}
 
 const videoMetrics = [
   { label: '25%', value: 12.99, color: '#F5C518' },
@@ -184,28 +179,41 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 function MetaKpiCard({ index }) {
   const period = useDashboardBlockPeriod()
-  const src = period === 'previous' ? metaKPIsPrevious : metaKPIs
-  const { label, value, delta } = src[index] ?? metaKPIs[index]
-  const isPos = delta > 0
-  const isNeg = delta < 0
-  const deltaNote = period === 'previous' ? 'vs período ant.' : 'vs mês ant.'
+  const { comparePrimaryKpi } = useDashboardFilters()
+  const { loading, data } = usePlatformOverview()
+  const shell = META_KPI_SHELL[index] ?? META_KPI_SHELL[0]
+  const rowP = data?.metrics?.[index]
+  const rowC = data?.compareMetrics?.[index]
+  const label = rowP?.label ?? shell.label
+  const value = loading ? '…' : period === 'previous' ? (rowC?.value ?? '—') : (rowP?.value ?? '—')
+  const deltaPct = period === 'current' && comparePrimaryKpi ? rowP?.deltaPct : null
+  const hasDelta = deltaPct !== null && deltaPct !== undefined && !Number.isNaN(Number(deltaPct))
+  const n = Number(deltaPct)
+  const isPos = hasDelta && n > 0
+  const isNeg = hasDelta && n < 0
+  const deltaNote =
+    period === 'previous' ? 'período de comparação' : comparePrimaryKpi ? 'vs período comp.' : 'ative comparação'
   return (
     <div className="kpi-card min-h-0 w-full shrink-0">
       <span className="kpi-label block truncate">{label}</span>
       <span className="kpi-value block truncate tabular-nums">{value}</span>
       <div className="kpi-delta-row min-w-0">
-        <div
-          className={cn(
-            'inline-flex shrink-0 items-center gap-1',
-            isPos ? 'text-green-400' : isNeg ? 'text-red-400' : 'text-muted-foreground'
-          )}
-        >
-          {isPos ? <TrendingUp size={12} strokeWidth={2} /> : isNeg ? <TrendingDown size={12} strokeWidth={2} /> : null}
-          <span>
-            {isPos ? '+' : ''}
-            {delta}%
-          </span>
-        </div>
+        {period === 'current' && hasDelta ? (
+          <div
+            className={cn(
+              'inline-flex shrink-0 items-center gap-1',
+              isPos ? 'text-green-400' : isNeg ? 'text-red-400' : 'text-muted-foreground'
+            )}
+          >
+            {isPos ? <TrendingUp size={12} strokeWidth={2} /> : isNeg ? <TrendingDown size={12} strokeWidth={2} /> : null}
+            <span>
+              {n >= 0 ? '+' : ''}
+              {n.toFixed(1)}%
+            </span>
+          </div>
+        ) : period === 'current' ? (
+          <span className="text-muted-foreground font-mono text-[10px]">—</span>
+        ) : null}
         <span className="kpi-delta-note min-w-0 truncate">{deltaNote}</span>
       </div>
     </div>
@@ -213,6 +221,12 @@ function MetaKpiCard({ index }) {
 }
 
 function MetaDailyChart({ activeChart, setActiveChart }) {
+  const { loading, data } = usePlatformOverview()
+  const chartData = useMemo(() => mapMetaDailyToChart(data?.daily), [data?.daily])
+  const chartKey =
+    activeChart === 'gasto' ? 'gasto' : activeChart === 'alcance' ? 'alcance' : activeChart === 'leads' ? 'leads' : 'impressoes'
+  const chartName =
+    activeChart === 'gasto' ? 'Gasto' : activeChart === 'alcance' ? 'Alcance' : activeChart === 'leads' ? 'Leads' : 'Impressões'
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
       <div className="flex items-center justify-between mb-4 shrink-0">
@@ -237,9 +251,12 @@ function MetaDailyChart({ activeChart, setActiveChart }) {
           ))}
         </div>
       </div>
+      {loading ? (
+        <p className="text-[10px] text-muted-foreground">Carregando série…</p>
+      ) : null}
       <div className="h-44 flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={dailyData} margin={{ top: 2, right: 8, left: -20, bottom: 0 }}>
+          <AreaChart data={chartData} margin={{ top: 2, right: 8, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="metaGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#4A90D9" stopOpacity={0.25} />
@@ -252,8 +269,8 @@ function MetaDailyChart({ activeChart, setActiveChart }) {
             <Tooltip content={<CustomTooltip />} />
             <Area
               type="monotone"
-              dataKey={activeChart}
-              name={activeChart}
+              dataKey={chartKey}
+              name={chartName}
               stroke="#4A90D9"
               strokeWidth={2}
               fill="url(#metaGrad)"
@@ -268,15 +285,28 @@ function MetaDailyChart({ activeChart, setActiveChart }) {
 }
 
 function MetaPlacements() {
+  const { loading, data } = usePlatformOverview()
+  const raw = Array.isArray(data?.placements) ? data.placements : []
+  const placementRows = raw.map((p, i) => ({
+    name: p.name || '—',
+    value: typeof p.value === 'number' ? p.value : 0,
+    color: PLACEMENT_COLORS[i % PLACEMENT_COLORS.length],
+  }))
+  const hasData = placementRows.length > 0
+  const pieData = hasData ? placementRows : [{ name: '—', value: 100, color: '#333333' }]
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
-      <span className="section-title block mb-4 shrink-0">Posicionamentos</span>
-      <div className="flex items-center gap-2 flex-1 min-h-0">
-        <div className="w-28 h-28 shrink-0">
+      <span className="section-title mb-4 block shrink-0">Posicionamentos</span>
+      {loading ? <p className="text-[10px] text-muted-foreground">Carregando…</p> : null}
+      {!hasData && !loading ? (
+        <p className="text-[10px] text-muted-foreground">Sem dados de plataforma no período.</p>
+      ) : null}
+      <div className="flex min-h-0 flex-1 items-center gap-2">
+        <div className="h-28 w-28 shrink-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={placements}
+                data={pieData}
                 cx="50%"
                 cy="50%"
                 innerRadius={28}
@@ -285,7 +315,7 @@ function MetaPlacements() {
                 dataKey="value"
                 strokeWidth={0}
               >
-                {placements.map((p, i) => (
+                {pieData.map((p, i) => (
                   <Cell key={i} fill={p.color} />
                 ))}
               </Pie>
@@ -296,14 +326,16 @@ function MetaPlacements() {
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div className="flex flex-col gap-2 flex-1 min-w-0">
-          {placements.map((p) => (
-            <div key={p.name} className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} />
-              <span className="text-[10px] font-sans text-muted-foreground flex-1 truncate">{p.name}</span>
-              <span className="font-mono text-[11px] text-white">{p.value}%</span>
-            </div>
-          ))}
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          {hasData
+            ? placementRows.map((p) => (
+                <div key={p.name} className="flex items-center gap-2">
+                  <div className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.color }} />
+                  <span className="flex-1 truncate font-sans text-[10px] text-muted-foreground">{p.name}</span>
+                  <span className="font-mono text-[11px] text-white">{p.value}%</span>
+                </div>
+              ))
+            : null}
         </div>
       </div>
     </div>
@@ -437,7 +469,7 @@ function MetaCampaignsTable() {
 }
 
 function buildMetaDefinitions(activeChart, setActiveChart) {
-  const kpiBlocks = metaKPIs.map((_, i) => ({
+  const kpiBlocks = META_KPI_SHELL.map((_, i) => ({
     id: `meta-kpi-${i}`,
     tier: 'primary',
     defaultColSpan: 1,
@@ -537,7 +569,7 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
   ]
 }
 
-function MetaAdsPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange }) {
+function MetaAdsPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange, periodSubtitle }) {
   return (
     <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-4">
       <div className="flex w-full min-w-0 flex-col gap-2">
@@ -546,13 +578,14 @@ function MetaAdsPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange })
             <Facebook size={14} className="text-blue-500" />
             <span className="text-xs font-sans font-semibold text-blue-400">Meta Ads</span>
           </div>
-          <span className="text-xs font-sans text-muted-foreground">Janeiro 2025 • Todas as Campanhas</span>
+          <span className="text-xs font-sans text-muted-foreground">{periodSubtitle}</span>
         </div>
         <SuperAdminAccountTitle
           endpoint="/api/admin/platform/meta-overview"
           emptyLabel="Nome da conta de anúncios"
           className="w-full min-w-0 text-left"
           workerPlatformQuery={workerPlatformQuery}
+          syncOverviewDates
         />
         <WorkerSecretsAccountPicker
           provider="meta_ads"
@@ -564,22 +597,56 @@ function MetaAdsPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange })
   )
 }
 
-export default function MetaAds() {
-  const [activeChart, setActiveChart] = useState('gasto')
-  const [workerPlatformQuery, setWorkerPlatformQuery] = useState(() =>
-    typeof window !== 'undefined' ? readWorkerMetaQueryFromStorage() : ''
-  )
-  const definitions = useMemo(() => buildMetaDefinitions(activeChart, setActiveChart), [activeChart])
-
+function MetaAdsInner({ workerPlatformQuery, onWorkerPlatformQueryChange, periodSubtitle, definitions }) {
   return (
     <div className="flex min-h-full min-w-0 flex-col">
       <MetaAdsPageHeader
         workerPlatformQuery={workerPlatformQuery}
-        onWorkerPlatformQueryChange={setWorkerPlatformQuery}
+        onWorkerPlatformQueryChange={onWorkerPlatformQueryChange}
+        periodSubtitle={periodSubtitle}
       />
       <div className="min-h-0 flex-1">
         <DashboardGrid pageId="MetaAds" definitions={definitions} className="min-h-full" />
       </div>
     </div>
+  )
+}
+
+export default function MetaAds() {
+  const [activeChart, setActiveChart] = useState('gasto')
+  const [workerPlatformQuery, setWorkerPlatformQuery] = useState(() =>
+    typeof window !== 'undefined' ? readWorkerMetaQueryFromStorage() : ''
+  )
+  const { activeOrgId } = useOrgWorkspace()
+  const { dateRange, compareDateRange, comparePrimaryKpi } = useDashboardFilters()
+  const definitions = useMemo(() => buildMetaDefinitions(activeChart, setActiveChart), [activeChart])
+
+  const overviewUrl = useMemo(
+    () =>
+      buildPlatformOverviewUrl('/api/admin/platform/meta-overview', {
+        orgId: activeOrgId,
+        workerQuery: workerPlatformQuery,
+        dateRange,
+        compareDateRange,
+        compareEnabled: comparePrimaryKpi,
+      }),
+    [activeOrgId, workerPlatformQuery, dateRange, compareDateRange, comparePrimaryKpi]
+  )
+
+  const periodSubtitle = useMemo(
+    () =>
+      `${format(dateRange.start, 'd MMM', { locale: ptBR })} – ${format(dateRange.end, 'd MMM yyyy', { locale: ptBR })} · período do filtro`,
+    [dateRange.start, dateRange.end]
+  )
+
+  return (
+    <PlatformOverviewProvider url={overviewUrl}>
+      <MetaAdsInner
+        workerPlatformQuery={workerPlatformQuery}
+        onWorkerPlatformQueryChange={setWorkerPlatformQuery}
+        periodSubtitle={periodSubtitle}
+        definitions={definitions}
+      />
+    </PlatformOverviewProvider>
   )
 }

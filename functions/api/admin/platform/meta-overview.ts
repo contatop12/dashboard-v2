@@ -8,7 +8,9 @@ import {
   getActiveConnectionForOrg,
 } from '../../../_lib/org-platform-credentials'
 
-type Metric = { label: string; value: string }
+type Metric = { label: string; value: string; deltaPct?: number | null }
+
+const MAX_RANGE_DAYS = 366
 
 function fmtBRL(n: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n)
@@ -23,6 +25,25 @@ function normalizeActId(raw: string): string {
   if (!t) return ''
   if (t.startsWith('act_')) return t
   return `act_${t}`
+}
+
+function isYmd(s: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s)
+}
+
+function daysBetweenInclusive(since: string, until: string): number {
+  const a = new Date(since + 'T12:00:00Z').getTime()
+  const b = new Date(until + 'T12:00:00Z').getTime()
+  return Math.floor((b - a) / (86400 * 1000)) + 1
+}
+
+function defaultLast30Ymd(): { since: string; until: string } {
+  const u = new Date()
+  const until = u.toISOString().slice(0, 10)
+  const s = new Date(u)
+  s.setUTCDate(s.getUTCDate() - 29)
+  const since = s.toISOString().slice(0, 10)
+  return { since, until }
 }
 
 async function resolveAdAccountId(token: string, env: WorkerEnv): Promise<string | null> {
@@ -50,16 +71,103 @@ async function fetchAdAccountDisplay(token: string, actId: string): Promise<stri
   return j.name.trim()
 }
 
-async function insightsPayload(
+function parseLeadsFromRow(row: Record<string, unknown>): number {
+  const actions = row.actions
+  if (!Array.isArray(actions)) return 0
+  let n = 0
+  for (const a of actions) {
+    const o = a as { action_type?: string; value?: string }
+    const t = String(o.action_type ?? '')
+    if (t.includes('lead') || t.includes('onsite_conversion') || t === 'offsite_conversion.fb_pixel_lead') {
+      n += Number.parseFloat(String(o.value ?? '0')) || 0
+    }
+  }
+  return Math.round(n)
+}
+
+type RawAgg = {
+  spend: number
+  impressions: number
+  reach: number
+  clicks: number
+  ctr: number
+  cpc: number
+  cpm: number
+  frequency: number
+  leads: number
+}
+
+function rowToRaw(row: Record<string, string | number> | undefined): RawAgg | null {
+  if (!row) return null
+  const spend = Number.parseFloat(String(row.spend ?? 0)) || 0
+  const impressions = Number.parseFloat(String(row.impressions ?? 0)) || 0
+  const reach = Number.parseFloat(String(row.reach ?? 0)) || 0
+  const clicks = Number.parseFloat(String(row.clicks ?? 0)) || 0
+  let ctr = Number.parseFloat(String(row.ctr ?? 0)) || 0
+  let cpc = Number.parseFloat(String(row.cpc ?? 0)) || 0
+  const cpm = Number.parseFloat(String(row.cpm ?? 0)) || 0
+  const frequency = Number.parseFloat(String(row.frequency ?? 0)) || 0
+  const leads = parseLeadsFromRow(row as Record<string, unknown>)
+  if (impressions > 0 && ctr === 0 && clicks > 0) ctr = (clicks / impressions) * 100
+  if (clicks > 0 && cpc === 0 && spend > 0) cpc = spend / clicks
+  return { spend, impressions, reach, clicks, ctr, cpc, cpm, frequency, leads }
+}
+
+function deltaPct(primary: number, compare: number): number | null {
+  if (compare === 0) return primary === 0 ? 0 : null
+  return ((primary - compare) / compare) * 100
+}
+
+function buildMetrics(primary: RawAgg, compare: RawAgg | null): Metric[] {
+  const d = (p: number, c: number) => (compare ? deltaPct(p, c) : null)
+  const p = primary
+  const c = compare
+  return [
+    { label: 'Valor gasto', value: fmtBRL(p.spend), deltaPct: c ? d(p.spend, c.spend) : null },
+    { label: 'Alcance', value: fmtInt(p.reach), deltaPct: c ? d(p.reach, c.reach) : null },
+    { label: 'Impressões', value: fmtInt(p.impressions), deltaPct: c ? d(p.impressions, c.impressions) : null },
+    { label: 'CPM', value: fmtBRL(p.cpm), deltaPct: c ? d(p.cpm, c.cpm) : null },
+    { label: 'CTR (link)', value: `${p.ctr.toFixed(2)}%`, deltaPct: c ? d(p.ctr, c.ctr) : null },
+    { label: 'CPC (link)', value: fmtBRL(p.cpc), deltaPct: c ? d(p.cpc, c.cpc) : null },
+    { label: 'Frequência', value: p.frequency.toFixed(2), deltaPct: c ? d(p.frequency, c.frequency) : null },
+    { label: 'Leads', value: fmtInt(p.leads), deltaPct: c ? d(p.leads, c.leads) : null },
+  ]
+}
+
+/** Valores do período de comparação (faixa “Período anterior” no grid). */
+function buildCompareMetricsStrip(c: RawAgg): Metric[] {
+  return [
+    { label: 'Valor gasto', value: fmtBRL(c.spend) },
+    { label: 'Alcance', value: fmtInt(c.reach) },
+    { label: 'Impressões', value: fmtInt(c.impressions) },
+    { label: 'CPM', value: fmtBRL(c.cpm) },
+    { label: 'CTR (link)', value: `${c.ctr.toFixed(2)}%` },
+    { label: 'CPC (link)', value: fmtBRL(c.cpc) },
+    { label: 'Frequência', value: c.frequency.toFixed(2) },
+    { label: 'Leads', value: fmtInt(c.leads) },
+  ]
+}
+
+async function fetchInsightsAggregate(
   token: string,
   actId: string,
-  accountDisplay: string | null,
-  source: 'worker_env' | 'oauth_org'
-): Promise<Record<string, unknown>> {
-  const fields = ['spend', 'impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'frequency'].join(',')
+  since: string,
+  until: string
+): Promise<{ row: Record<string, string | number> | null; error?: string }> {
+  const fields = [
+    'spend',
+    'impressions',
+    'reach',
+    'clicks',
+    'ctr',
+    'cpc',
+    'cpm',
+    'frequency',
+    'actions',
+  ].join(',')
   const iu = new URL(`https://graph.facebook.com/v21.0/${actId}/insights`)
   iu.searchParams.set('fields', fields)
-  iu.searchParams.set('date_preset', 'last_30d')
+  iu.searchParams.set('time_range', JSON.stringify({ since, until }))
   iu.searchParams.set('access_token', token)
 
   const ir = await fetch(iu.toString())
@@ -67,58 +175,201 @@ async function insightsPayload(
     data?: Record<string, string | number>[]
     error?: { message?: string }
   }
-
   if (!ir.ok || idata.error) {
+    return { row: null, error: idata.error?.message || 'Graph API insights falhou' }
+  }
+  return { row: idata.data?.[0] ?? null }
+}
+
+async function fetchInsightsDaily(
+  token: string,
+  actId: string,
+  since: string,
+  until: string
+): Promise<
+  Array<{
+    date: string
+    spend: number
+    reach: number
+    impressions: number
+    clicks: number
+    leads: number
+  }>
+> {
+  const fields = ['spend', 'impressions', 'reach', 'clicks', 'actions', 'date_start'].join(',')
+  const iu = new URL(`https://graph.facebook.com/v21.0/${actId}/insights`)
+  iu.searchParams.set('fields', fields)
+  iu.searchParams.set('time_range', JSON.stringify({ since, until }))
+  iu.searchParams.set('time_increment', '1')
+  iu.searchParams.set('access_token', token)
+  const ir = await fetch(iu.toString())
+  const idata = (await ir.json()) as {
+    data?: Record<string, string | number | unknown>[]
+    error?: { message?: string }
+  }
+  if (!ir.ok || idata.error || !idata.data?.length) return []
+  return idata.data.map((row) => ({
+    date: String(row.date_start ?? ''),
+    spend: Number.parseFloat(String(row.spend ?? 0)) || 0,
+    reach: Number.parseFloat(String(row.reach ?? 0)) || 0,
+    impressions: Number.parseFloat(String(row.impressions ?? 0)) || 0,
+    clicks: Number.parseFloat(String(row.clicks ?? 0)) || 0,
+    leads: parseLeadsFromRow(row as Record<string, unknown>),
+  }))
+}
+
+async function fetchPlacementsBreakdown(
+  token: string,
+  actId: string,
+  since: string,
+  until: string
+): Promise<Array<{ name: string; spend: number }>> {
+  const iu = new URL(`https://graph.facebook.com/v21.0/${actId}/insights`)
+  iu.searchParams.set('fields', 'spend,publisher_platform')
+  iu.searchParams.set('time_range', JSON.stringify({ since, until }))
+  iu.searchParams.set('breakdowns', 'publisher_platform')
+  iu.searchParams.set('access_token', token)
+  const ir = await fetch(iu.toString())
+  const idata = (await ir.json()) as {
+    data?: { spend?: string; publisher_platform?: string }[]
+    error?: { message?: string }
+  }
+  if (!ir.ok || idata.error || !idata.data?.length) return []
+  const map = new Map<string, number>()
+  for (const row of idata.data) {
+    const name = String(row.publisher_platform ?? 'outro')
+    const spend = Number.parseFloat(String(row.spend ?? 0)) || 0
+    map.set(name, (map.get(name) ?? 0) + spend)
+  }
+  return [...map.entries()].map(([name, spend]) => ({ name, spend }))
+}
+
+function parseRangeParams(url: URL): { since: string; until: string; compareSince: string | null; compareUntil: string | null } {
+  const ds = url.searchParams.get('since')?.trim() ?? ''
+  const du = url.searchParams.get('until')?.trim() ?? ''
+  let since = isYmd(ds) ? ds : ''
+  let until = isYmd(du) ? du : ''
+  if (!since || !until) {
+    const d = defaultLast30Ymd()
+    since = d.since
+    until = d.until
+  }
+  if (daysBetweenInclusive(since, until) > MAX_RANGE_DAYS) {
+    const u = new Date(since + 'T12:00:00Z')
+    u.setUTCDate(u.getUTCDate() + MAX_RANGE_DAYS - 1)
+    until = u.toISOString().slice(0, 10)
+  }
+  const cs = url.searchParams.get('compare_since')?.trim() ?? ''
+  const ct = url.searchParams.get('compare_until')?.trim() ?? ''
+  const compareSince = isYmd(cs) ? cs : null
+  const compareUntil = isYmd(ct) ? ct : null
+  if (compareSince && compareUntil && daysBetweenInclusive(compareSince, compareUntil) > MAX_RANGE_DAYS) {
+    return { since, until, compareSince: null, compareUntil: null }
+  }
+  return { since, until, compareSince, compareUntil }
+}
+
+async function buildMetaResponse(
+  token: string,
+  actId: string,
+  accountDisplay: string | null,
+  source: 'worker_env' | 'oauth_org',
+  since: string,
+  until: string,
+  compareSince: string | null,
+  compareUntil: string | null
+): Promise<Record<string, unknown>> {
+  const [agg, daily, places] = await Promise.all([
+    fetchInsightsAggregate(token, actId, since, until),
+    fetchInsightsDaily(token, actId, since, until),
+    fetchPlacementsBreakdown(token, actId, since, until),
+  ])
+
+  if (agg.error || !agg.row) {
     return {
       configured: true,
       source,
       accountDisplay,
-      error: idata.error?.message || 'Graph API insights falhou',
+      adAccountId: actId,
+      error: agg.error ?? 'Sem dados agregados no período.',
       detail: actId,
       metrics: [] as Metric[],
+      primaryRange: { since, until },
+      compareRange: null,
+      compareMetrics: null as Metric[] | null,
+      daily: [] as { date: string; spend: number; reach: number; impressions: number; clicks: number }[],
+      placements: [] as { name: string; value: number }[],
     }
   }
 
-  const row = idata.data?.[0]
-  if (!row) {
+  const primaryRaw = rowToRaw(agg.row as Record<string, string | number>)
+  if (!primaryRaw) {
     return {
       configured: true,
       source,
       accountDisplay,
-      error: 'Sem linhas de insights (período ou permissões).',
+      adAccountId: actId,
+      error: 'Resposta de insights vazia.',
       detail: actId,
       metrics: [] as Metric[],
+      primaryRange: { since, until },
+      compareRange: null,
+      compareMetrics: null as Metric[] | null,
+      daily,
+      placements: [],
     }
   }
 
-  const spend = Number.parseFloat(String(row.spend ?? 0)) || 0
-  const impressions = Number.parseFloat(String(row.impressions ?? 0)) || 0
-  const reach = Number.parseFloat(String(row.reach ?? 0)) || 0
-  const clicks = Number.parseFloat(String(row.clicks ?? 0)) || 0
-  const ctr = Number.parseFloat(String(row.ctr ?? 0)) || 0
-  const cpc = Number.parseFloat(String(row.cpc ?? 0)) || 0
-  const cpm = Number.parseFloat(String(row.cpm ?? 0)) || 0
-  const frequency = Number.parseFloat(String(row.frequency ?? 0)) || 0
+  let compareRaw: RawAgg | null = null
+  if (compareSince && compareUntil) {
+    const c = await fetchInsightsAggregate(token, actId, compareSince, compareUntil)
+    compareRaw = rowToRaw(c.row as Record<string, string | number>) ?? {
+      spend: 0,
+      impressions: 0,
+      reach: 0,
+      clicks: 0,
+      ctr: 0,
+      cpc: 0,
+      cpm: 0,
+      frequency: 0,
+      leads: 0,
+    }
+  }
 
-  const metrics: Metric[] = [
-    { label: 'Gasto (30d)', value: fmtBRL(spend) },
-    { label: 'Impressões', value: fmtInt(impressions) },
-    { label: 'Alcance', value: fmtInt(reach) },
-    { label: 'Cliques', value: fmtInt(clicks) },
-    { label: 'CTR', value: `${ctr.toFixed(2)}%` },
-    { label: 'CPC', value: fmtBRL(cpc) },
-    { label: 'CPM', value: fmtBRL(cpm) },
-    { label: 'Frequência', value: frequency.toFixed(2) },
-  ]
+  const metrics = buildMetrics(primaryRaw, compareRaw)
+  const compareMetrics =
+    compareSince && compareUntil && compareRaw ? buildCompareMetricsStrip(compareRaw) : null
+  const totalSpendPlaces = places.reduce((s, p) => s + p.spend, 0) || 1
+  const placements = places.map((p) => ({
+    name: labelPlatform(p.name),
+    value: Math.round((p.spend / totalSpendPlaces) * 1000) / 10,
+  }))
 
   return {
     configured: true,
     source,
     accountDisplay,
+    adAccountId: actId,
     error: null,
-    detail: `Conta ${actId} · últimos 30 dias (Graph)`,
+    detail: `Conta ${actId} · ${since} → ${until}`,
     metrics,
+    primaryRange: { since, until },
+    compareRange:
+      compareSince && compareUntil ? { since: compareSince, until: compareUntil } : null,
+    compareMetrics,
+    daily,
+    placements,
   }
+}
+
+function labelPlatform(key: string): string {
+  const k = key.toLowerCase()
+  if (k === 'facebook') return 'Feed'
+  if (k === 'instagram') return 'Instagram'
+  if (k === 'audience_network') return 'Audience Network'
+  if (k === 'messenger') return 'Messenger'
+  if (k === 'threads') return 'Threads'
+  return key
 }
 
 export async function onRequestGet(context: {
@@ -131,6 +382,7 @@ export async function onRequestGet(context: {
 
   const url = new URL(context.request.url)
   const orgId = url.searchParams.get('org_id')?.trim() || ''
+  const { since, until, compareSince, compareUntil } = parseRangeParams(url)
 
   if (orgId) {
     if (!(await userCanAccessOrg(context.env.DB, user, orgId))) {
@@ -145,6 +397,10 @@ export async function onRequestGet(context: {
         error: null,
         detail: 'Nenhuma conta Meta Ads ligada a esta organização (Integrações).',
         metrics: [] as Metric[],
+        primaryRange: { since, until },
+        compareRange: null,
+        daily: [],
+        placements: [],
       })
     }
     const token = await decryptMetaAccessToken(context.env.DB, context.env, conn.oauth_credential_id)
@@ -156,12 +412,25 @@ export async function onRequestGet(context: {
         error: null,
         detail: 'Token Meta indisponível. Reconecte em Integrações.',
         metrics: [] as Metric[],
+        primaryRange: { since, until },
+        compareRange: null,
+        daily: [],
+        placements: [],
       })
     }
     const actId = normalizeActId(conn.external_id)
     const accountDisplay =
       conn.external_name?.trim() || (await fetchAdAccountDisplay(token, actId)) || actId
-    const body = await insightsPayload(token, actId, accountDisplay, 'oauth_org')
+    const body = await buildMetaResponse(
+      token,
+      actId,
+      accountDisplay,
+      'oauth_org',
+      since,
+      until,
+      compareSince,
+      compareUntil
+    )
     return json(body)
   }
 
@@ -181,6 +450,10 @@ export async function onRequestGet(context: {
       error: null,
       detail: 'Defina o secret META_ACCESS_TOKEN no Worker.',
       metrics: [] as Metric[],
+      primaryRange: { since, until },
+      compareRange: null,
+      daily: [],
+      placements: [],
     })
   }
 
@@ -202,10 +475,23 @@ export async function onRequestGet(context: {
           'Nenhuma conta de anúncios acessível com este token. Defina META_AD_ACCOUNT_ID ou conceda ads_read/ads_management.',
         detail: null,
         metrics: [] as Metric[],
+        primaryRange: { since, until },
+        compareRange: null,
+        daily: [],
+        placements: [],
       })
     }
 
-    const body = await insightsPayload(token, actId, accountDisplay, 'worker_env')
+    const body = await buildMetaResponse(
+      token,
+      actId,
+      accountDisplay,
+      'worker_env',
+      since,
+      until,
+      compareSince,
+      compareUntil
+    )
     return json(body)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Erro Meta'
@@ -216,6 +502,10 @@ export async function onRequestGet(context: {
       error: msg,
       detail: null,
       metrics: [] as Metric[],
+      primaryRange: { since, until },
+      compareRange: null,
+      daily: [],
+      placements: [],
     })
   }
 }

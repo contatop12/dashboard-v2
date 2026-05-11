@@ -23,6 +23,7 @@ export default function Header({ onMenuToggle, sidebarOpen }) {
   }, [user?.role, activeOrgId])
 
   const hasIssues = monitorStatus.some((s) => !s.ok)
+  const workerSecretsMode = user?.role === 'super_admin' && !activeOrgId
 
   useEffect(() => {
     if (!monitorOpen) return
@@ -176,12 +177,16 @@ export default function Header({ onMenuToggle, sidebarOpen }) {
             <button
               type="button"
               className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-white hover:bg-surface-card transition-all relative"
-              title="Monitoramento de conexões"
+              title={
+                workerSecretsMode
+                  ? 'Status e dicas — modo Secrets (.env); abra para ver como usar OAuth e filtros vivos'
+                  : 'Monitoramento de conexões'
+              }
             >
               <Activity size={14} />
               <span
                 className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${
-                  hasIssues ? 'bg-red-400' : 'bg-green-400'
+                  hasIssues ? 'bg-red-400' : workerSecretsMode ? 'bg-amber-400' : 'bg-green-400'
                 }`}
               />
             </button>
@@ -198,6 +203,15 @@ export default function Header({ onMenuToggle, sidebarOpen }) {
                   Fonte: {activeOrgId ? 'OAuth (organização)' : 'Secrets (.env / Worker)'}
                 </p>
               </div>
+
+              {workerSecretsMode && (
+                <div className="border-b border-amber-500/25 bg-amber-500/10 px-4 py-2">
+                  <p className="font-sans text-[10px] leading-snug text-amber-100/95">
+                    Modo <span className="font-semibold">Secrets (.env)</span>: selecione uma organização no topo para
+                    OAuth, filtros vivos da Meta e contas por canal.
+                  </p>
+                </div>
+              )}
 
               <div className="px-4 py-2">
                 {monitorLoading && <p className="text-xs text-muted-foreground font-sans">Verificando conexões...</p>}

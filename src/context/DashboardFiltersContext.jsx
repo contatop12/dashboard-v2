@@ -1,15 +1,20 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { endOfDay, startOfDay, subDays } from 'date-fns'
-import { getPreviousPeriodOfSameLength } from '@/lib/dateRange'
+import { defaultCompareSevenDaysBeforeMain, getPreviousPeriodOfSameLength } from '@/lib/dateRange'
 
 const DashboardFiltersContext = createContext(null)
 
+function initialMainRange() {
+  const end = endOfDay(new Date())
+  const start = startOfDay(subDays(end, 29))
+  return { start, end }
+}
+
 export function DashboardFiltersProvider({ children }) {
-  const [dateRange, setDateRange] = useState(() => {
-    const end = endOfDay(new Date())
-    const start = startOfDay(subDays(end, 29))
-    return { start, end }
-  })
+  const [dateRange, setDateRange] = useState(initialMainRange)
+  const [compareDateRange, setCompareDateRange] = useState(() =>
+    defaultCompareSevenDaysBeforeMain(initialMainRange().start)
+  )
   const [comparePrimaryKpi, setComparePrimaryKpi] = useState(false)
   const [dimensionFilters, setDimensionFilters] = useState({})
 
@@ -18,8 +23,20 @@ export function DashboardFiltersProvider({ children }) {
     [dateRange.start, dateRange.end]
   )
 
+  useEffect(() => {
+    setCompareDateRange(defaultCompareSevenDaysBeforeMain(dateRange.start))
+  }, [dateRange.start, dateRange.end])
+
   const setDateRangeSafe = useCallback((next) => {
     setDateRange((prev) => {
+      const n = typeof next === 'function' ? next(prev) : next
+      if (!n?.start || !n?.end) return prev
+      return { start: startOfDay(n.start), end: endOfDay(n.end) }
+    })
+  }, [])
+
+  const setCompareDateRangeSafe = useCallback((next) => {
+    setCompareDateRange((prev) => {
       const n = typeof next === 'function' ? next(prev) : next
       if (!n?.start || !n?.end) return prev
       return { start: startOfDay(n.start), end: endOfDay(n.end) }
@@ -30,13 +47,23 @@ export function DashboardFiltersProvider({ children }) {
     () => ({
       dateRange,
       setDateRange: setDateRangeSafe,
+      compareDateRange,
+      setCompareDateRange: setCompareDateRangeSafe,
       comparePrimaryKpi,
       setComparePrimaryKpi,
       previousPeriod,
       dimensionFilters,
       setDimensionFilters,
     }),
-    [dateRange, setDateRangeSafe, comparePrimaryKpi, previousPeriod, dimensionFilters]
+    [
+      dateRange,
+      setDateRangeSafe,
+      compareDateRange,
+      setCompareDateRangeSafe,
+      comparePrimaryKpi,
+      previousPeriod,
+      dimensionFilters,
+    ]
   )
 
   return <DashboardFiltersContext.Provider value={value}>{children}</DashboardFiltersContext.Provider>

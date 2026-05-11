@@ -1,12 +1,13 @@
 import { useEffect, useState, useRef } from 'react'
-import { format } from 'date-fns'
+import { endOfDay, format, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { DayPicker } from 'react-day-picker'
+import 'react-day-picker/dist/style.css'
 import { Calendar, ChevronDown, RefreshCw, Columns2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
-import { useAuth } from '@/context/AuthContext'
-import { rangeLastNDays, rangeThisMonth } from '@/lib/dateRange'
+import { defaultCompareSevenDaysBeforeMain, rangeLastNDays, rangeThisMonth } from '@/lib/dateRange'
 
 // Filter configs per page
 const PAGE_FILTERS = {
@@ -99,11 +100,12 @@ function FilterSelect({ filterKey, value, onChange, optionsOverride }) {
 }
 
 export default function FilterBar({ activePage }) {
-  const { user } = useAuth()
   const { activeOrgId } = useOrgWorkspace()
   const {
     dateRange,
     setDateRange,
+    compareDateRange,
+    setCompareDateRange,
     comparePrimaryKpi,
     setComparePrimaryKpi,
     dimensionFilters,
@@ -112,7 +114,9 @@ export default function FilterBar({ activePage }) {
   const [metaLive, setMetaLive] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [dateOpen, setDateOpen] = useState(false)
+  const [compareDateOpen, setCompareDateOpen] = useState(false)
   const dateMenuRef = useRef(null)
+  const compareDateMenuRef = useRef(null)
 
   const activeFilters = PAGE_FILTERS[activePage] ?? ['dateRange']
   const showKpiCompare =
@@ -120,6 +124,7 @@ export default function FilterBar({ activePage }) {
 
   const rangeLabelLong = `${format(dateRange.start, 'd MMM', { locale: ptBR })} – ${format(dateRange.end, 'd MMM yyyy', { locale: ptBR })}`
   const rangeLabelShort = `${format(dateRange.start, 'd MMM', { locale: ptBR })} – ${format(dateRange.end, 'MMM', { locale: ptBR })}`
+  const compareLabelShort = `${format(compareDateRange.start, 'd MMM', { locale: ptBR })} – ${format(compareDateRange.end, 'd MMM', { locale: ptBR })}`
 
   useEffect(() => {
     setDimensionFilters({})
@@ -134,6 +139,16 @@ export default function FilterBar({ activePage }) {
     window.addEventListener('pointerdown', onDown)
     return () => window.removeEventListener('pointerdown', onDown)
   }, [dateOpen])
+
+  useEffect(() => {
+    if (!compareDateOpen) return
+    const onDown = (e) => {
+      if (compareDateMenuRef.current?.contains(e.target)) return
+      setCompareDateOpen(false)
+    }
+    window.addEventListener('pointerdown', onDown)
+    return () => window.removeEventListener('pointerdown', onDown)
+  }, [compareDateOpen])
 
   useEffect(() => {
     if (activePage !== 'Meta Ads' || !activeOrgId) {
@@ -194,16 +209,8 @@ export default function FilterBar({ activePage }) {
     setTimeout(() => setRefreshing(false), 800)
   }
 
-  const showWorkerHint = user?.role === 'super_admin' && !activeOrgId
-
   return (
     <div className="shrink-0 flex flex-col border-b border-surface-border bg-[#0F0F0F]">
-      {showWorkerHint && (
-        <div className="border-b border-amber-500/25 bg-amber-500/10 px-4 py-1.5 text-[10px] text-amber-100/90 font-sans">
-          Modo <span className="font-semibold">Secrets (.env)</span>: selecione uma organização no topo para OAuth,
-          filtros vivos da Meta e contas por canal.
-        </div>
-      )}
       <div className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
         {activeFilters.includes('dateRange') && (
           <>
@@ -219,37 +226,102 @@ export default function FilterBar({ activePage }) {
                 <ChevronDown size={10} className="text-muted-foreground shrink-0" />
               </button>
               {dateOpen && (
-                <div className="absolute top-full left-0 z-[70] mt-2 min-w-[200px] rounded-lg border border-surface-border bg-surface-card py-2 shadow-xl animate-scale-in">
-                  {DATE_PRESETS.map((p) => (
-                    <button
-                      key={p.key}
-                      type="button"
-                      onClick={() => {
-                        setDateRange(p.getRange())
-                        setDateOpen(false)
+                <div className="absolute top-full left-0 z-[70] mt-2 rounded-lg border border-surface-border bg-surface-card p-3 shadow-xl animate-scale-in">
+                  <div className="mb-2 flex flex-col gap-1 border-b border-surface-border pb-2">
+                    {DATE_PRESETS.map((p) => (
+                      <button
+                        key={p.key}
+                        type="button"
+                        onClick={() => {
+                          setDateRange(p.getRange())
+                          setDateOpen(false)
+                        }}
+                        className="w-full rounded px-2 py-1.5 text-left text-xs text-white hover:bg-surface-hover transition-colors"
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="rdp-dark text-[#e5e5e5] [--rdp-accent-color:#F5C518] [--rdp-background-color:#1a1a1a]">
+                    <DayPicker
+                      mode="range"
+                      numberOfMonths={2}
+                      locale={ptBR}
+                      defaultMonth={dateRange.start}
+                      selected={{ from: dateRange.start, to: dateRange.end }}
+                      onSelect={(range) => {
+                        if (range?.from && range?.to) {
+                          setDateRange({ start: startOfDay(range.from), end: endOfDay(range.to) })
+                          setDateOpen(false)
+                        }
                       }}
-                      className="w-full px-4 py-2 text-left text-xs text-white hover:bg-surface-hover transition-colors"
-                    >
-                      {p.label}
-                    </button>
-                  ))}
+                    />
+                  </div>
                 </div>
               )}
             </div>
             {showKpiCompare && (
-              <button
-                type="button"
-                aria-pressed={comparePrimaryKpi}
-                onClick={() => setComparePrimaryKpi((v) => !v)}
-                title="Exibir KPIs primários do período anterior (mesma duração, antes do intervalo atual)"
-                className={cn(
-                  'filter-select shrink-0',
-                  comparePrimaryKpi && 'border-brand/40 bg-brand/10 text-brand'
+              <>
+                <button
+                  type="button"
+                  aria-pressed={comparePrimaryKpi}
+                  onClick={() => setComparePrimaryKpi((v) => !v)}
+                  title="Comparar KPIs do período principal com outro intervalo (calendário ao lado). Padrão: 7 dias antes do início do período atual."
+                  className={cn(
+                    'filter-select shrink-0',
+                    comparePrimaryKpi && 'border-brand/40 bg-brand/10 text-brand'
+                  )}
+                >
+                  <Columns2 size={11} className={comparePrimaryKpi ? 'text-brand' : 'text-muted-foreground'} />
+                  <span className="text-white text-xs hidden md:inline">Comparar KPIs</span>
+                </button>
+                {comparePrimaryKpi && (
+                  <div className="relative z-[60]" ref={compareDateMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setCompareDateOpen((o) => !o)}
+                      className="filter-select max-w-[min(100vw-10rem,220px)]"
+                      title="Período usado na comparação (variação % e faixa inferior)"
+                    >
+                      <Calendar size={11} className="text-muted-foreground shrink-0" />
+                      <span className="truncate text-xs text-white">vs {compareLabelShort}</span>
+                      <ChevronDown size={10} className="text-muted-foreground shrink-0" />
+                    </button>
+                    {compareDateOpen && (
+                      <div className="absolute top-full left-0 z-[70] mt-2 rounded-lg border border-surface-border bg-surface-card p-3 shadow-xl animate-scale-in">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCompareDateRange(defaultCompareSevenDaysBeforeMain(dateRange.start))
+                            setCompareDateOpen(false)
+                          }}
+                          className="mb-2 w-full rounded border border-surface-border px-2 py-1.5 text-left text-[10px] text-white hover:bg-surface-hover"
+                        >
+                          Padrão: 7 dias antes do período principal
+                        </button>
+                        <div className="rdp-dark text-[#e5e5e5] [--rdp-accent-color:#F5C518] [--rdp-background-color:#1a1a1a]">
+                          <DayPicker
+                            mode="range"
+                            numberOfMonths={2}
+                            locale={ptBR}
+                            defaultMonth={compareDateRange.start}
+                            selected={{ from: compareDateRange.start, to: compareDateRange.end }}
+                            onSelect={(range) => {
+                              if (range?.from && range?.to) {
+                                setCompareDateRange({
+                                  start: startOfDay(range.from),
+                                  end: endOfDay(range.to),
+                                })
+                                setCompareDateOpen(false)
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
-              >
-                <Columns2 size={11} className={comparePrimaryKpi ? 'text-brand' : 'text-muted-foreground'} />
-                <span className="text-white text-xs hidden md:inline">Comparar KPIs</span>
-              </button>
+              </>
             )}
             <div className="mx-1 hidden h-4 w-px bg-surface-border sm:block" />
           </>

@@ -1,5 +1,13 @@
 import { differenceInCalendarDays, endOfDay, startOfDay, subDays } from 'date-fns'
 
+/** 7 dias imediatamente antes do início do período principal (fim = dia anterior ao start principal). */
+export function defaultCompareSevenDaysBeforeMain(mainStartDate) {
+  const s = startOfDay(mainStartDate)
+  const compareEnd = endOfDay(subDays(s, 1))
+  const compareStart = startOfDay(subDays(compareEnd, 6))
+  return { start: compareStart, end: compareEnd }
+}
+
 /**
  * Intervalo inclusivo no calendário: start 00:00 e end 23:59:59.999.
  * @param {Date} startInput

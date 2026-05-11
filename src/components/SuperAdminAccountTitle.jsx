@@ -1,31 +1,52 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
+import { useDashboardFiltersOptional } from '@/context/DashboardFiltersContext'
+import { buildPlatformOverviewUrl } from '@/lib/platformOverviewUrl'
 import { cn } from '@/lib/utils'
 
 /**
  * Nome da conta / perfil nas APIs de plataforma.
  * Com `org_id` usa OAuth da organização; sem org (super_admin) usa secrets do Worker.
  * `workerPlatformQuery`: ex. `ad_account_id=act_123` (sem `?`; só no modo sem org).
+ * `syncOverviewDates`: quando true, inclui since/until e (se “Comparar KPIs”) compare_* a partir do contexto de filtros.
  */
 export default function SuperAdminAccountTitle({
   endpoint,
   emptyLabel = 'Conta não configurada',
   className,
   workerPlatformQuery = '',
+  syncOverviewDates = false,
 }) {
   const { user } = useAuth()
-  const { platformApiSuffix } = useOrgWorkspace()
+  const { platformApiSuffix, activeOrgId } = useOrgWorkspace()
+  const filters = useDashboardFiltersOptional()
   const [label, setLabel] = useState(null)
   const [loading, setLoading] = useState(false)
 
   const url = useMemo(() => {
+    if (syncOverviewDates && filters) {
+      return buildPlatformOverviewUrl(endpoint, {
+        orgId: activeOrgId,
+        workerQuery: activeOrgId ? '' : workerPlatformQuery,
+        dateRange: filters.dateRange,
+        compareDateRange: filters.compareDateRange,
+        compareEnabled: filters.comparePrimaryKpi,
+      })
+    }
     const base = `${endpoint}${platformApiSuffix}`
     if (platformApiSuffix) return base
     const q = typeof workerPlatformQuery === 'string' ? workerPlatformQuery.trim() : ''
     if (q) return `${endpoint}?${q}`
     return base
-  }, [endpoint, platformApiSuffix, workerPlatformQuery])
+  }, [
+    endpoint,
+    platformApiSuffix,
+    workerPlatformQuery,
+    syncOverviewDates,
+    filters,
+    activeOrgId,
+  ])
 
   useEffect(() => {
     if (!user) return

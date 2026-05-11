@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { format, parseISO } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { Search, TrendingUp, TrendingDown, Eye, MousePointer, DollarSign, Target, Award } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
@@ -11,44 +13,46 @@ import WorkerSecretsAccountPicker, {
   readWorkerGoogleAdsQueryFromStorage,
 } from '@/components/WorkerSecretsAccountPicker'
 import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
+import { useDashboardFilters } from '@/context/DashboardFiltersContext'
+import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
+import { buildPlatformOverviewUrl } from '@/lib/platformOverviewUrl'
+import { PlatformOverviewProvider, usePlatformOverview } from '@/components/PlatformOverviewProvider'
 
-const googleKPIs = [
-  { label: 'Investimento', value: 'R$1,30mil', delta: +12.4, icon: DollarSign, accent: 'brand' },
-  { label: 'Impressões', value: '50.000', delta: +14.5, icon: Eye, accent: 'purple' },
-  { label: 'Cliques', value: '1.990', delta: +9.2, icon: MousePointer, accent: 'brand' },
-  { label: 'CTR', value: '3,98%', delta: +0.5, icon: Target, accent: 'brand' },
-  { label: 'CPC Médio', value: 'R$0,65', delta: -3.1, icon: DollarSign, accent: 'purple' },
-  { label: 'Conversões', value: '11', delta: -9.1, icon: Target, accent: 'brand' },
-  { label: 'Custo/Conv.', value: 'R$118,18', delta: -5.4, icon: DollarSign, accent: 'purple' },
-  { label: 'Taxa de Conv.', value: '0,55%', delta: +2.1, icon: TrendingUp, accent: 'brand' },
+const GOOGLE_KPI_SHELL = [
+  { label: 'Investimento', icon: DollarSign, accent: 'brand' },
+  { label: 'Impressões', icon: Eye, accent: 'purple' },
+  { label: 'Cliques', icon: MousePointer, accent: 'brand' },
+  { label: 'CTR', icon: Target, accent: 'brand' },
+  { label: 'CPC Médio', icon: DollarSign, accent: 'purple' },
+  { label: 'Conversões', icon: Target, accent: 'brand' },
+  { label: 'Custo/Conv.', icon: DollarSign, accent: 'purple' },
+  { label: 'Taxa de Conv.', icon: TrendingUp, accent: 'brand' },
 ]
 
-const googleKPIsPrevious = [
-  { label: 'Investimento', value: 'R$1,08mil', delta: +5.2, icon: DollarSign, accent: 'brand' },
-  { label: 'Impressões', value: '43.800', delta: +6.8, icon: Eye, accent: 'purple' },
-  { label: 'Cliques', value: '1.752', delta: +3.1, icon: MousePointer, accent: 'brand' },
-  { label: 'CTR', value: '3,72%', delta: -0.4, icon: Target, accent: 'brand' },
-  { label: 'CPC Médio', value: 'R$0,62', delta: -6.2, icon: DollarSign, accent: 'purple' },
-  { label: 'Conversões', value: '8', delta: -4.0, icon: Target, accent: 'brand' },
-  { label: 'Custo/Conv.', value: 'R$135,00', delta: +2.1, icon: DollarSign, accent: 'purple' },
-  { label: 'Taxa de Conv.', value: '0,46%', delta: -0.9, icon: TrendingUp, accent: 'brand' },
-]
+const EMPTY_GOOGLE_CHART = [{ dia: '—', cliques: 0, impressoes: 0, conversoes: 0, ctr: 0 }]
 
-const dailyData = [
-  { dia: '01', cliques: 48, impressoes: 1200, conversoes: 0, ctr: 4.0 },
-  { dia: '05', cliques: 75, impressoes: 1900, conversoes: 1, ctr: 3.9 },
-  { dia: '08', cliques: 42, impressoes: 1050, conversoes: 0, ctr: 4.0 },
-  { dia: '10', cliques: 110, impressoes: 2750, conversoes: 2, ctr: 4.0 },
-  { dia: '12', cliques: 68, impressoes: 1700, conversoes: 1, ctr: 4.0 },
-  { dia: '15', cliques: 142, impressoes: 3550, conversoes: 3, ctr: 4.0 },
-  { dia: '17', cliques: 92, impressoes: 2300, conversoes: 1, ctr: 4.0 },
-  { dia: '19', cliques: 165, impressoes: 4125, conversoes: 1, ctr: 4.0 },
-  { dia: '22', cliques: 118, impressoes: 2950, conversoes: 1, ctr: 4.0 },
-  { dia: '24', cliques: 72, impressoes: 1800, conversoes: 0, ctr: 4.0 },
-  { dia: '26', cliques: 128, impressoes: 3200, conversoes: 1, ctr: 4.0 },
-  { dia: '28', cliques: 98, impressoes: 2450, conversoes: 0, ctr: 4.0 },
-  { dia: '31', cliques: 55, impressoes: 1375, conversoes: 0, ctr: 4.0 },
-]
+function mapGoogleDailyToChart(daily) {
+  if (!Array.isArray(daily) || daily.length === 0) return EMPTY_GOOGLE_CHART
+  return daily.map((d) => {
+    let dia = d.date || '—'
+    try {
+      if (d.date) dia = format(parseISO(d.date), 'dd/MM', { locale: ptBR })
+    } catch {
+      /* ignore */
+    }
+    const impressoes = Math.round(Number(d.impressions) || 0)
+    const cliques = Math.round(Number(d.clicks) || 0)
+    const conversoes = Math.round(Number(d.conversions) || 0)
+    const ctr = impressoes > 0 ? (cliques / impressoes) * 100 : 0
+    return {
+      dia,
+      cliques,
+      impressoes,
+      conversoes,
+      ctr: Math.round(ctr * 100) / 100,
+    }
+  })
+}
 
 const qualityData = [
   { keyword: 'consultoria fin.', score: 8, posicao: 1.2 },
@@ -90,41 +94,58 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 function GoogleKpiCard({ index }) {
   const period = useDashboardBlockPeriod()
-  const src = period === 'previous' ? googleKPIsPrevious : googleKPIs
-  const { label, value, delta } = src[index] ?? googleKPIs[index]
-  const isPos = delta > 0
-  const isNeg = delta < 0
-  const deltaNote = period === 'previous' ? 'vs período ant.' : ''
+  const { comparePrimaryKpi } = useDashboardFilters()
+  const { loading, data } = usePlatformOverview()
+  const shell = GOOGLE_KPI_SHELL[index] ?? GOOGLE_KPI_SHELL[0]
+  const rowP = data?.metrics?.[index]
+  const rowC = data?.compareMetrics?.[index]
+  const label = rowP?.label ?? shell.label
+  const value =
+    loading ? '…' : period === 'previous' ? (rowC?.value ?? '—') : (rowP?.value ?? '—')
+  const deltaPct = period === 'current' && comparePrimaryKpi ? rowP?.deltaPct : null
+  const hasDelta = deltaPct !== null && deltaPct !== undefined && !Number.isNaN(Number(deltaPct))
+  const n = Number(deltaPct)
+  const isPos = hasDelta && n > 0
+  const isNeg = hasDelta && n < 0
+  const deltaNote =
+    period === 'previous' ? 'período de comparação' : comparePrimaryKpi ? 'vs período comp.' : 'ative comparação'
   return (
     <div className="kpi-card min-h-0 w-full shrink-0">
       <span className="kpi-label block truncate">{label}</span>
       <span className="kpi-value block truncate tabular-nums">{value}</span>
       <div className="kpi-delta-row min-w-0">
-        <div
-          className={cn(
-            'inline-flex shrink-0 items-center gap-1',
-            isPos ? 'text-green-400' : isNeg ? 'text-red-400' : 'text-muted-foreground'
-          )}
-        >
-          {isPos ? <TrendingUp size={12} strokeWidth={2} /> : isNeg ? <TrendingDown size={12} strokeWidth={2} /> : null}
-          <span>
-            {isPos ? '+' : ''}
-            {delta}%
-          </span>
-        </div>
-        {deltaNote ? <span className="kpi-delta-note min-w-0 truncate">{deltaNote}</span> : null}
+        {period === 'current' && hasDelta ? (
+          <div
+            className={cn(
+              'inline-flex shrink-0 items-center gap-1',
+              isPos ? 'text-green-400' : isNeg ? 'text-red-400' : 'text-muted-foreground'
+            )}
+          >
+            {isPos ? <TrendingUp size={12} strokeWidth={2} /> : isNeg ? <TrendingDown size={12} strokeWidth={2} /> : null}
+            <span>
+              {n >= 0 ? '+' : ''}
+              {n.toFixed(1)}%
+            </span>
+          </div>
+        ) : period === 'current' ? (
+          <span className="font-mono text-[10px] text-muted-foreground">—</span>
+        ) : null}
+        <span className="kpi-delta-note min-w-0 truncate">{deltaNote}</span>
       </div>
     </div>
   )
 }
 
 function GoogleClicksChart() {
+  const { loading, data } = usePlatformOverview()
+  const chartData = useMemo(() => mapGoogleDailyToChart(data?.daily), [data?.daily])
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
-      <span className="section-title block mb-3 shrink-0">Cliques & Impressões Diárias</span>
-      <div className="h-44 flex-1 min-h-0">
+      <span className="section-title mb-3 block shrink-0">Cliques & Impressões Diárias</span>
+      {loading ? <p className="mb-1 text-[10px] text-muted-foreground">Carregando série…</p> : null}
+      <div className="h-44 min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={dailyData} margin={{ top: 2, right: 8, left: -20, bottom: 0 }}>
+          <AreaChart data={chartData} margin={{ top: 2, right: 8, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="googleGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#4285F4" stopOpacity={0.25} />
@@ -264,7 +285,7 @@ function GoogleCampaignsTable() {
   )
 }
 
-const KPI_BLOCKS = googleKPIs.map((_, i) => ({
+const KPI_BLOCKS = GOOGLE_KPI_SHELL.map((_, i) => ({
   id: `google-kpi-${i}`,
   tier: 'primary',
   defaultColSpan: 1,
@@ -324,7 +345,7 @@ const GOOGLE_DASHBOARD_BLOCKS = [
   },
 ]
 
-function GoogleAdsPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange }) {
+function GoogleAdsPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange, periodSubtitle }) {
   return (
     <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-4">
       <div className="flex w-full min-w-0 flex-col gap-2">
@@ -333,13 +354,14 @@ function GoogleAdsPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange 
             <Search size={14} className="text-[#4285F4]" />
             <span className="text-xs font-sans font-semibold text-[#4285F4]">Google Ads</span>
           </div>
-          <span className="text-xs font-sans text-muted-foreground">Janeiro 2025 • Todas as Campanhas</span>
+          <span className="text-xs font-sans text-muted-foreground">{periodSubtitle}</span>
         </div>
         <SuperAdminAccountTitle
           endpoint="/api/admin/platform/google-ads-overview"
           emptyLabel="Nome da conta Google Ads"
           className="w-full min-w-0 text-left"
           workerPlatformQuery={workerPlatformQuery}
+          syncOverviewDates
         />
         <WorkerSecretsAccountPicker
           provider="google_ads"
@@ -351,20 +373,53 @@ function GoogleAdsPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange 
   )
 }
 
-export default function GoogleAds() {
-  const [workerPlatformQuery, setWorkerPlatformQuery] = useState(() =>
-    typeof window !== 'undefined' ? readWorkerGoogleAdsQueryFromStorage() : ''
-  )
-
+function GoogleAdsInner({ workerPlatformQuery, onWorkerPlatformQueryChange, periodSubtitle }) {
   return (
     <div className="flex min-h-full min-w-0 flex-col">
       <GoogleAdsPageHeader
         workerPlatformQuery={workerPlatformQuery}
-        onWorkerPlatformQueryChange={setWorkerPlatformQuery}
+        onWorkerPlatformQueryChange={onWorkerPlatformQueryChange}
+        periodSubtitle={periodSubtitle}
       />
       <div className="min-h-0 flex-1">
         <DashboardGrid pageId="GoogleAds" definitions={GOOGLE_DASHBOARD_BLOCKS} className="min-h-full" />
       </div>
     </div>
+  )
+}
+
+export default function GoogleAds() {
+  const [workerPlatformQuery, setWorkerPlatformQuery] = useState(() =>
+    typeof window !== 'undefined' ? readWorkerGoogleAdsQueryFromStorage() : ''
+  )
+  const { activeOrgId } = useOrgWorkspace()
+  const { dateRange, compareDateRange, comparePrimaryKpi } = useDashboardFilters()
+
+  const overviewUrl = useMemo(
+    () =>
+      buildPlatformOverviewUrl('/api/admin/platform/google-ads-overview', {
+        orgId: activeOrgId,
+        workerQuery: workerPlatformQuery,
+        dateRange,
+        compareDateRange,
+        compareEnabled: comparePrimaryKpi,
+      }),
+    [activeOrgId, workerPlatformQuery, dateRange, compareDateRange, comparePrimaryKpi]
+  )
+
+  const periodSubtitle = useMemo(
+    () =>
+      `${format(dateRange.start, 'd MMM', { locale: ptBR })} – ${format(dateRange.end, 'd MMM yyyy', { locale: ptBR })} · período do filtro`,
+    [dateRange.start, dateRange.end]
+  )
+
+  return (
+    <PlatformOverviewProvider url={overviewUrl}>
+      <GoogleAdsInner
+        workerPlatformQuery={workerPlatformQuery}
+        onWorkerPlatformQueryChange={setWorkerPlatformQuery}
+        periodSubtitle={periodSubtitle}
+      />
+    </PlatformOverviewProvider>
   )
 }
