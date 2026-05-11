@@ -5,12 +5,12 @@ import DatePicker, { registerLocale } from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import '@/styles/datepicker-p12.css'
 import { Calendar, ChevronDown, RefreshCw, Columns2 } from 'lucide-react'
-
-registerLocale('pt-BR', ptBR)
 import { cn } from '@/lib/utils'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
 import { defaultCompareSevenDaysBeforeMain, rangeLastNDays, rangeThisMonth } from '@/lib/dateRange'
+
+registerLocale('pt-BR', ptBR)
 
 // Filter configs per page
 const PAGE_FILTERS = {
@@ -103,36 +103,46 @@ function FilterSelect({ filterKey, value, onChange, optionsOverride }) {
 }
 
 /**
- * Intervalo com dois cliques (início → fim). react-datepicker trata [start, end] corretamente.
- * @param {{ start: Date, end: Date }} range
- * @param {(next: { start: Date, end: Date }, closePopover: boolean) => void} onRangeChange
+ * Estado local enquanto o popover está aberto: no 1º clique vem [início, null].
+ * Se gravarmos isso no contexto como um só dia, o datepicker acha o intervalo “fechado” e o 2º clique reinicia.
  */
-function InlineRangePicker({ range, onRangeChange, openToDate }) {
+function InlineRangePicker({ open, committedRange, openToDate, onComplete }) {
+  const [dates, setDates] = useState(() => [committedRange.start, committedRange.end])
+
+  useEffect(() => {
+    if (open) {
+      setDates([committedRange.start, committedRange.end])
+    }
+  }, [open, committedRange.start, committedRange.end])
+
   const handleChange = (update) => {
     if (!update) return
     const [start, end] = update
-    if (!start) return
-    if (end) {
+    setDates(update)
+    if (start && end) {
       const from = start <= end ? start : end
       const to = start <= end ? end : start
-      onRangeChange({ start: startOfDay(from), end: endOfDay(to) }, true)
-    } else {
-      onRangeChange({ start: startOfDay(start), end: endOfDay(start) }, false)
+      onComplete({ start: startOfDay(from), end: endOfDay(to) })
     }
   }
 
+  const [start, end] = dates
+
   return (
-    <div className="p12-range-datepicker overflow-x-auto">
+    <div
+      className="p12-range-datepicker overflow-x-auto"
+      onPointerDown={(e) => e.stopPropagation()}
+    >
       <DatePicker
         selectsRange
-        startDate={range.start}
-        endDate={range.end}
+        startDate={start}
+        endDate={end ?? undefined}
         onChange={handleChange}
         inline
         monthsShown={2}
         locale="pt-BR"
         calendarStartDay={1}
-        openToDate={openToDate ?? range.start}
+        openToDate={openToDate ?? start}
         dateFormat="dd/MM/yyyy"
       />
     </div>
@@ -266,7 +276,10 @@ export default function FilterBar({ activePage }) {
                 <ChevronDown size={10} className="text-muted-foreground shrink-0" />
               </button>
               {dateOpen && (
-                <div className="absolute top-full left-0 z-[70] mt-2 rounded-lg border border-surface-border bg-surface-card p-3 shadow-xl animate-scale-in">
+                <div
+                  className="absolute top-full left-0 z-[70] mt-2 rounded-lg border border-surface-border bg-surface-card p-3 shadow-xl animate-scale-in"
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
                   <div className="mb-2 flex flex-col gap-1 border-b border-surface-border pb-2">
                     {DATE_PRESETS.map((p) => (
                       <button
@@ -283,11 +296,12 @@ export default function FilterBar({ activePage }) {
                     ))}
                   </div>
                   <InlineRangePicker
-                    range={dateRange}
+                    open={dateOpen}
+                    committedRange={dateRange}
                     openToDate={dateRange.start}
-                    onRangeChange={(next, closePopover) => {
+                    onComplete={(next) => {
                       setDateRange(next)
-                      if (closePopover) setDateOpen(false)
+                      setDateOpen(false)
                     }}
                   />
                 </div>
@@ -321,7 +335,10 @@ export default function FilterBar({ activePage }) {
                       <ChevronDown size={10} className="text-muted-foreground shrink-0" />
                     </button>
                     {compareDateOpen && (
-                      <div className="absolute top-full left-0 z-[70] mt-2 rounded-lg border border-surface-border bg-surface-card p-3 shadow-xl animate-scale-in">
+                      <div
+                        className="absolute top-full left-0 z-[70] mt-2 rounded-lg border border-surface-border bg-surface-card p-3 shadow-xl animate-scale-in"
+                        onPointerDown={(e) => e.stopPropagation()}
+                      >
                         <button
                           type="button"
                           onClick={() => {
@@ -333,11 +350,12 @@ export default function FilterBar({ activePage }) {
                           Padrão: 7 dias antes do período principal
                         </button>
                         <InlineRangePicker
-                          range={compareDateRange}
+                          open={compareDateOpen}
+                          committedRange={compareDateRange}
                           openToDate={compareDateRange.start}
-                          onRangeChange={(next, closePopover) => {
+                          onComplete={(next) => {
                             setCompareDateRange(next)
-                            if (closePopover) setCompareDateOpen(false)
+                            setCompareDateOpen(false)
                           }}
                         />
                       </div>
