@@ -8,6 +8,7 @@ import {
   getActiveConnectionForOrg,
   getValidGoogleAccessTokenFromCredential,
 } from '../../../_lib/org-platform-credentials'
+import { EMPTY_GOOGLE_DEMOGRAPHICS, fetchGoogleDemographicsPayload } from './google-ads-demographics'
 
 type Metric = { label: string; value: string; deltaPct?: number | null }
 
@@ -216,6 +217,18 @@ async function fetchAllGaqlRows(
   return { rows }
 }
 
+type DailyBucketAgg = {
+  spend: number
+  impressions: number
+  clicks: number
+  conversions: number
+  conversionsValue: number
+}
+
+function emptyDailyBucket(): DailyBucketAgg {
+  return { spend: 0, impressions: 0, clicks: 0, conversions: 0, conversionsValue: 0 }
+}
+
 function aggregateDaily(
   rows: {
     segments?: { date?: string }
@@ -224,20 +237,29 @@ function aggregateDaily(
       impressions?: string
       clicks?: string
       conversions?: string | number
+      conversionsValue?: string | number
     }
   }[]
-): Array<{ date: string; spend: number; impressions: number; clicks: number; conversions: number }> {
-  const byDate = new Map<string, RawAgg>()
+): Array<{
+  date: string
+  spend: number
+  impressions: number
+  clicks: number
+  conversions: number
+  conversionsValue: number
+}> {
+  const byDate = new Map<string, DailyBucketAgg>()
   for (const row of rows) {
     const d = row.segments?.date
     if (!d) continue
     const m = row.metrics
     if (!m) continue
-    const cur = byDate.get(d) ?? emptyRaw()
+    const cur = byDate.get(d) ?? emptyDailyBucket()
     cur.spend += (Number.parseInt(String(m.costMicros ?? '0'), 10) || 0) / 1_000_000
     cur.impressions += Number.parseInt(String(m.impressions ?? '0'), 10) || 0
     cur.clicks += Number.parseInt(String(m.clicks ?? '0'), 10) || 0
     cur.conversions += Number.parseFloat(String(m.conversions ?? '0')) || 0
+    cur.conversionsValue += Number.parseFloat(String(m.conversionsValue ?? m.conversions_value ?? 0)) || 0
     byDate.set(d, cur)
   }
   return [...byDate.entries()]
@@ -248,6 +270,7 @@ function aggregateDaily(
       impressions: v.impressions,
       clicks: v.clicks,
       conversions: v.conversions,
+      conversionsValue: v.conversionsValue,
     }))
 }
 
@@ -257,6 +280,476 @@ type GoogleDailyRow = {
   impressions: number
   clicks: number
   conversions: number
+  conversionsValue: number
+}
+
+type ConversionBreakdownRow = {
+  id: string
+  name: string
+  conversions: number
+  value: number
+}
+
+type ConversionBreakdownPayload = {
+  primary: ConversionBreakdownRow[]
+  secondary: ConversionBreakdownRow[]
+  error: string | null
+}
+
+const EMPTY_CONVERSION_BREAKDOWN: ConversionBreakdownPayload = {
+  primary: [],
+  secondary: [],
+  error: null,
+}
+
+type KeywordQualityItem = {
+  keyword: string
+  qualityScore: number | null
+  impressions: number
+  clicks: number
+  conversions: number
+  costPerConversion: number | null
+}
+
+type KeywordQualityPayload = {
+  items: KeywordQualityItem[]
+  error: string | null
+}
+
+const EMPTY_KEYWORD_QUALITY: KeywordQualityPayload = {
+  items: [],
+  error: null,
+}
+
+type CampaignTypeItem = {
+  typeKey: string
+  typeLabel: string
+  spend: number
+  impressions: number
+  clicks: number
+  conversions: number
+  conversionsValue: number
+}
+
+type CampaignTypesPayload = {
+  items: CampaignTypeItem[]
+  error: string | null
+}
+
+const EMPTY_CAMPAIGN_TYPES: CampaignTypesPayload = {
+  items: [],
+  error: null,
+}
+
+function rowObj(row: GaqlRow): Record<string, unknown> {
+  return row && typeof row === 'object' ? (row as Record<string, unknown>) : {}
+}
+
+function readNestedString(obj: unknown, ...keys: string[]): string | undefined {
+  if (!obj || typeof obj !== 'object') return undefined
+  const o = obj as Record<string, unknown>
+  for (const k of keys) {
+    const v = o[k]
+    if (typeof v === 'string' && v) return v
+  }
+  return undefined
+}
+
+function readNestedBool(obj: unknown, ...keys: string[]): boolean | undefined {
+  if (!obj || typeof obj !== 'object') return undefined
+  const o = obj as Record<string, unknown>
+  for (const k of keys) {
+    const v = o[k]
+    if (typeof v === 'boolean') return v
+  }
+  return undefined
+}
+
+function readMetricsConv(m: unknown): { conversions: number; value: number } {
+  if (!m || typeof m !== 'object') return { conversions: 0, value: 0 }
+  const o = m as Record<string, unknown>
+  const conv = Number.parseFloat(String(o.conversions ?? 0)) || 0
+  const val = Number.parseFloat(String(o.conversionsValue ?? o.conversions_value ?? 0)) || 0
+  return { conversions: conv, value: val }
+}
+
+async function fetchConversionBreakdown(
+  ver: string,
+  numericId: string,
+  headers: Record<string, string>,
+  since: string,
+  until: string
+): Promise<ConversionBreakdownPayload> {
+  const metaQuery = `
+    SELECT
+      conversion_action.resource_name,
+      conversion_action.name,
+      conversion_action.primary_for_goal
+    FROM conversion_action
+    WHERE conversion_action.status != 'REMOVED'
+  `
+  const metaRes = await fetchAllGaqlRows(ver, numericId, headers, metaQuery)
+  const metaMap = new Map<string, { name: string; primaryForGoal: boolean | undefined }>()
+  if (!metaRes.error) {
+    for (const row of metaRes.rows) {
+      const R = rowObj(row)
+      const ca = R.conversionAction ?? R.conversion_action
+      const rn = readNestedString(ca, 'resourceName', 'resource_name')
+      if (!rn) continue
+      const name = readNestedString(ca, 'name') ?? 'Conversão'
+      const primaryForGoal = readNestedBool(ca, 'primaryForGoal', 'primary_for_goal')
+      metaMap.set(rn, { name: name.trim() || 'Conversão', primaryForGoal })
+    }
+  }
+
+  const metricsQuery = `
+    SELECT
+      segments.conversion_action,
+      metrics.conversions,
+      metrics.conversions_value
+    FROM campaign
+    WHERE campaign.status != 'REMOVED'
+      AND segments.date BETWEEN '${since}' AND '${until}'
+  `
+  const metricsRes = await fetchAllGaqlRows(ver, numericId, headers, metricsQuery)
+  if (metricsRes.error) {
+    return { primary: [], secondary: [], error: metricsRes.error }
+  }
+
+  const totals = new Map<string, { conversions: number; value: number }>()
+  for (const row of metricsRes.rows) {
+    const R = rowObj(row)
+    const segments = R.segments
+    const rn = readNestedString(segments, 'conversionAction', 'conversion_action')
+    if (!rn) continue
+    const { conversions, value } = readMetricsConv(R.metrics)
+    const cur = totals.get(rn) ?? { conversions: 0, value: 0 }
+    cur.conversions += conversions
+    cur.value += value
+    totals.set(rn, cur)
+  }
+
+  const primary: ConversionBreakdownRow[] = []
+  const secondary: ConversionBreakdownRow[] = []
+  for (const [resourceName, agg] of totals.entries()) {
+    if (agg.conversions === 0 && agg.value === 0) continue
+    const meta = metaMap.get(resourceName)
+    const name = meta?.name ?? resourceName.split('/').pop() ?? 'Conversão'
+    const rowOut: ConversionBreakdownRow = {
+      id: resourceName,
+      name,
+      conversions: agg.conversions,
+      value: agg.value,
+    }
+    if (meta && meta.primaryForGoal === false) secondary.push(rowOut)
+    else primary.push(rowOut)
+  }
+
+  const score = (r: ConversionBreakdownRow) => r.conversions + r.value * 1e-9
+  primary.sort((a, b) => score(b) - score(a))
+  secondary.sort((a, b) => score(b) - score(a))
+
+  return { primary, secondary, error: null }
+}
+
+function parseKeywordTextFromCriterion(crit: unknown): string | null {
+  if (!crit || typeof crit !== 'object') return null
+  const c = crit as Record<string, unknown>
+  const kw = c.keyword
+  if (!kw || typeof kw !== 'object') return null
+  const t = readNestedString(kw, 'text')
+  return t?.trim() ? t.trim() : null
+}
+
+function parseQualityScoreFromCriterion(crit: unknown): number | null {
+  if (!crit || typeof crit !== 'object') return null
+  const c = crit as Record<string, unknown>
+  const qi = c.qualityInfo ?? c.quality_info
+  if (!qi || typeof qi !== 'object') return null
+  const qo = qi as Record<string, unknown>
+  const q = qo.qualityScore ?? qo.quality_score
+  if (typeof q === 'number' && q >= 1 && q <= 10) return Math.round(q)
+  if (typeof q === 'string' && /^\d+$/.test(q)) {
+    const n = Number.parseInt(q, 10)
+    if (n >= 1 && n <= 10) return n
+  }
+  return null
+}
+
+function parseKeywordViewMetrics(m: unknown): {
+  impressions: number
+  clicks: number
+  conversions: number
+  costMicros: number
+} {
+  if (!m || typeof m !== 'object') {
+    return { impressions: 0, clicks: 0, conversions: 0, costMicros: 0 }
+  }
+  const mo = m as Record<string, unknown>
+  return {
+    impressions: Number.parseInt(String(mo.impressions ?? '0'), 10) || 0,
+    clicks: Number.parseInt(String(mo.clicks ?? '0'), 10) || 0,
+    conversions: Number.parseFloat(String(mo.conversions ?? '0')) || 0,
+    costMicros: Number.parseInt(String(mo.costMicros ?? mo.cost_micros ?? '0'), 10) || 0,
+  }
+}
+
+async function fetchKeywordQualityList(
+  ver: string,
+  numericId: string,
+  headers: Record<string, string>,
+  since: string,
+  until: string
+): Promise<KeywordQualityPayload> {
+  const query = `
+    SELECT
+      ad_group_criterion.keyword.text,
+      ad_group_criterion.quality_info.quality_score,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.conversions,
+      metrics.cost_micros
+    FROM keyword_view
+    WHERE segments.date BETWEEN '${since}' AND '${until}'
+      AND campaign.status != 'REMOVED'
+      AND ad_group_criterion.status != 'REMOVED'
+      AND ad_group_criterion.type = KEYWORD
+  `
+  const res = await fetchAllGaqlRows(ver, numericId, headers, query)
+  if (res.error) {
+    return { items: [], error: res.error }
+  }
+
+  type Agg = {
+    displayKeyword: string
+    impressions: number
+    clicks: number
+    conversions: number
+    costMicros: number
+    qsWeighted: number
+    qsWeight: number
+  }
+  const byKey = new Map<string, Agg>()
+
+  for (const row of res.rows) {
+    const R = rowObj(row)
+    const crit = R.adGroupCriterion ?? R.ad_group_criterion
+    const text = parseKeywordTextFromCriterion(crit)
+    if (!text) continue
+    const key = text.toLowerCase()
+    const qs = parseQualityScoreFromCriterion(crit)
+    const met = parseKeywordViewMetrics(R.metrics)
+    let a = byKey.get(key)
+    if (!a) {
+      a = {
+        displayKeyword: text,
+        impressions: 0,
+        clicks: 0,
+        conversions: 0,
+        costMicros: 0,
+        qsWeighted: 0,
+        qsWeight: 0,
+      }
+      byKey.set(key, a)
+    }
+    a.impressions += met.impressions
+    a.clicks += met.clicks
+    a.conversions += met.conversions
+    a.costMicros += met.costMicros
+    if (qs != null && met.impressions > 0) {
+      a.qsWeighted += qs * met.impressions
+      a.qsWeight += met.impressions
+    }
+  }
+
+  const items: KeywordQualityItem[] = []
+  for (const a of byKey.values()) {
+    if (a.impressions === 0 && a.clicks === 0) continue
+    const spend = a.costMicros / 1_000_000
+    const qualityScore = a.qsWeight > 0 ? Math.round(a.qsWeighted / a.qsWeight) : null
+    const costPerConversion = a.conversions > 0 ? spend / a.conversions : null
+    items.push({
+      keyword: a.displayKeyword,
+      qualityScore,
+      impressions: a.impressions,
+      clicks: a.clicks,
+      conversions: a.conversions,
+      costPerConversion,
+    })
+  }
+
+  items.sort((a, b) => {
+    const qa = a.qualityScore
+    const qb = b.qualityScore
+    if (qa != null && qb != null && qa !== qb) return qb - qa
+    if (qa != null && qb == null) return -1
+    if (qa == null && qb != null) return 1
+    if (b.clicks !== a.clicks) return b.clicks - a.clicks
+    if (b.conversions !== a.conversions) return b.conversions - a.conversions
+    return a.keyword.localeCompare(b.keyword, 'pt')
+  })
+
+  const MAX = 400
+  return { items: items.slice(0, MAX), error: null }
+}
+
+function googleAdsChannelTypeLabel(key: string): string {
+  const map: Record<string, string> = {
+    UNSPECIFIED: 'Não especificado',
+    UNKNOWN: 'Desconhecido',
+    SEARCH: 'Search',
+    DISPLAY: 'Display',
+    PERFORMANCE_MAX: 'Performance Max',
+    SHOPPING: 'Shopping',
+    VIDEO: 'Vídeo',
+    MULTI_CHANNEL: 'Multi-channel',
+    LOCAL: 'Local',
+    SMART: 'Smart',
+    DISCOVERY: 'Discovery',
+    HOTEL: 'Hotel',
+    DEMAND_GEN: 'Demand Gen',
+    APP: 'App',
+  }
+  if (map[key]) return map[key]
+  const t = key.replace(/_/g, ' ').toLowerCase()
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : key
+}
+
+function parseCampaignChannel(row: GaqlRow): { campaignId: string; channelType: string } | null {
+  const R = rowObj(row)
+  const camp = R.campaign
+  if (!camp || typeof camp !== 'object') return null
+  const c = camp as Record<string, unknown>
+  const idRaw = c.id
+  const id = idRaw != null ? String(idRaw).trim() : ''
+  if (!id) return null
+  const channelType =
+    readNestedString(c, 'advertisingChannelType', 'advertising_channel_type') ?? 'UNSPECIFIED'
+  return { campaignId: id, channelType }
+}
+
+function parseCampaignTypeRowMetrics(m: unknown): {
+  costMicros: number
+  impressions: number
+  clicks: number
+  conversions: number
+  conversionsValue: number
+} {
+  if (!m || typeof m !== 'object') {
+    return { costMicros: 0, impressions: 0, clicks: 0, conversions: 0, conversionsValue: 0 }
+  }
+  const o = m as Record<string, unknown>
+  return {
+    costMicros: Number.parseInt(String(o.costMicros ?? o.cost_micros ?? '0'), 10) || 0,
+    impressions: Number.parseInt(String(o.impressions ?? '0'), 10) || 0,
+    clicks: Number.parseInt(String(o.clicks ?? '0'), 10) || 0,
+    conversions: Number.parseFloat(String(o.conversions ?? '0')) || 0,
+    conversionsValue: Number.parseFloat(String(o.conversionsValue ?? o.conversions_value ?? '0')) || 0,
+  }
+}
+
+async function fetchCampaignTypesGrouped(
+  ver: string,
+  numericId: string,
+  headers: Record<string, string>,
+  since: string,
+  until: string
+): Promise<CampaignTypesPayload> {
+  const query = `
+    SELECT
+      campaign.id,
+      campaign.advertising_channel_type,
+      metrics.cost_micros,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.conversions,
+      metrics.conversions_value
+    FROM campaign
+    WHERE campaign.status != 'REMOVED'
+      AND segments.date BETWEEN '${since}' AND '${until}'
+  `
+  const res = await fetchAllGaqlRows(ver, numericId, headers, query)
+  if (res.error) {
+    return { items: [], error: res.error }
+  }
+
+  type CampBucket = {
+    channelType: string
+    costMicros: number
+    impressions: number
+    clicks: number
+    conversions: number
+    conversionsValue: number
+  }
+  const byCampaignId = new Map<string, CampBucket>()
+
+  for (const row of res.rows) {
+    const parsed = parseCampaignChannel(row)
+    if (!parsed) continue
+    const met = parseCampaignTypeRowMetrics(rowObj(row).metrics)
+    let b = byCampaignId.get(parsed.campaignId)
+    if (!b) {
+      b = {
+        channelType: parsed.channelType,
+        costMicros: 0,
+        impressions: 0,
+        clicks: 0,
+        conversions: 0,
+        conversionsValue: 0,
+      }
+      byCampaignId.set(parsed.campaignId, b)
+    }
+    b.costMicros += met.costMicros
+    b.impressions += met.impressions
+    b.clicks += met.clicks
+    b.conversions += met.conversions
+    b.conversionsValue += met.conversionsValue
+  }
+
+  const byType = new Map<
+    string,
+    { costMicros: number; impressions: number; clicks: number; conversions: number; conversionsValue: number }
+  >()
+  for (const b of byCampaignId.values()) {
+    const cur =
+      byType.get(b.channelType) ?? {
+        costMicros: 0,
+        impressions: 0,
+        clicks: 0,
+        conversions: 0,
+        conversionsValue: 0,
+      }
+    cur.costMicros += b.costMicros
+    cur.impressions += b.impressions
+    cur.clicks += b.clicks
+    cur.conversions += b.conversions
+    cur.conversionsValue += b.conversionsValue
+    byType.set(b.channelType, cur)
+  }
+
+  const items: CampaignTypeItem[] = []
+  for (const [typeKey, agg] of byType.entries()) {
+    if (
+      agg.impressions === 0 &&
+      agg.clicks === 0 &&
+      agg.conversions === 0 &&
+      agg.costMicros === 0
+    ) {
+      continue
+    }
+    items.push({
+      typeKey,
+      typeLabel: googleAdsChannelTypeLabel(typeKey),
+      spend: agg.costMicros / 1_000_000,
+      impressions: agg.impressions,
+      clicks: agg.clicks,
+      conversions: agg.conversions,
+      conversionsValue: agg.conversionsValue,
+    })
+  }
+
+  items.sort((a, b) => b.spend - a.spend)
+  return { items, error: null }
 }
 
 function ymdAddOneGoogle(ymd: string): string {
@@ -276,6 +769,7 @@ function fillGoogleDailyGaps(since: string, until: string, daily: GoogleDailyRow
         impressions: 0,
         clicks: 0,
         conversions: 0,
+        conversionsValue: 0,
       }
     )
     if (daysBetweenInclusive(since, d) > MAX_RANGE_DAYS) break
@@ -324,7 +818,8 @@ async function buildGoogleOverviewBody(
       metrics.cost_micros,
       metrics.impressions,
       metrics.clicks,
-      metrics.conversions
+      metrics.conversions,
+      metrics.conversions_value
     FROM campaign
     WHERE ${baseWhere}
   `
@@ -346,6 +841,10 @@ async function buildGoogleOverviewBody(
       compareRange: null,
       compareMetrics: null as Metric[] | null,
       daily: [],
+      conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+      keywordQuality: EMPTY_KEYWORD_QUALITY,
+      campaignTypes: EMPTY_CAMPAIGN_TYPES,
+      demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
     }
   }
 
@@ -376,6 +875,13 @@ async function buildGoogleOverviewBody(
   const dailyRaw = aggregateDaily(dailyRes.rows as Parameters<typeof aggregateDaily>[0])
   const daily = fillGoogleDailyGaps(since, until, dailyRaw)
 
+  const [conversionBreakdown, keywordQuality, campaignTypes, demographics] = await Promise.all([
+    fetchConversionBreakdown(ver, numericId, headers, since, until),
+    fetchKeywordQualityList(ver, numericId, headers, since, until),
+    fetchCampaignTypesGrouped(ver, numericId, headers, since, until),
+    fetchGoogleDemographicsPayload(ver, numericId, headers, since, until, fetchAllGaqlRows),
+  ])
+
   return {
     configured: true,
     source,
@@ -388,6 +894,10 @@ async function buildGoogleOverviewBody(
       compareSince && compareUntil ? { since: compareSince, until: compareUntil } : null,
     compareMetrics,
     daily,
+    conversionBreakdown,
+    keywordQuality,
+    campaignTypes,
+    demographics,
   }
 }
 
@@ -422,6 +932,10 @@ export async function onRequestGet(context: {
         compareRange: null,
         compareMetrics: null,
         daily: [],
+        conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+        keywordQuality: EMPTY_KEYWORD_QUALITY,
+        campaignTypes: EMPTY_CAMPAIGN_TYPES,
+        demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       })
     }
     const devToken = env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim()
@@ -437,6 +951,10 @@ export async function onRequestGet(context: {
         compareRange: null,
         compareMetrics: null,
         daily: [],
+        conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+        keywordQuality: EMPTY_KEYWORD_QUALITY,
+        campaignTypes: EMPTY_CAMPAIGN_TYPES,
+        demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       })
     }
     const access = await getValidGoogleAccessTokenFromCredential(env.DB, env, conn.oauth_credential_id)
@@ -452,6 +970,10 @@ export async function onRequestGet(context: {
         compareRange: null,
         compareMetrics: null,
         daily: [],
+        conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+        keywordQuality: EMPTY_KEYWORD_QUALITY,
+        campaignTypes: EMPTY_CAMPAIGN_TYPES,
+        demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       })
     }
     const rawVer = env.GOOGLE_ADS_API_VERSION?.trim() || 'v17'
@@ -497,6 +1019,10 @@ export async function onRequestGet(context: {
         compareRange: null,
         compareMetrics: null,
         daily: [],
+        conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+        keywordQuality: EMPTY_KEYWORD_QUALITY,
+        campaignTypes: EMPTY_CAMPAIGN_TYPES,
+        demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       })
     }
   }
@@ -525,6 +1051,10 @@ export async function onRequestGet(context: {
       compareRange: null,
       compareMetrics: null,
       daily: [],
+      conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+      keywordQuality: EMPTY_KEYWORD_QUALITY,
+      campaignTypes: EMPTY_CAMPAIGN_TYPES,
+      demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
     })
   }
 
@@ -541,6 +1071,10 @@ export async function onRequestGet(context: {
       compareRange: null,
       compareMetrics: null,
       daily: [],
+      conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+      keywordQuality: EMPTY_KEYWORD_QUALITY,
+      campaignTypes: EMPTY_CAMPAIGN_TYPES,
+      demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
     })
   }
 
@@ -588,6 +1122,10 @@ export async function onRequestGet(context: {
       compareRange: null,
       compareMetrics: null,
       daily: [],
+      conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+      keywordQuality: EMPTY_KEYWORD_QUALITY,
+      campaignTypes: EMPTY_CAMPAIGN_TYPES,
+      demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
     })
   }
 }

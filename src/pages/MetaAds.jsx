@@ -45,6 +45,7 @@ import WorkerSecretsAccountPicker, {
 } from '@/components/WorkerSecretsAccountPicker'
 import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 import { META_PRIMARY_KPI_LABELS } from '@/lib/metaPrimaryKpiLabels'
+import { MonthlyAccountResultsTable } from '@/components/MonthlyAccountResultsTable'
 import {
   readMetaCreativesSort,
   writeMetaCreativesSort,
@@ -695,6 +696,17 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
       minRowSpan: 2,
       maxRowSpan: 10,
       render: () => <MetaCampaignsTable />,
+    },
+    {
+      id: 'meta-monthly-results',
+      tier: 'secondary',
+      defaultColSpan: 8,
+      defaultRowSpan: 4,
+      minColSpan: 2,
+      maxColSpan: 8,
+      minRowSpan: 3,
+      maxRowSpan: 12,
+      render: () => <MonthlyAccountResultsTable platform="meta" />,
     },
   ]
 }
