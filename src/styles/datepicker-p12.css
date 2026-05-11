@@ -1,0 +1,89 @@
+/* Tema escuro para react-datepicker (intervalo inline no FilterBar) */
+.p12-range-datepicker .react-datepicker {
+  background: #141414;
+  border: 1px solid #2c2c2c;
+  border-radius: 10px;
+  font-family: inherit;
+  color: #e5e5e5;
+}
+
+.p12-range-datepicker .react-datepicker__month-container {
+  background: #141414;
+}
+
+.p12-range-datepicker .react-datepicker__header {
+  background: #1a1a1a;
+  border-bottom: 1px solid #2c2c2c;
+  padding-top: 8px;
+}
+
+.p12-range-datepicker .react-datepicker__current-month,
+.p12-range-datepicker .react-datepicker-time__header,
+.p12-range-datepicker .react-datepicker-year-header {
+  color: #fafafa;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.p12-range-datepicker .react-datepicker__day-name {
+  color: #888;
+  font-size: 0.65rem;
+}
+
+.p12-range-datepicker .react-datepicker__day {
+  color: #ddd;
+  border-radius: 6px;
+  font-size: 0.72rem;
+}
+
+.p12-range-datepicker .react-datepicker__day:hover {
+  background: #2a2a2a !important;
+  color: #fff;
+}
+
+.p12-range-datepicker .react-datepicker__day--outside-month {
+  color: #555;
+}
+
+.p12-range-datepicker .react-datepicker__day--disabled {
+  color: #444 !important;
+}
+
+.p12-range-datepicker .react-datepicker__day--selected,
+.p12-range-datepicker .react-datepicker__day--range-start,
+.p12-range-datepicker .react-datepicker__day--range-end {
+  background: #f5c518 !important;
+  color: #0f0f0f !important;
+  font-weight: 600;
+}
+
+.p12-range-datepicker .react-datepicker__day--in-range,
+.p12-range-datepicker .react-datepicker__day--in-selecting-range {
+  background: rgba(245, 197, 24, 0.18) !important;
+  color: #fafafa !important;
+}
+
+.p12-range-datepicker .react-datepicker__day--keyboard-selected {
+  background: rgba(245, 197, 24, 0.35) !important;
+  color: #0f0f0f !important;
+}
+
+.p12-range-datepicker .react-datepicker__navigation {
+  top: 10px;
+}
+
+.p12-range-datepicker .react-datepicker__navigation-icon::before {
+  border-color: #aaa;
+}
+
+.p12-range-datepicker .react-datepicker__navigation:hover *::before {
+  border-color: #f5c518;
+}
+
+.p12-range-datepicker .react-datepicker__month {
+  margin: 0.4rem;
+}
+
+.p12-range-datepicker .react-datepicker__triangle {
+  display: none;
+}

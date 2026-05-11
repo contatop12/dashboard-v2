@@ -1,9 +1,12 @@
 import { useEffect, useState, useRef } from 'react'
 import { endOfDay, format, startOfDay } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
-import { DayPicker } from 'react-day-picker'
-import 'react-day-picker/dist/style.css'
+import { ptBR } from 'date-fns/locale/pt-BR'
+import DatePicker, { registerLocale } from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
+import '@/styles/datepicker-p12.css'
 import { Calendar, ChevronDown, RefreshCw, Columns2 } from 'lucide-react'
+
+registerLocale('pt-BR', ptBR)
 import { cn } from '@/lib/utils'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
@@ -95,6 +98,43 @@ function FilterSelect({ filterKey, value, onChange, optionsOverride }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Intervalo com dois cliques (início → fim). react-datepicker trata [start, end] corretamente.
+ * @param {{ start: Date, end: Date }} range
+ * @param {(next: { start: Date, end: Date }, closePopover: boolean) => void} onRangeChange
+ */
+function InlineRangePicker({ range, onRangeChange, openToDate }) {
+  const handleChange = (update) => {
+    if (!update) return
+    const [start, end] = update
+    if (!start) return
+    if (end) {
+      const from = start <= end ? start : end
+      const to = start <= end ? end : start
+      onRangeChange({ start: startOfDay(from), end: endOfDay(to) }, true)
+    } else {
+      onRangeChange({ start: startOfDay(start), end: endOfDay(start) }, false)
+    }
+  }
+
+  return (
+    <div className="p12-range-datepicker overflow-x-auto">
+      <DatePicker
+        selectsRange
+        startDate={range.start}
+        endDate={range.end}
+        onChange={handleChange}
+        inline
+        monthsShown={2}
+        locale="pt-BR"
+        calendarStartDay={1}
+        openToDate={openToDate ?? range.start}
+        dateFormat="dd/MM/yyyy"
+      />
     </div>
   )
 }
@@ -242,21 +282,14 @@ export default function FilterBar({ activePage }) {
                       </button>
                     ))}
                   </div>
-                  <div className="rdp-dark text-[#e5e5e5] [--rdp-accent-color:#F5C518] [--rdp-background-color:#1a1a1a]">
-                    <DayPicker
-                      mode="range"
-                      numberOfMonths={2}
-                      locale={ptBR}
-                      defaultMonth={dateRange.start}
-                      selected={{ from: dateRange.start, to: dateRange.end }}
-                      onSelect={(range) => {
-                        if (range?.from && range?.to) {
-                          setDateRange({ start: startOfDay(range.from), end: endOfDay(range.to) })
-                          setDateOpen(false)
-                        }
-                      }}
-                    />
-                  </div>
+                  <InlineRangePicker
+                    range={dateRange}
+                    openToDate={dateRange.start}
+                    onRangeChange={(next, closePopover) => {
+                      setDateRange(next)
+                      if (closePopover) setDateOpen(false)
+                    }}
+                  />
                 </div>
               )}
             </div>
@@ -299,24 +332,14 @@ export default function FilterBar({ activePage }) {
                         >
                           Padrão: 7 dias antes do período principal
                         </button>
-                        <div className="rdp-dark text-[#e5e5e5] [--rdp-accent-color:#F5C518] [--rdp-background-color:#1a1a1a]">
-                          <DayPicker
-                            mode="range"
-                            numberOfMonths={2}
-                            locale={ptBR}
-                            defaultMonth={compareDateRange.start}
-                            selected={{ from: compareDateRange.start, to: compareDateRange.end }}
-                            onSelect={(range) => {
-                              if (range?.from && range?.to) {
-                                setCompareDateRange({
-                                  start: startOfDay(range.from),
-                                  end: endOfDay(range.to),
-                                })
-                                setCompareDateOpen(false)
-                              }
-                            }}
-                          />
-                        </div>
+                        <InlineRangePicker
+                          range={compareDateRange}
+                          openToDate={compareDateRange.start}
+                          onRangeChange={(next, closePopover) => {
+                            setCompareDateRange(next)
+                            if (closePopover) setCompareDateOpen(false)
+                          }}
+                        />
                       </div>
                     )}
                   </div>
