@@ -7,6 +7,7 @@ import {
   decryptMetaAccessToken,
   getActiveConnectionForOrg,
 } from '../../../_lib/org-platform-credentials'
+import { buildMetaTree, type MetaNodeInput } from '../../../_lib/meta-tree'
 
 type Metric = { label: string; value: string; deltaPct?: number | null }
 
@@ -333,6 +334,8 @@ async function fetchAdLevelInsights(
 type AdObj = {
   name?: string
   effective_status?: string
+  adset_id?: string
+  campaign_id?: string
   creative?: { thumbnail_url?: string; image_url?: string }
   error?: { message?: string }
 }
@@ -347,7 +350,7 @@ async function fetchAdsByIdsBatch(
     const slice = adIds.slice(i, i + chunk)
     const u = new URL('https://graph.facebook.com/v21.0/')
     u.searchParams.set('ids', slice.join(','))
-    u.searchParams.set('fields', 'name,effective_status,creative{thumbnail_url,image_url}')
+    u.searchParams.set('fields', 'name,effective_status,adset_id,campaign_id,creative{thumbnail_url,image_url}')
     u.searchParams.set('access_token', token)
     const r = await fetch(u.toString())
     const j = (await r.json()) as Record<string, AdObj | { error?: { message?: string } }>
@@ -375,6 +378,7 @@ type CampaignCatalogRow = {
   name: string
   objective: string
   effectiveStatus: string
+  dailyBudget: number
 }
 
 type CampaignInsightAgg = {
@@ -420,11 +424,11 @@ async function fetchCampaignsCatalog(
 ): Promise<{ map: Map<string, CampaignCatalogRow>; error?: string }> {
   const map = new Map<string, CampaignCatalogRow>()
   let url: string | null =
-    `https://graph.facebook.com/v21.0/${actId}/campaigns?fields=id,name,objective,effective_status&limit=500&access_token=${encodeURIComponent(token)}`
+    `https://graph.facebook.com/v21.0/${actId}/campaigns?fields=id,name,objective,effective_status,daily_budget&limit=500&access_token=${encodeURIComponent(token)}`
   for (let page = 0; page < 25 && url; page++) {
     const r = await fetch(url)
     const j = (await r.json()) as {
-      data?: { id?: string; name?: string; objective?: string; effective_status?: string }[]
+      data?: { id?: string; name?: string; objective?: string; effective_status?: string; daily_budget?: string }[]
       paging?: { next?: string }
       error?: { message?: string }
     }
@@ -439,6 +443,7 @@ async function fetchCampaignsCatalog(
         name: String(row.name ?? '').trim() || id,
         objective: String(row.objective ?? '').trim(),
         effectiveStatus: String(row.effective_status ?? '').trim(),
+        dailyBudget: Number(row.daily_budget ?? 0) / 100,
       })
     }
     url = j.paging?.next ?? null
@@ -512,6 +517,92 @@ async function fetchCampaignInsightsByCampaign(
   return { map }
 }
 
+type AdsetCatalogRow = {
+  id: string
+  name: string
+  effectiveStatus: string
+  campaignId: string
+  dailyBudget: number
+}
+
+async function fetchAdsetsCatalog(
+  token: string,
+  actId: string
+): Promise<Map<string, AdsetCatalogRow>> {
+  const map = new Map<string, AdsetCatalogRow>()
+  let url: string | null =
+    `https://graph.facebook.com/v21.0/${actId}/adsets?fields=id,name,effective_status,campaign_id,daily_budget&limit=500&access_token=${encodeURIComponent(token)}`
+  for (let page = 0; page < 25 && url; page++) {
+    const r = await fetch(url)
+    const j = (await r.json()) as {
+      data?: { id?: string; name?: string; effective_status?: string; campaign_id?: string; daily_budget?: string }[]
+      paging?: { next?: string }
+      error?: { message?: string }
+    }
+    if (!r.ok || j.error) break
+    for (const row of j.data ?? []) {
+      const id = String(row.id ?? '').trim()
+      if (!id) continue
+      map.set(id, {
+        id,
+        name: String(row.name ?? '').trim() || id,
+        effectiveStatus: String(row.effective_status ?? '').trim(),
+        campaignId: String(row.campaign_id ?? '').trim(),
+        dailyBudget: Number(row.daily_budget ?? 0) / 100,
+      })
+    }
+    url = j.paging?.next ?? null
+  }
+  return map
+}
+
+type AdsetInsightAgg = {
+  spend: number
+  leads: number
+  impressions: number
+  linkClicks: number
+}
+
+async function fetchAdsetLevelInsights(
+  token: string,
+  actId: string,
+  since: string,
+  until: string
+): Promise<Map<string, AdsetInsightAgg>> {
+  const fields = ['adset_id', 'spend', 'impressions', 'inline_link_clicks', 'cpm', 'actions'].join(',')
+  const merged = new Map<string, AdsetInsightAgg>()
+  let url: string | null =
+    `https://graph.facebook.com/v21.0/${actId}/insights?fields=${encodeURIComponent(fields)}&level=adset&time_range=${encodeURIComponent(JSON.stringify({ since, until }))}&limit=500&access_token=${encodeURIComponent(token)}`
+  for (let page = 0; page < 20 && url; page++) {
+    const r = await fetch(url)
+    const j = (await r.json()) as {
+      data?: { adset_id?: string; spend?: string; impressions?: string; inline_link_clicks?: string; actions?: unknown[] }[]
+      paging?: { next?: string }
+      error?: { message?: string }
+    }
+    if (!r.ok || j.error) break
+    for (const row of j.data ?? []) {
+      const id = String(row.adset_id ?? '').trim()
+      if (!id) continue
+      const spend = Number.parseFloat(String(row.spend ?? 0)) || 0
+      const impressions = Number.parseFloat(String(row.impressions ?? 0)) || 0
+      const linkClicks = Number.parseFloat(String(row.inline_link_clicks ?? 0)) || 0
+      const leads = parseLeadsFromRow(row as Record<string, unknown>)
+      const cur = merged.get(id)
+      if (!cur) {
+        merged.set(id, { spend, leads, impressions, linkClicks })
+      } else {
+        cur.spend += spend
+        cur.leads += leads
+        cur.impressions += impressions
+        cur.linkClicks += linkClicks
+      }
+    }
+    url = j.paging?.next ?? null
+  }
+  return merged
+}
+
 function buildMetaCampaignsTable(
   catalog: Map<string, CampaignCatalogRow>,
   insights: Map<string, CampaignInsightAgg>
@@ -560,15 +651,59 @@ async function fetchMetaCampaignsForOverview(
   actId: string,
   since: string,
   until: string
-): Promise<{ campaigns: Record<string, unknown>[]; campaignsError: string | null }> {
-  const [catRes, insRes] = await Promise.all([
+): Promise<{ campaigns: Record<string, unknown>[]; campaignsError: string | null; tree: MetaNodeInput[]; adsetNodes: MetaNodeInput[] }> {
+  const [catRes, insRes, adsetCatMap, adsetInsMap] = await Promise.all([
     fetchCampaignsCatalog(token, actId),
     fetchCampaignInsightsByCampaign(token, actId, since, until),
+    fetchAdsetsCatalog(token, actId),
+    fetchAdsetLevelInsights(token, actId, since, until),
   ])
   const campaigns = buildMetaCampaignsTable(catRes.map, insRes.map)
   const campaignsError =
     campaigns.length === 0 ? insRes.error || catRes.error || null : null
-  return { campaigns, campaignsError }
+
+  // Build campaign-level MetaNodeInput[]
+  const campaignNodes: MetaNodeInput[] = [...catRes.map.values()].map((c) => {
+    const ins = insRes.map.get(c.id)
+    const spend = ins?.spend ?? 0
+    const results = ins?.leads ?? 0
+    const impressions = ins?.impressions ?? 0
+    const clicks = ins?.clicks ?? 0
+    const ctrLink = impressions > 0 ? (clicks / impressions) * 100 : 0
+    const cpm = impressions > 0 ? spend / (impressions / 1000) : 0
+    return {
+      id: c.id,
+      name: c.name,
+      effectiveStatus: c.effectiveStatus,
+      objective: c.objective,
+      dailyBudget: c.dailyBudget,
+      parentId: null,
+      metrics: { spend, results, ctrLink, cpm },
+    }
+  })
+
+  // Build adset-level MetaNodeInput[]
+  const adsetNodes: MetaNodeInput[] = [...adsetCatMap.values()].map((s) => {
+    const ins = adsetInsMap.get(s.id)
+    const spend = ins?.spend ?? 0
+    const results = ins?.leads ?? 0
+    const impressions = ins?.impressions ?? 0
+    const linkClicks = ins?.linkClicks ?? 0
+    const ctrLink = impressions > 0 ? (linkClicks / impressions) * 100 : 0
+    const cpm = impressions > 0 ? spend / (impressions / 1000) : 0
+    return {
+      id: s.id,
+      name: s.name,
+      effectiveStatus: s.effectiveStatus,
+      objective: catRes.map.get(s.campaignId)?.objective ?? '',
+      dailyBudget: s.dailyBudget,
+      parentId: s.campaignId,
+      metrics: { spend, results, ctrLink, cpm },
+    }
+  })
+
+  // Ad-level nodes are built in buildMetaResponse where ad thumbnails are available.
+  return { campaigns, campaignsError, tree: campaignNodes, adsetNodes }
 }
 
 async function fetchCreativesForPeriod(
@@ -647,17 +782,68 @@ async function buildMetaResponse(
   compareSince: string | null,
   compareUntil: string | null
 ): Promise<Record<string, unknown>> {
-  const [agg, dailyRaw, places, creatives, campPack] = await Promise.all([
+  const [agg, dailyRaw, places, adInsightRows, campPack] = await Promise.all([
     fetchInsightsAggregate(token, actId, since, until),
     fetchInsightsDaily(token, actId, since, until),
     fetchPlacementsBreakdown(token, actId, since, until),
-    fetchCreativesForPeriod(token, actId, since, until),
+    fetchAdLevelInsights(token, actId, since, until),
     fetchMetaCampaignsForOverview(token, actId, since, until),
   ])
 
   const daily = fillDailyGaps(since, until, dailyRaw)
   const campaigns = campPack.campaigns
   const campaignsError = campPack.campaignsError
+
+  // Fetch ad catalog for thumbnails + parent links (uses top adIds from insights)
+  const thumbs = adInsightRows.length
+    ? await fetchAdsByIdsBatch(token, adInsightRows.map((r) => r.ad_id))
+    : new Map<string, AdObj>()
+
+  // Build creatives array (same shape as before)
+  const creatives: Record<string, unknown>[] = adInsightRows.map((row, i) => {
+    const ad = thumbs.get(row.ad_id)
+    const img = ad?.creative?.image_url || ad?.creative?.thumbnail_url || null
+    const st = String(ad?.effective_status ?? 'ACTIVE').toUpperCase()
+    const status =
+      st.includes('PAUSED') || st.includes('ARCHIVED') || st.includes('DELETED') ? 'paused' : 'active'
+    const name = (ad?.name?.trim() || row.ad_name).trim() || 'Anúncio'
+    return {
+      id: row.ad_id,
+      name,
+      image: img,
+      gradient: CREATIVE_GRADIENTS[i % CREATIVE_GRADIENTS.length],
+      status,
+      spend: row.spend,
+      leads: row.leads,
+      impressions: row.impressions,
+      linkClicks: row.linkClicks,
+    }
+  })
+
+  // Build ad-level MetaNodeInput[] for tree assembly
+  const adNodes: MetaNodeInput[] = adInsightRows.map((row) => {
+    const ad = thumbs.get(row.ad_id)
+    const adsetId = String(ad?.adset_id ?? '').trim()
+    const spend = row.spend
+    const results = row.leads
+    const impressions = row.impressions
+    const linkClicks = row.linkClicks
+    const ctrLink = impressions > 0 ? (linkClicks / impressions) * 100 : 0
+    const cpm = impressions > 0 ? spend / (impressions / 1000) : 0
+    return {
+      id: row.ad_id,
+      name: (ad?.name?.trim() || row.ad_name).trim() || 'Anúncio',
+      effectiveStatus: String(ad?.effective_status ?? 'ACTIVE').trim(),
+      objective: '',
+      dailyBudget: 0,
+      parentId: adsetId || null,
+      thumbnailUrl: ad?.creative?.image_url || ad?.creative?.thumbnail_url || null,
+      metrics: { spend, results, ctrLink, cpm },
+    }
+  })
+
+  // Assemble the full Campaign → AdSet → Ad tree
+  const tree = buildMetaTree(campPack.tree, campPack.adsetNodes, adNodes)
 
   if (agg.error || !agg.row) {
     return {
@@ -676,6 +862,7 @@ async function buildMetaResponse(
       creatives: [] as Record<string, unknown>[],
       campaigns,
       campaignsError,
+      tree,
     }
   }
 
@@ -697,6 +884,7 @@ async function buildMetaResponse(
       creatives,
       campaigns,
       campaignsError,
+      tree,
     }
   }
 
@@ -742,6 +930,7 @@ async function buildMetaResponse(
     creatives,
     campaigns,
     campaignsError,
+    tree,
   }
 }
 
@@ -787,6 +976,7 @@ export async function onRequestGet(context: {
         creatives: [],
         campaigns: [],
         campaignsError: null,
+        tree: [],
       })
     }
     const token = await decryptMetaAccessToken(context.env.DB, context.env, conn.oauth_credential_id)
@@ -805,6 +995,7 @@ export async function onRequestGet(context: {
         creatives: [],
         campaigns: [],
         campaignsError: null,
+        tree: [],
       })
     }
     const actId = normalizeActId(conn.external_id)
@@ -846,6 +1037,7 @@ export async function onRequestGet(context: {
       creatives: [],
       campaigns: [],
       campaignsError: null,
+      tree: [],
     })
   }
 
@@ -874,6 +1066,7 @@ export async function onRequestGet(context: {
         creatives: [],
         campaigns: [],
         campaignsError: null,
+        tree: [],
       })
     }
 
@@ -904,6 +1097,7 @@ export async function onRequestGet(context: {
       creatives: [],
       campaigns: [],
       campaignsError: null,
+      tree: [],
     })
   }
 }
