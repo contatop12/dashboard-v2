@@ -8,6 +8,11 @@ export const METRICS = {
   conversionRate: { label: 'Taxa de conversão', definition: 'Eficiência do funil pós-clique (clique → lead).', formula: 'Resultados ÷ cliques', platform: 'all', tier: 'primary' },
   roas: { label: 'ROAS', definition: 'Retorno sobre o investimento. Só e-commerce (valor de conversão via pixel).', formula: 'Valor de conversão ÷ gasto', platform: 'all', tier: 'primary' },
 
+  // Cross-platform volume
+  impressions: { label: 'Impressões', definition: 'Quantas vezes os anúncios foram exibidos.', formula: null, platform: 'all', tier: 'secondary' },
+  clicks: { label: 'Cliques', definition: 'Total de cliques nos anúncios.', formula: null, platform: 'all', tier: 'secondary' },
+  conversions: { label: 'Conversões', definition: 'Total de ações de conversão registradas no período.', formula: null, platform: 'all', tier: 'secondary' },
+
   // Secondary — Meta
   ctrLink: { label: 'CTR no link', definition: 'Usar este, não o CTR "de todos" (que infla com engajamento).', formula: 'Cliques no link ÷ impressões', platform: 'meta', tier: 'secondary' },
   cpcLink: { label: 'CPC no link', definition: 'Custo por clique no link.', formula: 'Gasto ÷ cliques no link', platform: 'meta', tier: 'secondary' },
