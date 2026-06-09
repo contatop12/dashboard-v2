@@ -25,4 +25,11 @@ export type WorkerEnv = {
   OAUTH_ENC_KEY?: string
   /** Se vazio, usa OAUTH_ENC_KEY para assinar o state (menos ideal). */
   OAUTH_STATE_SECRET?: string
+
+  /** Cloudflare Access (Zero Trust) team domain, ex.: p12.cloudflareaccess.com. Liga a verificação do JWT do Access quando setado junto com CF_ACCESS_AUD. */
+  CF_ACCESS_TEAM_DOMAIN?: string
+  /** AUD tag da Access Application (Zero Trust). */
+  CF_ACCESS_AUD?: string
+  /** Setar (qualquer valor) desliga o header Content-Security-Policy — escape hatch se quebrar a SPA. */
+  CSP_DISABLED?: string
 }
