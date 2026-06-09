@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { format, parse } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
@@ -14,10 +14,6 @@ import {
   DollarSign,
   Target,
   Users,
-  Video,
-  Share2,
-  Heart,
-  MessageCircle,
   Cog,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -52,6 +48,10 @@ import {
   readMetaCreativesMetricKeys,
   writeMetaCreativesMetricKeys,
 } from '@/lib/metaCreativesPreferences'
+import { CampaignTree } from '@/components/CampaignTree'
+import { BlockCard } from '@/components/ui/BlockCard'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { useCampaignStatusMutation } from '@/hooks/useCampaignStatusMutation'
 
 const META_KPI_ICONS = [DollarSign, Users, Eye, DollarSign, MousePointer, Target, Eye, Target]
 const META_KPI_ACCENT = ['brand', 'brand', 'purple', 'purple', 'brand', 'brand', 'purple', 'brand']
@@ -86,82 +86,6 @@ function mapMetaDailyToChart(daily) {
     }
   })
 }
-
-const videoMetrics = [
-  { label: '25%', value: 12.99, color: '#F5C518' },
-  { label: '50%', value: 7.61, color: '#9B8EFF' },
-  { label: '75%', value: 5.36, color: '#4A9BFF' },
-  { label: '100%', value: 2.8, color: '#FF6B6B' },
-]
-
-const engMetrics = [
-  { label: 'Curtidas', value: 1842, icon: Heart, color: '#FF6B6B' },
-  { label: 'Comentários', value: 234, icon: MessageCircle, color: '#9B8EFF' },
-  { label: 'Compartilhamentos', value: 87, icon: Share2, color: '#4A9BFF' },
-]
-
-const META_CREATIVES_MOCK = [
-  {
-    id: 'mock-meta-creative-1',
-    name: 'Casa dos Sonhos — Leads SP',
-    gradient: 'linear-gradient(145deg, #1a3a5c 0%, #0d1b2a 100%)',
-    status: 'active',
-    spend: 291.43,
-    leads: 3,
-    impressions: 18400,
-    linkClicks: 412,
-  },
-  {
-    id: 'mock-meta-creative-2',
-    name: 'Retargeting — Visitantes Q4',
-    gradient: 'linear-gradient(145deg, #2d1b69 0%, #1a0f3c 100%)',
-    status: 'active',
-    spend: 213.33,
-    leads: 2,
-    impressions: 12100,
-    linkClicks: 268,
-  },
-  {
-    id: 'mock-meta-creative-3',
-    name: 'Lookalike — Top 20% Audiência',
-    gradient: 'linear-gradient(145deg, #0f3d2b 0%, #061a12 100%)',
-    status: 'active',
-    spend: 200,
-    leads: 1,
-    impressions: 8900,
-    linkClicks: 142,
-  },
-  {
-    id: 'mock-meta-creative-4',
-    name: 'Brand Awareness — Vídeo',
-    gradient: 'linear-gradient(145deg, #3d2b0a 0%, #1f1505 100%)',
-    status: 'paused',
-    spend: 100,
-    leads: 0,
-    impressions: 5600,
-    linkClicks: 89,
-  },
-  {
-    id: 'mock-meta-creative-5',
-    name: 'Leads Novos — Fevereiro 25',
-    gradient: 'linear-gradient(145deg, #1a2d3d 0%, #0a151f 100%)',
-    status: 'active',
-    spend: 175,
-    leads: 2,
-    impressions: 10200,
-    linkClicks: 301,
-  },
-  {
-    id: 'mock-meta-creative-6',
-    name: 'Captação — Imóveis Alto Padrão',
-    gradient: 'linear-gradient(145deg, #3d1a1a 0%, #200d0d 100%)',
-    status: 'active',
-    spend: 220,
-    leads: 3,
-    impressions: 15600,
-    linkClicks: 355,
-  },
-]
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -344,153 +268,67 @@ function MetaPlacements() {
   )
 }
 
-function MetaVideoRetention() {
-  return (
-    <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0">
-      <div className="flex items-center gap-2 mb-4">
-        <Video size={13} className="text-brand" />
-        <span className="section-title">Retenção de Vídeo</span>
-      </div>
-      <div className="grid grid-cols-4 gap-2">
-        {videoMetrics.map((m) => (
-          <div key={m.label} className="flex flex-col items-center gap-2">
-            <div className="w-full h-2 bg-surface-border rounded-full overflow-hidden">
-              <div className="h-full rounded-full" style={{ width: `${(m.value / 15) * 100}%`, background: m.color }} />
-            </div>
-            <span className="font-mono text-sm font-semibold text-white">{m.value}%</span>
-            <span className="text-[10px] text-muted-foreground font-sans">{m.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function MetaEngagement() {
-  return (
-    <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0">
-      <span className="section-title block mb-4">Engajamento</span>
-      <div className="grid grid-cols-3 gap-4">
-        {engMetrics.map(({ label, value, icon: Icon, color }) => (
-          <div
-            key={label}
-            className="flex flex-col items-center gap-2 p-4 rounded-lg"
-            style={{ background: `${color}10`, border: `1px solid ${color}30` }}
-          >
-            <Icon size={16} style={{ color }} />
-            <span className="font-mono text-base font-semibold text-white">{formatNumber(value)}</span>
-            <span className="text-[10px] text-muted-foreground font-sans text-center">{label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function normFilter(s) {
-  return String(s ?? '')
-    .trim()
-    .toLowerCase()
-}
-
-function campaignRowMatchesFilters(c, f) {
-  const camp = f.campanha
-  if (camp && camp !== 'Todas') {
-    const n = normFilter(c.name)
-    const fl = normFilter(camp)
-    if (n !== fl && !n.includes(fl) && !fl.includes(n)) return false
-  }
-  const obj = f.objetivo
-  if (obj && obj !== 'Todos') {
-    const fo = normFilter(obj)
-    const rowObj = normFilter(c.objetivo)
-    const rowLabel = normFilter(c.objetivoLabel)
-    if (rowObj !== fo && rowLabel !== fo && !rowObj.includes(fo) && !rowLabel.includes(fo)) return false
-  }
-  return true
-}
-
-function MetaCampaignsTable() {
-  const { dimensionFilters } = useDashboardFilters()
+function MetaCampaignsBlock() {
+  const { activeOrgId } = useOrgWorkspace()
   const { loading, data } = usePlatformOverview()
-  const rawCampaigns = Array.isArray(data?.campaigns) ? data.campaigns : []
-  const visible = useMemo(
-    () => rawCampaigns.filter((c) => campaignRowMatchesFilters(c, dimensionFilters)),
-    [rawCampaigns, dimensionFilters]
-  )
-  const activeCount = visible.filter((c) => c.status === 'active').length
+  const { mutate } = useCampaignStatusMutation(activeOrgId)
+  const [tree, setTree] = useState([])
+  const [pendingToggle, setPendingToggle] = useState(null) // { level, id, name, nextStatus }
+
+  useEffect(() => { setTree(Array.isArray(data?.tree) ? data.tree : []) }, [data?.tree])
+
+  const applyStatus = (node, status) => {
+    const patch = (list) =>
+      list.map((c) => ({
+        ...c,
+        effectiveStatus: c.id === node.id && node.level === 'campaign' ? status : c.effectiveStatus,
+        adsets: (c.adsets || []).map((s) => ({
+          ...s,
+          effectiveStatus: s.id === node.id && node.level === 'adset' ? status : s.effectiveStatus,
+          ads: (s.ads || []).map((a) => ({
+            ...a,
+            effectiveStatus: a.id === node.id && node.level === 'ad' ? status : a.effectiveStatus,
+          })),
+        })),
+      }))
+    setTree(patch)
+  }
+
+  const onConfirmToggle = async () => {
+    const node = pendingToggle
+    if (!node) return
+    const prevStatus = node.nextStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE'
+    applyStatus(node, node.nextStatus) // optimistic
+    const ok = await mutate(node)
+    if (!ok) applyStatus(node, prevStatus) // rollback
+  }
+
+  const state = loading ? 'loading' : data?.campaignsError ? 'error' : tree.length === 0 ? 'empty' : 'ready'
+  const activeCount = tree.filter((c) => String(c.effectiveStatus).toUpperCase() === 'ACTIVE').length
 
   return (
-    <div className="bg-surface-card border border-surface-border rounded-lg overflow-hidden min-w-0 h-full flex flex-col">
-      <div className="px-4 py-4 border-b border-surface-border flex items-center justify-between shrink-0">
-        <span className="section-title">Campanhas Meta Ads</span>
-        <span className="text-[10px] text-muted-foreground font-mono">
-          {activeCount} ativas · {visible.length} linhas
-        </span>
-      </div>
-      {data?.campaignsError && !loading ? (
-        <p className="px-4 pt-2 text-[10px] text-amber-400/90 font-sans">{String(data.campaignsError)}</p>
-      ) : null}
-      {loading ? <p className="px-4 pt-2 text-[10px] text-muted-foreground font-sans">Carregando campanhas…</p> : null}
-      {!loading && !data?.error && rawCampaigns.length === 0 && !data?.campaignsError ? (
-        <p className="px-4 pt-2 text-[10px] text-muted-foreground font-sans">Nenhuma campanha no período.</p>
-      ) : null}
-      <div className="overflow-x-auto flex-1 min-h-0">
-        <table className="w-full text-xs min-w-[800px]">
-          <thead>
-            <tr className="border-b border-surface-border bg-surface-input">
-              {['Campanha', 'Status', 'Objetivo', 'Gasto', 'Alcance', 'Impressões', 'CTR', 'CPM', 'Leads', 'Custo/Lead'].map((h) => (
-                <th
-                  key={h}
-                  className={cn(
-                    'px-4 py-2 text-[10px] uppercase tracking-wider font-sans font-medium text-muted-foreground',
-                    h === 'Campanha' ? 'text-left' : 'text-right'
-                  )}
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((c) => (
-              <tr
-                key={c.id || c.name}
-                className="border-b border-surface-border/50 last:border-0 hover:bg-surface-hover/40 transition-colors"
-              >
-                <td className="px-4 py-4 font-sans text-white font-medium truncate max-w-[180px]">{c.name}</td>
-                <td className="px-4 py-4 text-right">
-                  <span
-                    className={cn(
-                      'text-[10px] font-mono px-2 py-0.5 rounded',
-                      c.status === 'active'
-                        ? 'text-green-400 bg-green-400/10'
-                        : c.status === 'paused'
-                          ? 'text-yellow-400 bg-yellow-400/10'
-                          : 'text-muted-foreground bg-surface-border/40'
-                    )}
-                  >
-                    {c.status === 'active' ? '● Ativo' : c.status === 'paused' ? '● Pausado' : '● Outro'}
-                  </span>
-                </td>
-                <td className="px-4 py-4 text-right font-sans text-muted-foreground text-[11px]">
-                  {c.objetivoLabel || c.objetivo || '—'}
-                </td>
-                <td className="px-4 py-4 text-right font-mono text-white">{formatCurrency(Number(c.gasto) || 0)}</td>
-                <td className="px-4 py-4 text-right font-mono text-white">{c.alcance ? formatNumber(c.alcance) : '—'}</td>
-                <td className="px-4 py-4 text-right font-mono text-white">{c.impressoes ? formatNumber(c.impressoes) : '—'}</td>
-                <td className="px-4 py-4 text-right font-mono text-white">
-                  {c.impressoes ? formatPercent(Number(c.ctr) || 0) : '—'}
-                </td>
-                <td className="px-4 py-4 text-right font-mono text-white">{c.cpm ? formatCurrency(c.cpm) : '—'}</td>
-                <td className="px-4 py-4 text-right font-mono text-white">{formatNumber(Number(c.leads) || 0)}</td>
-                <td className="px-4 py-4 text-right font-mono text-white">{c.custoLead ? formatCurrency(c.custoLead) : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <BlockCard
+      title="Campanhas Meta Ads"
+      badge={`${activeCount} ativas · ${tree.length} campanhas`}
+      state={state}
+      emptyMessage="Nenhuma campanha no período."
+      errorMessage={String(data?.campaignsError || '')}
+      bodyClassName="overflow-auto"
+    >
+      <CampaignTree
+        tree={tree}
+        onToggleStatus={(node) => setPendingToggle(node)}
+      />
+      <ConfirmDialog
+        open={!!pendingToggle}
+        onOpenChange={(o) => { if (!o) setPendingToggle(null) }}
+        title={pendingToggle?.nextStatus === 'PAUSED' ? 'Pausar campanha?' : 'Ativar campanha?'}
+        description={`Isso afeta a entrega ao vivo de "${pendingToggle?.name ?? ''}".`}
+        confirmLabel={pendingToggle?.nextStatus === 'PAUSED' ? 'Pausar' : 'Ativar'}
+        destructive={pendingToggle?.nextStatus === 'PAUSED'}
+        onConfirm={onConfirmToggle}
+      />
+    </BlockCard>
   )
 }
 
@@ -566,8 +404,7 @@ function MetaCreativesCarouselBlock() {
 
   const baseCards = useMemo(() => {
     const c = data?.creatives
-    if (Array.isArray(c)) return c.map(normaliseMetaCreativeRow)
-    return META_CREATIVES_MOCK.map(normaliseMetaCreativeRow)
+    return Array.isArray(c) ? c.map(normaliseMetaCreativeRow) : []
   }, [data?.creatives])
 
   const empty = Array.isArray(data?.creatives) && data.creatives.length === 0
@@ -671,28 +508,6 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
       render: () => <FunnelGeral />,
     },
     {
-      id: 'meta-video',
-      tier: 'secondary',
-      defaultColSpan: 4,
-      defaultRowSpan: 2,
-      minColSpan: 2,
-      maxColSpan: 8,
-      minRowSpan: 2,
-      maxRowSpan: 8,
-      render: () => <MetaVideoRetention />,
-    },
-    {
-      id: 'meta-engagement',
-      tier: 'secondary',
-      defaultColSpan: 4,
-      defaultRowSpan: 2,
-      minColSpan: 2,
-      maxColSpan: 8,
-      minRowSpan: 2,
-      maxRowSpan: 8,
-      render: () => <MetaEngagement />,
-    },
-    {
       id: 'meta-creatives',
       tier: 'secondary',
       defaultColSpan: 8,
@@ -712,7 +527,7 @@ function buildMetaDefinitions(activeChart, setActiveChart) {
       maxColSpan: 8,
       minRowSpan: 2,
       maxRowSpan: 10,
-      render: () => <MetaCampaignsTable />,
+      render: () => <MetaCampaignsBlock />,
     },
     {
       id: 'meta-monthly-results',
