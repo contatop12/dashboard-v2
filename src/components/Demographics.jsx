@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Sector } from 'recharts'
+import { BlockCard } from '@/components/ui/BlockCard'
 
 const byState = [
   { name: 'São Paulo', value: 45, color: '#F5C518' },
@@ -87,28 +88,27 @@ export default function Demographics() {
   const current = VIEWS.find(v => v.key === view)
   const data = current.data
 
-  return (
-    <div className="flex min-h-0 min-w-0 h-full flex-col gap-4 rounded-lg border border-surface-border bg-surface-card p-4 overflow-hidden">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <span className="section-title">Demográficos</span>
-        <div className="flex flex-wrap items-center justify-end gap-1">
-          {VIEWS.map(v => (
-            <button
-              key={v.key}
-              type="button"
-              onClick={() => {
-                setView(v.key)
-                setActiveIdx(0)
-              }}
-              className={`rounded px-2 py-1 font-sans text-[9px] transition-all ${view === v.key ? 'bg-brand/15 text-brand ring-1 ring-brand/35' : 'text-muted-foreground hover:text-white'}`}
-            >
-              {v.label}
-            </button>
-          ))}
-        </div>
-      </div>
+  const viewActions = (
+    <div className="flex flex-wrap items-center justify-end gap-1">
+      {VIEWS.map(v => (
+        <button
+          key={v.key}
+          type="button"
+          onClick={() => {
+            setView(v.key)
+            setActiveIdx(0)
+          }}
+          className={`rounded px-2 py-1 font-sans text-[9px] transition-all ${view === v.key ? 'bg-brand/15 text-brand ring-1 ring-brand/35' : 'text-muted-foreground hover:text-white'}`}
+        >
+          {v.label}
+        </button>
+      ))}
+    </div>
+  )
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col items-stretch gap-4 overflow-x-hidden">
+  return (
+    <BlockCard title="Demográficos" actions={viewActions} bodyClassName="overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 h-full flex-col items-stretch gap-4 overflow-x-hidden">
         <div className="flex min-h-0 w-full shrink-0 flex-col items-center justify-center px-1">
           <div className="relative aspect-square max-h-[min(52vh,340px)] w-full min-h-[148px] max-w-[260px] min-w-0 overflow-visible">
             <ResponsiveContainer width="100%" height="100%">

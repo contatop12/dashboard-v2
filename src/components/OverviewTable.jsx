@@ -4,6 +4,7 @@ import { overviewTableData } from '@/data/mockData'
 import { formatNumber, formatCurrency, formatPercent } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { useDashboardFiltersOptional } from '@/context/DashboardFiltersContext'
+import { BlockCard } from '@/components/ui/BlockCard'
 
 function rowMatchesCampanhaFilter(rowCampanha, filterVal) {
   if (!filterVal || filterVal === 'Todas') return true
@@ -44,16 +45,11 @@ export default function OverviewTable() {
     else { setSortKey(key); setSortDir('desc') }
   }
 
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-4 rounded-lg border border-surface-border bg-surface-card p-4">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <span className="section-title">Visão Geral</span>
-        <span className="text-[10px] text-muted-foreground font-mono">
-          {sorted.length} de {overviewTableData.length} campanhas
-        </span>
-      </div>
+  const badge = `${sorted.length} / ${overviewTableData.length} camp.`
 
-      <div className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto">
+  return (
+    <BlockCard title="Visão Geral" badge={badge} bodyClassName="overflow-hidden">
+      <div className="min-h-0 min-w-0 h-full overflow-x-auto overflow-y-auto">
         <table className="w-full min-w-0 max-w-full table-fixed text-xs">
           <thead>
             <tr className="border-b border-surface-border">
@@ -101,6 +97,6 @@ export default function OverviewTable() {
           </tbody>
         </table>
       </div>
-    </div>
+    </BlockCard>
   )
 }

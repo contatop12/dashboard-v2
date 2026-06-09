@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import { timelineData } from '@/data/mockData'
 import { cn } from '@/lib/utils'
+import { BlockCard } from '@/components/ui/BlockCard'
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -36,28 +37,27 @@ const periods = ['7D', '14D', '30D', '90D']
 export default function TimelineChart() {
   const [activePeriod, setActivePeriod] = useState('30D')
 
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-4 rounded-lg border border-surface-border bg-surface-card p-4">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <span className="section-title">Linha de Tempo</span>
-        <div className="flex items-center gap-2">
-          {periods.map((p) => (
-            <button
-              key={p}
-              onClick={() => setActivePeriod(p)}
-              className={cn(
-                'text-[10px] px-2 py-1 rounded font-mono transition-all',
-                activePeriod === p
-                  ? 'bg-brand text-[#0F0F0F] font-semibold'
-                  : 'text-muted-foreground hover:text-white'
-              )}
-            >
-              {p}
-            </button>
-          ))}
-        </div>
-      </div>
+  const periodActions = (
+    <div className="flex items-center gap-1">
+      {periods.map((p) => (
+        <button
+          key={p}
+          onClick={() => setActivePeriod(p)}
+          className={cn(
+            'text-[10px] px-2 py-1 rounded font-mono transition-all',
+            activePeriod === p
+              ? 'bg-brand text-black font-semibold'
+              : 'text-muted-foreground hover:text-white'
+          )}
+        >
+          {p}
+        </button>
+      ))}
+    </div>
+  )
 
+  return (
+    <BlockCard title="Linha de Tempo" actions={periodActions} bodyClassName="flex flex-col gap-3 pt-0">
       <div className="flex shrink-0 flex-wrap items-center gap-4 text-[10px]">
         <div className="flex items-center gap-2">
           <div className="w-4 h-0.5 bg-brand" />
@@ -78,23 +78,23 @@ export default function TimelineChart() {
                 <stop offset="95%" stopColor="#F5C518" stopOpacity={0.02} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2C2C2C" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border))" vertical={false} />
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 9, fill: '#666', fontFamily: 'Outfit' }}
+              tick={{ fontSize: 9, fill: 'rgb(var(--color-muted-foreground))', fontFamily: 'Outfit' }}
               tickLine={false}
               axisLine={false}
             />
             <YAxis
               yAxisId="leads"
-              tick={{ fontSize: 9, fill: '#666', fontFamily: 'JetBrains Mono' }}
+              tick={{ fontSize: 9, fill: 'rgb(var(--color-muted-foreground))', fontFamily: 'JetBrains Mono' }}
               tickLine={false}
               axisLine={false}
             />
             <YAxis
               yAxisId="custo"
               orientation="right"
-              tick={{ fontSize: 9, fill: '#666', fontFamily: 'JetBrains Mono' }}
+              tick={{ fontSize: 9, fill: 'rgb(var(--color-muted-foreground))', fontFamily: 'JetBrains Mono' }}
               tickLine={false}
               axisLine={false}
               tickFormatter={(v) => `R$${v}`}
@@ -125,6 +125,6 @@ export default function TimelineChart() {
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </BlockCard>
   )
 }

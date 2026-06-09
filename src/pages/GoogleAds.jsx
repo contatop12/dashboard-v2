@@ -13,7 +13,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Info,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
@@ -33,7 +32,14 @@ import { PlatformOverviewProvider, usePlatformOverview } from '@/components/Plat
 import { GoogleAdsCampaignTypesTable } from '@/components/GoogleAdsCampaignTypesTable'
 import { MonthlyAccountResultsTable } from '@/components/MonthlyAccountResultsTable'
 import { GoogleAdsDemographicsBlock } from '@/components/GoogleAdsDemographicsBlock'
+import { BlockCard } from '@/components/ui/BlockCard'
+import { MetricInfo } from '@/components/ui/MetricInfo'
 
+// ─── Google brand colors (intentional, not generic surfaces) ───────────────
+const G_BLUE = '#4285F4'
+const G_GREEN = '#34A853'
+
+// ─── KPI shell + metric dictionary keys ───────────────────────────────────
 const GOOGLE_KPI_SHELL = [
   { label: 'Investimento', icon: DollarSign, accent: 'brand' },
   { label: 'Impressões', icon: Eye, accent: 'purple' },
@@ -43,6 +49,17 @@ const GOOGLE_KPI_SHELL = [
   { label: 'Conversões', icon: Target, accent: 'brand' },
   { label: 'Custo/Conv.', icon: DollarSign, accent: 'purple' },
   { label: 'Taxa de Conv.', icon: TrendingUp, accent: 'brand' },
+]
+
+const GOOGLE_KPI_KEYS = [
+  'invest',
+  'impressions',
+  'clicks',
+  'ctr',
+  'cpcAvg',
+  'conversions',
+  'cpl',
+  'conversionRate',
 ]
 
 const GOOGLE_DAILY_CHART_LS = 'p12_google_ads_daily_chart_mode'
@@ -69,10 +86,10 @@ function readGoogleChartMode() {
 const GOOGLE_FUNNEL_LS = 'p12_google_ads_funnel_preset'
 
 const GOOGLE_FUNNEL_PRESETS = [
-  { id: 'illustrative', label: 'Ilustrativo (jornada no site)' },
   { id: 'account_impr_clicks_conv', label: 'Conta: impressões → cliques → conversões' },
   { id: 'account_impr_clicks', label: 'Conta: impressões → cliques' },
   { id: 'account_clicks_conv', label: 'Conta: cliques → conversões' },
+  { id: 'illustrative', label: 'Ilustrativo (jornada no site)' },
 ]
 
 function readGoogleFunnelPreset() {
@@ -82,7 +99,7 @@ function readGoogleFunnelPreset() {
   } catch {
     /* ignore */
   }
-  return 'illustrative'
+  return 'account_impr_clicks_conv'
 }
 
 const ILLUSTRATIVE_FUNNEL_STAGES = [
@@ -229,7 +246,7 @@ function GoogleDailyChartTooltip({ active, payload, label }) {
   )
 }
 
-function GoogleKpiCard({ index }) {
+function GoogleKpiCard({ index, metricKey }) {
   const period = useDashboardBlockPeriod()
   const { comparePrimaryKpi } = useDashboardFilters()
   const { loading, data } = usePlatformOverview()
@@ -248,7 +265,10 @@ function GoogleKpiCard({ index }) {
     period === 'previous' ? 'período de comparação' : comparePrimaryKpi ? 'vs período comp.' : 'ative comparação'
   return (
     <div className="kpi-card min-h-0 w-full shrink-0">
-      <span className="kpi-label block truncate">{label}</span>
+      <div className="flex items-center gap-1 min-w-0">
+        <span className="kpi-label block truncate">{label}</span>
+        {metricKey ? <MetricInfo metricKey={metricKey} size={11} /> : null}
+      </div>
       <span className="kpi-value block truncate tabular-nums">{value}</span>
       <div className="kpi-delta-row min-w-0">
         {period === 'current' && hasDelta ? (
@@ -294,56 +314,57 @@ function formatConversionTotal(total) {
 function GoogleConversionPanel({ title, rows, loading }) {
   const total = rows.reduce((s, r) => s + (Number(r.conversions) || 0), 0)
 
-  return (
-    <div className="flex min-h-[200px] min-w-0 flex-col overflow-hidden rounded-lg border border-surface-border bg-surface-card shadow-sm">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-black/25 bg-[#252525] px-3 py-2.5">
-        <span className="truncate text-xs font-semibold text-white font-sans">{title}</span>
-        <div className="relative shrink-0">
-          <select
-            disabled
-            className="h-7 w-36 cursor-not-allowed appearance-none rounded border border-white/10 bg-[#1a1a1a] py-1 pl-2 pr-7 text-[10px] text-white/80 font-sans"
-            aria-label="Âmbito das conversões"
-            defaultValue="all"
-          >
-            <option value="all">Todas as conv.</option>
-          </select>
-          <ChevronDown
-            size={12}
-            className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-white/50"
-            aria-hidden
-          />
-        </div>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col bg-[#d9d9d9] text-neutral-900">
-        <div className="flex max-h-[200px] min-h-[100px] flex-1 flex-col gap-0 overflow-y-auto p-3">
-          {loading ? (
-            <p className="text-[11px] text-neutral-600 font-sans">Carregando…</p>
-          ) : rows.length === 0 ? (
-            <p className="text-[11px] text-neutral-600 font-sans">Sem conversões neste grupo no período.</p>
-          ) : (
-            rows.map((r) => (
-              <div
-                key={r.id}
-                className="flex items-baseline justify-between gap-2 border-b border-black/10 py-1.5 last:border-0"
-              >
-                <span className="min-w-0 flex-1 text-[11px] font-sans leading-snug text-neutral-800">{r.name}</span>
-                <span className="shrink-0 text-right font-mono text-xs font-semibold tabular-nums text-neutral-900">
-                  {formatConversionCell(Number(r.conversions) || 0, Number(r.value) || 0)}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-        <div className="shrink-0 border-t border-black/15 bg-[#cfcfcf] py-3">
-          <p className="text-center text-[9px] font-semibold uppercase tracking-[0.2em] text-neutral-600 font-sans">
-            Total
-          </p>
-          <p className="text-center font-mono text-lg font-bold tabular-nums text-neutral-900">
-            {loading ? '…' : formatConversionTotal(total)}
-          </p>
-        </div>
-      </div>
+  const scopeSelect = (
+    <div className="relative shrink-0">
+      <select
+        disabled
+        className="h-7 w-36 cursor-not-allowed appearance-none rounded border border-surface-border bg-surface-input py-1 pl-2 pr-7 text-[10px] text-muted-foreground font-sans"
+        aria-label="Âmbito das conversões"
+        defaultValue="all"
+      >
+        <option value="all">Todas as conv.</option>
+      </select>
+      <ChevronDown
+        size={12}
+        className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+        aria-hidden
+      />
     </div>
+  )
+
+  return (
+    <BlockCard
+      title={title}
+      actions={scopeSelect}
+      state={loading ? 'loading' : 'ready'}
+      bodyClassName="px-0 pb-0 flex flex-col"
+    >
+      <div className="flex max-h-[200px] min-h-[100px] flex-1 flex-col gap-0 overflow-y-auto px-3 py-3">
+        {rows.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground font-sans">Sem conversões neste grupo no período.</p>
+        ) : (
+          rows.map((r) => (
+            <div
+              key={r.id}
+              className="flex items-baseline justify-between gap-2 border-b border-surface-border/50 py-1.5 last:border-0"
+            >
+              <span className="min-w-0 flex-1 text-[11px] font-sans leading-snug text-foreground">{r.name}</span>
+              <span className="shrink-0 text-right font-mono text-xs font-semibold tabular-nums text-foreground">
+                {formatConversionCell(Number(r.conversions) || 0, Number(r.value) || 0)}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+      <div className="shrink-0 border-t border-surface-border py-3">
+        <p className="text-center text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground font-sans">
+          Total
+        </p>
+        <p className="text-center font-mono text-lg font-bold tabular-nums text-foreground">
+          {formatConversionTotal(total)}
+        </p>
+      </div>
+    </BlockCard>
   )
 }
 
@@ -392,35 +413,39 @@ function GoogleClicksChart() {
   const dual = chartMode === 'cliques_conversoes' || chartMode === 'cliques_impressoes'
   const margin = dual ? { top: 2, right: 18, left: -12, bottom: 0 } : { top: 2, right: 8, left: -20, bottom: 0 }
 
+  const chartModeSelect = (
+    <select
+      value={chartMode}
+      onChange={onChartModeChange}
+      className="max-w-full rounded-md border border-surface-border bg-surface-input py-1.5 pl-2 pr-8 text-[10px] text-foreground font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+      aria-label="Métrica do gráfico diário"
+    >
+      {GOOGLE_CHART_MODES.map((m) => (
+        <option key={m.id} value={m.id}>
+          {m.label}
+        </option>
+      ))}
+    </select>
+  )
+
   return (
-    <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
-      <div className="mb-3 flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-2">
-        <span className="section-title min-w-0">{modeLabel}</span>
-        <select
-          value={chartMode}
-          onChange={onChartModeChange}
-          className="max-w-full rounded-md border border-surface-border bg-[#141414] py-1.5 pl-2 pr-8 text-[10px] text-white font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-          aria-label="Métrica do gráfico diário"
-        >
-          {GOOGLE_CHART_MODES.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      {loading ? <p className="mb-1 text-[10px] text-muted-foreground">Carregando série…</p> : null}
+    <BlockCard
+      title={modeLabel}
+      actions={chartModeSelect}
+      state={loading ? 'loading' : 'ready'}
+      bodyClassName="px-4 pb-4 flex flex-col"
+    >
       <div className="h-44 min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData} margin={margin}>
             <defs>
               <linearGradient id={gradA} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#4285F4" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#4285F4" stopOpacity={0.02} />
+                <stop offset="5%" stopColor={G_BLUE} stopOpacity={0.25} />
+                <stop offset="95%" stopColor={G_BLUE} stopOpacity={0.02} />
               </linearGradient>
               <linearGradient id={gradB} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#34A853" stopOpacity={0.22} />
-                <stop offset="95%" stopColor="#34A853" stopOpacity={0.02} />
+                <stop offset="5%" stopColor={G_GREEN} stopOpacity={0.22} />
+                <stop offset="95%" stopColor={G_GREEN} stopOpacity={0.02} />
               </linearGradient>
               <linearGradient id={`googleDailyImp-${gid}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#9B8EFF" stopOpacity={0.22} />
@@ -431,7 +456,7 @@ function GoogleClicksChart() {
                 <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.02} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2C2C2C" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
             <XAxis dataKey="dia" tick={{ fontSize: 9, fill: '#666', fontFamily: 'Outfit' }} tickLine={false} axisLine={false} />
             {dual ? (
               <>
@@ -462,22 +487,22 @@ function GoogleClicksChart() {
                   type="monotone"
                   dataKey="cliques"
                   name="Cliques"
-                  stroke="#4285F4"
+                  stroke={G_BLUE}
                   strokeWidth={2}
                   fill={`url(#${gradA})`}
                   dot={false}
-                  activeDot={{ r: 3, fill: '#4285F4', strokeWidth: 0 }}
+                  activeDot={{ r: 3, fill: G_BLUE, strokeWidth: 0 }}
                 />
                 <Area
                   yAxisId="right"
                   type="monotone"
                   dataKey="conversoes"
                   name="Conversões"
-                  stroke="#34A853"
+                  stroke={G_GREEN}
                   strokeWidth={2}
                   fill={`url(#${gradB})`}
                   dot={false}
-                  activeDot={{ r: 3, fill: '#34A853', strokeWidth: 0 }}
+                  activeDot={{ r: 3, fill: G_GREEN, strokeWidth: 0 }}
                 />
               </>
             )}
@@ -488,11 +513,11 @@ function GoogleClicksChart() {
                   type="monotone"
                   dataKey="cliques"
                   name="Cliques"
-                  stroke="#4285F4"
+                  stroke={G_BLUE}
                   strokeWidth={2}
                   fill={`url(#${gradA})`}
                   dot={false}
-                  activeDot={{ r: 3, fill: '#4285F4', strokeWidth: 0 }}
+                  activeDot={{ r: 3, fill: G_BLUE, strokeWidth: 0 }}
                 />
                 <Area
                   yAxisId="right"
@@ -512,11 +537,11 @@ function GoogleClicksChart() {
                 type="monotone"
                 dataKey="gasto"
                 name="Investimento"
-                stroke="#4285F4"
+                stroke={G_BLUE}
                 strokeWidth={2}
                 fill={`url(#${gradA})`}
                 dot={false}
-                activeDot={{ r: 3, fill: '#4285F4', strokeWidth: 0 }}
+                activeDot={{ r: 3, fill: G_BLUE, strokeWidth: 0 }}
               />
             )}
             {chartMode === 'custo_conversao' && (
@@ -558,7 +583,7 @@ function GoogleClicksChart() {
           </AreaChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </BlockCard>
   )
 }
 
@@ -593,35 +618,60 @@ function GoogleQuality() {
     safePage * GOOGLE_QUALITY_PAGE_SIZE
   )
 
+  const titleNode = (
+    <div className="flex items-center gap-1.5">
+      <Award size={13} className="text-brand shrink-0" />
+      <span className="section-title">Índice de Qualidade</span>
+    </div>
+  )
+
+  const paginationNode = !loading && items.length > GOOGLE_QUALITY_PAGE_SIZE ? (
+    <div className="flex shrink-0 items-center justify-end gap-1 pt-1 border-t border-surface-border/80">
+      <button
+        type="button"
+        disabled={safePage <= 1}
+        className={cn(
+          'p-1 rounded-md border border-transparent',
+          safePage <= 1
+            ? 'text-muted-foreground/40 cursor-not-allowed'
+            : 'text-muted-foreground hover:text-foreground hover:bg-surface-input border-surface-border'
+        )}
+        aria-label="Página anterior"
+        onClick={() => setPage((p) => Math.max(1, p - 1))}
+      >
+        <ChevronLeft size={14} />
+      </button>
+      <span className="text-[10px] font-mono text-muted-foreground tabular-nums px-1">
+        {safePage}/{totalPages}
+      </span>
+      <button
+        type="button"
+        disabled={safePage >= totalPages}
+        className={cn(
+          'p-1 rounded-md border border-transparent',
+          safePage >= totalPages
+            ? 'text-muted-foreground/40 cursor-not-allowed'
+            : 'text-muted-foreground hover:text-foreground hover:bg-surface-input border-surface-border'
+        )}
+        aria-label="Próxima página"
+        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+      >
+        <ChevronRight size={14} />
+      </button>
+    </div>
+  ) : null
+
   return (
-    <div className="bg-surface-card border border-surface-border rounded-lg p-3 sm:p-4 h-full min-h-0 flex flex-col gap-2">
-      <div className="flex items-start justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <Award size={13} className="text-brand shrink-0" />
-          <span className="section-title">Índice de Qualidade</span>
-        </div>
-        <button
-          type="button"
-          className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-surface-input"
-          title={QUALITY_SCORE_INFO}
-          aria-label="Sobre a pontuação de qualidade"
-        >
-          <Info size={14} strokeWidth={2} />
-        </button>
-      </div>
+    <BlockCard
+      title={titleNode}
+      infoKey="qualityScore"
+      state={loading ? 'loading' : 'ready'}
+      bodyClassName="px-3 sm:px-4 pb-3 sm:pb-4 flex flex-col gap-2"
+    >
       {kqError ? (
         <p className="text-[10px] text-amber-400/90 font-sans leading-snug shrink-0">{kqError}</p>
       ) : null}
       <div className="flex flex-col gap-1.5 flex-1 min-h-0 overflow-y-auto pr-0.5">
-        {loading
-          ? Array.from({ length: 8 }).map((_, i) => (
-              <div key={`sk-${i}`} className="flex flex-col gap-1 animate-pulse">
-                <div className="h-3 bg-surface-border rounded w-3/4" />
-                <div className="h-2 bg-surface-border rounded-full w-full" />
-                <div className="h-2.5 bg-surface-border rounded w-2/3" />
-              </div>
-            ))
-          : null}
         {!loading && pageItems.length === 0 ? (
           <p className="text-[10px] text-muted-foreground font-sans leading-relaxed">
             Sem palavras-chave de pesquisa com dados no período. Contas com campanhas só em Performance Max podem
@@ -677,42 +727,8 @@ function GoogleQuality() {
             )
           })}
       </div>
-      {!loading && items.length > GOOGLE_QUALITY_PAGE_SIZE ? (
-        <div className="flex shrink-0 items-center justify-end gap-1 pt-1 border-t border-surface-border/80">
-          <button
-            type="button"
-            disabled={safePage <= 1}
-            className={cn(
-              'p-1 rounded-md border border-transparent',
-              safePage <= 1
-                ? 'text-muted-foreground/40 cursor-not-allowed'
-                : 'text-muted-foreground hover:text-foreground hover:bg-surface-input border-surface-border'
-            )}
-            aria-label="Página anterior"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            <ChevronLeft size={14} />
-          </button>
-          <span className="text-[10px] font-mono text-muted-foreground tabular-nums px-1">
-            {safePage}/{totalPages}
-          </span>
-          <button
-            type="button"
-            disabled={safePage >= totalPages}
-            className={cn(
-              'p-1 rounded-md border border-transparent',
-              safePage >= totalPages
-                ? 'text-muted-foreground/40 cursor-not-allowed'
-                : 'text-muted-foreground hover:text-foreground hover:bg-surface-input border-surface-border'
-            )}
-            aria-label="Próxima página"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-            <ChevronRight size={14} />
-          </button>
-        </div>
-      ) : null}
-    </div>
+      {paginationNode}
+    </BlockCard>
   )
 }
 
@@ -743,41 +759,38 @@ function GoogleFunnelBlock() {
     }
   }
 
+  const funnelSelect = (
+    <select
+      value={funnelPreset}
+      onChange={onFunnelPresetChange}
+      className="max-w-[min(100%,220px)] shrink-0 rounded-md border border-surface-border bg-surface-input py-1.5 pl-2 pr-8 text-[10px] text-foreground font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+      aria-label="Métricas exibidas no funil"
+    >
+      {GOOGLE_FUNNEL_PRESETS.map((p) => (
+        <option key={p.id} value={p.id}>
+          {p.label}
+        </option>
+      ))}
+    </select>
+  )
+
+  // Determine BlockCard state
+  const blockState = loading && isAccountPreset ? 'loading' : accountEmpty ? 'empty' : 'ready'
+
   return (
-    <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
-      <div className="mb-3 flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-2">
-        <span className="section-title min-w-0 truncate" title={presetLabel}>
-          Funil de conversão
-        </span>
-        <select
-          value={funnelPreset}
-          onChange={onFunnelPresetChange}
-          className="max-w-[min(100%,220px)] shrink-0 rounded-md border border-surface-border bg-[#141414] py-1.5 pl-2 pr-8 text-[10px] text-white font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-          aria-label="Métricas exibidas no funil"
-        >
-          {GOOGLE_FUNNEL_PRESETS.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      {loading && isAccountPreset ? (
-        <p className="mb-1 text-[10px] text-muted-foreground shrink-0">Carregando totais do período…</p>
-      ) : null}
-      {accountEmpty ? (
-        <p className="text-[10px] text-muted-foreground font-sans leading-relaxed shrink-0">
-          Sem totais no período para este funil. Ajuste as datas ou escolha o preset ilustrativo.
-        </p>
-      ) : null}
+    <BlockCard
+      title="Funil de conversão"
+      actions={funnelSelect}
+      state={blockState}
+      emptyMessage="Sem totais no período para este funil. Ajuste as datas ou escolha outro preset."
+      bodyClassName="px-4 pb-4 flex flex-col"
+    >
       <div className="flex-1 min-h-0">
-        {loading && isAccountPreset ? (
-          <div className="h-full min-h-[140px] w-full animate-pulse rounded-md bg-surface-border/35" aria-hidden />
-        ) : showFunnelChart ? (
+        {showFunnelChart ? (
           <FunnelChart
             data={funnelStages}
             orientation="horizontal"
-            color="#4285F4"
+            color={G_BLUE}
             layers={funnelStages.length >= 4 ? 4 : 3}
             staggerDelay={0.1}
             gap={6}
@@ -790,7 +803,7 @@ function GoogleFunnelBlock() {
           />
         ) : null}
       </div>
-    </div>
+    </BlockCard>
   )
 }
 
@@ -803,7 +816,7 @@ const KPI_BLOCKS = GOOGLE_KPI_SHELL.map((_, i) => ({
   maxColSpan: 4,
   minRowSpan: 1,
   maxRowSpan: 3,
-  render: () => <GoogleKpiCard index={i} />,
+  render: () => <GoogleKpiCard index={i} metricKey={GOOGLE_KPI_KEYS[i]} />,
 }))
 
 const GOOGLE_DASHBOARD_BLOCKS = [

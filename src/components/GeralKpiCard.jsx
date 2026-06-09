@@ -2,6 +2,7 @@ import { TrendingUp, TrendingDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { kpiData, kpiDataPrevious } from '@/data/mockData'
 import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
+import { MetricInfo } from '@/components/ui/MetricInfo'
 
 const METRIC_KEY = {
   investimento: 'investimento',
@@ -13,15 +14,15 @@ const METRIC_KEY = {
 }
 
 export const GERAL_KPI_CARDS = [
-  { id: 'investimento', label: 'Investimento' },
-  { id: 'resultado', label: 'Resultado' },
-  { id: 'custo', label: 'Custo / Resultado' },
-  { id: 'retorno', label: 'Retorno' },
-  { id: 'cpm', label: 'CPM' },
-  { id: 'ctr', label: 'CTR' },
+  { id: 'investimento', label: 'Investimento', infoKey: 'invest' },
+  { id: 'resultado', label: 'Resultado', infoKey: 'results' },
+  { id: 'custo', label: 'Custo / Resultado', infoKey: 'cpl' },
+  { id: 'retorno', label: 'Retorno', infoKey: 'roas' },
+  { id: 'cpm', label: 'CPM', infoKey: 'cpm' },
+  { id: 'ctr', label: 'CTR', infoKey: 'ctr' },
 ]
 
-export default function GeralKpiCard({ id, label, variant = 'metric', fieldKey }) {
+export default function GeralKpiCard({ id, label, infoKey, variant = 'metric', fieldKey }) {
   const period = useDashboardBlockPeriod()
   const src = period === 'previous' ? kpiDataPrevious : kpiData
 
@@ -42,7 +43,10 @@ export default function GeralKpiCard({ id, label, variant = 'metric', fieldKey }
 
   return (
     <div className={cn('kpi-card min-w-0 w-full shrink-0', period === 'previous' && 'kpi-card--compare')}>
-      <span className="kpi-label block truncate">{label}</span>
+      <span className="kpi-label inline-flex items-center gap-1 truncate">
+        <span className="block truncate">{label}</span>
+        {infoKey && <MetricInfo metricKey={infoKey} size={11} />}
+      </span>
       <span className="kpi-value block truncate tabular-nums">{value}</span>
       {delta !== undefined && (
         <div className="kpi-delta-row min-w-0">
