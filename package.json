@@ -13,7 +13,9 @@
     "db:migrate:local": "wrangler d1 execute p12-dashboard --local --file=migrations/0001_init.sql",
     "db:seed": "node scripts/seed_super_admin.mjs",
     "cf:secrets": "wrangler secret bulk .dev.vars",
-    "cf:secrets:list": "wrangler secret list"
+    "cf:secrets:list": "wrangler secret list",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.2",
@@ -40,11 +42,16 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260506.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.20",
+    "jsdom": "^25.0.1",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "vite": "^5.4.10",
+    "vitest": "^2.1.4",
     "wrangler": "^4.88.0"
   }
 }
