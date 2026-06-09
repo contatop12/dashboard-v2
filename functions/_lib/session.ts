@@ -1,5 +1,5 @@
 export const SESSION_COOKIE = 'dash_session'
-export const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 14 // 14 dias
+export const SESSION_MAX_AGE_SEC = 60 * 60 * 2 // 2 horas
 
 export function parseCookies(header: string | null): Record<string, string> {
   const out: Record<string, string> = {}
