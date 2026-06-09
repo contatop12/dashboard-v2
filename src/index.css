@@ -16,6 +16,15 @@
     --color-border: 44 44 44;
     --color-muted: 50 50 50;
     --color-muted-fg: 136 136 136;
+    --color-success: 34 197 94;
+    --color-danger: 239 68 68;
+    /* chart palette — mirror src/lib/chartTheme.js */
+    --chart-1: 245 197 24;
+    --chart-2: 155 142 255;
+    --chart-3: 74 155 255;
+    --chart-4: 255 107 107;
+    --chart-5: 34 197 94;
+    --chart-6: 249 115 22;
 
     /* Fonts — CSS vars so runtime changes propagate instantly */
     --font-display: "Syne";
