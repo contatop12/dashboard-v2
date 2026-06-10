@@ -12,6 +12,13 @@ export function usePlatformOverview() {
 
 export function PlatformOverviewProvider({ url, children }) {
   const [state, setState] = useState({ loading: true, data: null, error: null })
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  useEffect(() => {
+    const bump = () => setRefreshKey((k) => k + 1)
+    window.addEventListener('p12-overview-refresh', bump)
+    return () => window.removeEventListener('p12-overview-refresh', bump)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -36,7 +43,7 @@ export function PlatformOverviewProvider({ url, children }) {
     return () => {
       cancelled = true
     }
-  }, [url])
+  }, [url, refreshKey])
 
   return <PlatformOverviewContext.Provider value={state}>{children}</PlatformOverviewContext.Provider>
 }
