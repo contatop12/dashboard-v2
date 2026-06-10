@@ -17,6 +17,8 @@ export function DashboardFiltersProvider({ children }) {
   )
   const [comparePrimaryKpi, setComparePrimaryKpi] = useState(false)
   const [dimensionFilters, setDimensionFilters] = useState({})
+  /** Opções publicadas pela página ativa a partir da árvore do overview: { [key]: [{id,name,...}] } */
+  const [filterOptions, setFilterOptions] = useState({})
 
   const previousPeriod = useMemo(
     () => getPreviousPeriodOfSameLength(dateRange.start, dateRange.end),
@@ -54,6 +56,8 @@ export function DashboardFiltersProvider({ children }) {
       previousPeriod,
       dimensionFilters,
       setDimensionFilters,
+      filterOptions,
+      setFilterOptions,
     }),
     [
       dateRange,
@@ -63,6 +67,7 @@ export function DashboardFiltersProvider({ children }) {
       comparePrimaryKpi,
       previousPeriod,
       dimensionFilters,
+      filterOptions,
     ]
   )
 
