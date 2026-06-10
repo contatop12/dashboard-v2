@@ -2,13 +2,6 @@ import { useEffect, useId, useMemo, useState } from 'react'
 import { format, parse } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
-  Search,
-  TrendingUp,
-  TrendingDown,
-  Eye,
-  MousePointer,
-  DollarSign,
-  Target,
   Award,
   ChevronDown,
   ChevronLeft,
@@ -24,43 +17,26 @@ import ChannelAccountPicker from '@/components/ChannelAccountPicker'
 import WorkerSecretsAccountPicker, {
   readWorkerGoogleAdsQueryFromStorage,
 } from '@/components/WorkerSecretsAccountPicker'
-import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
+import { useAuth } from '@/context/AuthContext'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 import { buildPlatformOverviewUrl } from '@/lib/platformOverviewUrl'
 import { PlatformOverviewProvider, usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { GoogleAdsCampaignTypesTable } from '@/components/GoogleAdsCampaignTypesTable'
 import { MonthlyAccountResultsTable } from '@/components/MonthlyAccountResultsTable'
 import { GoogleAdsDemographicsBlock } from '@/components/GoogleAdsDemographicsBlock'
+import GoogleMetricsPanel from '@/components/GoogleMetricsPanel'
+import GoogleConversionMixChart from '@/components/GoogleConversionMixChart'
 import { BlockCard } from '@/components/ui/BlockCard'
 import { MetricInfo } from '@/components/ui/MetricInfo'
+import { CampaignTree } from '@/components/CampaignTree'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { useCampaignStatusMutation } from '@/hooks/useCampaignStatusMutation'
+import { filterOptionsFromTree, resolveTreeSlice } from '@/lib/filterOptionsFromTree'
 
 // ─── Google brand colors (intentional, not generic surfaces) ───────────────
 const G_BLUE = '#4285F4'
 const G_GREEN = '#34A853'
-
-// ─── KPI shell + metric dictionary keys ───────────────────────────────────
-const GOOGLE_KPI_SHELL = [
-  { label: 'Investimento', icon: DollarSign, accent: 'brand' },
-  { label: 'Impressões', icon: Eye, accent: 'purple' },
-  { label: 'Cliques', icon: MousePointer, accent: 'brand' },
-  { label: 'CTR', icon: Target, accent: 'brand' },
-  { label: 'CPC Médio', icon: DollarSign, accent: 'purple' },
-  { label: 'Conversões', icon: Target, accent: 'brand' },
-  { label: 'Custo/Conv.', icon: DollarSign, accent: 'purple' },
-  { label: 'Taxa de Conv.', icon: TrendingUp, accent: 'brand' },
-]
-
-const GOOGLE_KPI_KEYS = [
-  'invest',
-  'impressions',
-  'clicks',
-  'ctr',
-  'cpcAvg',
-  'conversions',
-  'cpl',
-  'conversionRate',
-]
 
 const GOOGLE_DAILY_CHART_LS = 'p12_google_ads_daily_chart_mode'
 
@@ -89,7 +65,6 @@ const GOOGLE_FUNNEL_PRESETS = [
   { id: 'account_impr_clicks_conv', label: 'Conta: impressões → cliques → conversões' },
   { id: 'account_impr_clicks', label: 'Conta: impressões → cliques' },
   { id: 'account_clicks_conv', label: 'Conta: cliques → conversões' },
-  { id: 'illustrative', label: 'Ilustrativo (jornada no site)' },
 ]
 
 function readGoogleFunnelPreset() {
@@ -102,13 +77,6 @@ function readGoogleFunnelPreset() {
   return 'account_impr_clicks_conv'
 }
 
-const ILLUSTRATIVE_FUNNEL_STAGES = [
-  { label: 'Impressões', value: 50000, displayValue: '50.000' },
-  { label: 'Cliques', value: 1990, displayValue: '1.990' },
-  { label: 'Landing Page', value: 1791, displayValue: '1.791' },
-  { label: 'Início Form.', value: 45, displayValue: '45' },
-  { label: 'Conversões', value: 11, displayValue: '11' },
-]
 
 function sumGoogleDailyTotals(daily) {
   if (!Array.isArray(daily)) {
@@ -156,9 +124,12 @@ function buildGoogleFunnelStages(presetId, totals) {
         { label: 'Cliques', value: fc, displayValue: formatNumber(Math.round(fc)) },
         { label: 'Conversões', value: fconv, displayValue: formatFunnelConversionsDisplay(fconv) },
       ]
-    case 'illustrative':
     default:
-      return ILLUSTRATIVE_FUNNEL_STAGES.map((row) => ({ ...row }))
+      return [
+        { label: 'Impressões', value: fi, displayValue: formatNumber(Math.round(fi)) },
+        { label: 'Cliques', value: fc, displayValue: formatNumber(Math.round(fc)) },
+        { label: 'Conversões', value: fconv, displayValue: formatFunnelConversionsDisplay(fconv) },
+      ]
   }
 }
 
@@ -246,53 +217,6 @@ function GoogleDailyChartTooltip({ active, payload, label }) {
   )
 }
 
-function GoogleKpiCard({ index, metricKey }) {
-  const period = useDashboardBlockPeriod()
-  const { comparePrimaryKpi } = useDashboardFilters()
-  const { loading, data } = usePlatformOverview()
-  const shell = GOOGLE_KPI_SHELL[index] ?? GOOGLE_KPI_SHELL[0]
-  const rowP = data?.metrics?.[index]
-  const rowC = data?.compareMetrics?.[index]
-  const label = rowP?.label ?? shell.label
-  const value =
-    loading ? '…' : period === 'previous' ? (rowC?.value ?? '—') : (rowP?.value ?? '—')
-  const deltaPct = period === 'current' && comparePrimaryKpi ? rowP?.deltaPct : null
-  const hasDelta = deltaPct !== null && deltaPct !== undefined && !Number.isNaN(Number(deltaPct))
-  const n = Number(deltaPct)
-  const isPos = hasDelta && n > 0
-  const isNeg = hasDelta && n < 0
-  const deltaNote =
-    period === 'previous' ? 'período de comparação' : comparePrimaryKpi ? 'vs período comp.' : 'ative comparação'
-  return (
-    <div className="kpi-card min-h-0 w-full shrink-0">
-      <div className="flex items-center gap-1 min-w-0">
-        <span className="kpi-label block truncate">{label}</span>
-        {metricKey ? <MetricInfo metricKey={metricKey} size={11} /> : null}
-      </div>
-      <span className="kpi-value block truncate tabular-nums">{value}</span>
-      <div className="kpi-delta-row min-w-0">
-        {period === 'current' && hasDelta ? (
-          <div
-            className={cn(
-              'inline-flex shrink-0 items-center gap-1',
-              isPos ? 'text-green-400' : isNeg ? 'text-red-400' : 'text-muted-foreground'
-            )}
-          >
-            {isPos ? <TrendingUp size={12} strokeWidth={2} /> : isNeg ? <TrendingDown size={12} strokeWidth={2} /> : null}
-            <span>
-              {n >= 0 ? '+' : ''}
-              {n.toFixed(1)}%
-            </span>
-          </div>
-        ) : period === 'current' ? (
-          <span className="font-mono text-[10px] text-muted-foreground">—</span>
-        ) : null}
-        <span className="kpi-delta-note min-w-0 truncate">{deltaNote}</span>
-      </div>
-    </div>
-  )
-}
-
 function formatConversionCell(conversions, value) {
   const hasFrac = Math.abs(conversions % 1) > 1e-6
   const convPart = hasFrac
@@ -311,60 +235,58 @@ function formatConversionTotal(total) {
     : formatNumber(Math.round(total))
 }
 
-function GoogleConversionPanel({ title, rows, loading }) {
+function GoogleConversionPanel({ title, rows, loading, accent = 'blue' }) {
   const total = rows.reduce((s, r) => s + (Number(r.conversions) || 0), 0)
-
-  const scopeSelect = (
-    <div className="relative shrink-0">
-      <select
-        disabled
-        className="h-7 w-36 cursor-not-allowed appearance-none rounded border border-surface-border bg-surface-input py-1 pl-2 pr-7 text-[10px] text-muted-foreground font-sans"
-        aria-label="Âmbito das conversões"
-        defaultValue="all"
-      >
-        <option value="all">Todas as conv.</option>
-      </select>
-      <ChevronDown
-        size={12}
-        className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-        aria-hidden
-      />
-    </div>
-  )
+  const maxConv = Math.max(...rows.map((r) => Number(r.conversions) || 0), 1)
+  const barColor = accent === 'green' ? '#34A853' : '#4285F4'
 
   return (
-    <BlockCard
-      title={title}
-      actions={scopeSelect}
-      state={loading ? 'loading' : 'ready'}
-      bodyClassName="px-0 pb-0 flex flex-col"
-    >
-      <div className="flex max-h-[200px] min-h-[100px] flex-1 flex-col gap-0 overflow-y-auto px-3 py-3">
+    <div className="google-conv-card">
+      <div className="google-conv-card__head">
+        <h3 className="text-xs font-medium text-foreground font-sans">{title}</h3>
+        {loading ? <span className="text-[10px] text-muted-foreground">Carregando…</span> : null}
+      </div>
+      <div className="google-conv-card__body">
         {rows.length === 0 ? (
-          <p className="text-[11px] text-muted-foreground font-sans">Sem conversões neste grupo no período.</p>
+          <p className="text-[11px] text-muted-foreground font-sans py-4 text-center">
+            Sem conversões neste grupo no período.
+          </p>
         ) : (
-          rows.map((r) => (
-            <div
-              key={r.id}
-              className="flex items-baseline justify-between gap-2 border-b border-surface-border/50 py-1.5 last:border-0"
-            >
-              <span className="min-w-0 flex-1 text-[11px] font-sans leading-snug text-foreground">{r.name}</span>
-              <span className="shrink-0 text-right font-mono text-xs font-semibold tabular-nums text-foreground">
-                {formatConversionCell(Number(r.conversions) || 0, Number(r.value) || 0)}
-              </span>
-            </div>
-          ))
+          <ul className="flex flex-col gap-3">
+            {rows.map((r) => {
+              const conv = Number(r.conversions) || 0
+              const barPct = maxConv > 0 ? Math.min(100, (conv / maxConv) * 100) : 0
+              const sharePct = total > 0 ? (conv / total) * 100 : 0
+              return (
+                <li key={r.id} className="min-w-0">
+                  <div className="mb-1 flex items-baseline justify-between gap-2">
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-sans text-foreground" title={r.name}>
+                      {r.name}
+                    </span>
+                    <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-foreground">
+                      {formatConversionCell(conv, Number(r.value) || 0)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                    <div
+                      className="h-full rounded-full transition-[width] duration-500"
+                      style={{ width: `${barPct}%`, backgroundColor: barColor }}
+                    />
+                  </div>
+                  <span className="mt-0.5 block text-right font-mono text-[9px] tabular-nums text-muted-foreground">
+                    {sharePct >= 0.05 ? `${sharePct.toFixed(0)}%` : '<1%'} do grupo
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
         )}
       </div>
-      <div className="shrink-0 border-t border-surface-border py-3">
-        <p className="text-center text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground font-sans">
-          Total
-        </p>
-        <p className="text-center font-mono text-lg font-bold tabular-nums text-foreground">
-          {formatConversionTotal(total)}
-        </p>
+      <div className="google-conv-card__foot">
+        <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Total</span>
+        <span className="font-mono text-xl font-bold tabular-nums text-foreground">{formatConversionTotal(total)}</span>
       </div>
-    </BlockCard>
+    </div>
   )
 }
 
@@ -376,20 +298,22 @@ function GoogleConversionsSplit() {
   const err = typeof cd?.error === 'string' ? cd.error : ''
 
   return (
-    <div className="flex min-h-0 w-full min-w-0 flex-col gap-2">
+    <div className="google-conversions-section flex min-h-0 w-full min-w-0 flex-col gap-4">
       <div className="flex items-center gap-2 px-0.5">
-        <span className="section-title">Conversões por tipo</span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand/90">Conversões</span>
+        <span className="text-xs text-muted-foreground font-sans">por tipo de ação</span>
       </div>
       {err ? <p className="text-[10px] text-amber-200/90 font-sans">{err}</p> : null}
-      <div className="grid min-h-0 w-full grid-cols-1 gap-4 md:grid-cols-2">
-        <GoogleConversionPanel title="Conversões primárias" rows={primary} loading={loading} />
-        <GoogleConversionPanel title="Conversões secundárias" rows={secondary} loading={loading} />
+      <div className="grid min-h-0 w-full grid-cols-1 gap-4 lg:grid-cols-3">
+        <GoogleConversionPanel title="Primárias" rows={primary} loading={loading} accent="blue" />
+        <GoogleConversionPanel title="Secundárias" rows={secondary} loading={loading} accent="green" />
+        <GoogleConversionMixChart />
       </div>
     </div>
   )
 }
 
-function GoogleClicksChart() {
+function GoogleClicksChart({ embedded = false }) {
   const gid = useId().replace(/:/g, '')
   const gradA = `googleDailyA-${gid}`
   const gradB = `googleDailyB-${gid}`
@@ -400,43 +324,85 @@ function GoogleClicksChart() {
 
   const modeLabel = GOOGLE_CHART_MODES.find((m) => m.id === chartMode)?.label ?? 'Série diária'
 
-  const onChartModeChange = (e) => {
-    const v = e.target.value
-    setChartMode(v)
+  const onChartModeChange = (modeId) => {
+    setChartMode(modeId)
     try {
-      localStorage.setItem(GOOGLE_DAILY_CHART_LS, v)
+      localStorage.setItem(GOOGLE_DAILY_CHART_LS, modeId)
     } catch {
       /* ignore */
     }
   }
 
   const dual = chartMode === 'cliques_conversoes' || chartMode === 'cliques_impressoes'
-  const margin = dual ? { top: 2, right: 18, left: -12, bottom: 0 } : { top: 2, right: 8, left: -20, bottom: 0 }
+  const margin = dual ? { top: 8, right: 12, left: -8, bottom: 0 } : { top: 8, right: 8, left: -16, bottom: 0 }
 
-  const chartModeSelect = (
-    <select
-      value={chartMode}
-      onChange={onChartModeChange}
-      className="max-w-full rounded-md border border-surface-border bg-surface-input py-1.5 pl-2 pr-8 text-[10px] text-foreground font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-      aria-label="Métrica do gráfico diário"
-    >
-      {GOOGLE_CHART_MODES.map((m) => (
-        <option key={m.id} value={m.id}>
-          {m.label}
-        </option>
-      ))}
-    </select>
+  const chartLegend = dual ? (
+    <div className="flex flex-wrap items-center gap-3 text-[10px] font-sans text-muted-foreground">
+      {chartMode === 'cliques_conversoes' ? (
+        <>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-[#4285F4]" aria-hidden /> Cliques
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-[#34A853]" aria-hidden /> Conversões
+          </span>
+        </>
+      ) : (
+        <>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-[#4285F4]" aria-hidden /> Cliques
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-[#9B8EFF]" aria-hidden /> Impressões
+          </span>
+        </>
+      )}
+    </div>
+  ) : (
+    <div className="flex flex-wrap items-center gap-3 text-[10px] font-sans text-muted-foreground">
+      <span className="inline-flex items-center gap-1.5">
+        <span
+          className="h-2 w-2 rounded-full"
+          style={{
+            backgroundColor:
+              chartMode === 'investimento'
+                ? G_BLUE
+                : chartMode === 'custo_conversao'
+                  ? '#f59e0b'
+                  : chartMode === 'impressoes'
+                    ? '#9B8EFF'
+                    : '#22c55e',
+          }}
+          aria-hidden
+        />
+        {modeLabel}
+      </span>
+    </div>
   )
 
-  return (
-    <BlockCard
-      title={modeLabel}
-      actions={chartModeSelect}
-      state={loading ? 'loading' : 'ready'}
-      bodyClassName="px-4 pb-4 flex flex-col"
-    >
-      <div className="h-44 min-h-0 flex-1">
-        <ResponsiveContainer width="100%" height="100%">
+  const chartModeTabs = (
+    <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-white/[0.06] bg-[#141414] p-1 [scrollbar-width:thin]">
+      {GOOGLE_CHART_MODES.map((m) => (
+        <button
+          key={m.id}
+          type="button"
+          onClick={() => onChartModeChange(m.id)}
+          className={cn(
+            'shrink-0 rounded-md px-2.5 py-1 text-[9px] font-medium font-sans whitespace-nowrap transition-colors',
+            chartMode === m.id
+              ? 'bg-brand/20 text-brand ring-1 ring-brand/30'
+              : 'text-muted-foreground hover:bg-white/[0.04] hover:text-white'
+          )}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  )
+
+  const chartBody = (
+    <div className={cn('google-chart-canvas w-full shrink-0', embedded ? 'h-[140px]' : 'h-44')}>
+      <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData} margin={margin}>
             <defs>
               <linearGradient id={gradA} x1="0" y1="0" x2="0" y2="1">
@@ -583,12 +549,38 @@ function GoogleClicksChart() {
           </AreaChart>
         </ResponsiveContainer>
       </div>
+  )
+
+  if (embedded) {
+    return (
+      <div className="meta-analysis-cell flex min-h-0 flex-col">
+        <div className="mb-2 flex shrink-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <span className="text-[11px] font-medium text-foreground font-sans">Desempenho diário</span>
+            <p className="text-[9px] text-muted-foreground font-sans">{modeLabel}</p>
+          </div>
+          {chartModeTabs}
+        </div>
+        {chartLegend}
+        {loading ? <p className="mb-1 text-[9px] text-muted-foreground">Carregando…</p> : null}
+        <div className="mt-1 shrink-0">{chartBody}</div>
+      </div>
+    )
+  }
+
+  return (
+    <BlockCard
+      title="Desempenho diário"
+      actions={chartModeTabs}
+      state={loading ? 'loading' : 'ready'}
+      bodyClassName="px-4 pb-4 flex flex-col gap-2"
+    >
+      {chartLegend}
+      {chartBody}
     </BlockCard>
   )
 }
 
-const QUALITY_SCORE_INFO =
-  'Nota de 1 a 10: Quality Score do Google Ads (média ponderada pelas impressões no período). Indica relevância entre anúncio, palavra-chave e página de destino. Cliques, conversões e custo por conversão são as métricas agregadas da mesma palavra no intervalo de datas.'
 
 const GOOGLE_QUALITY_PAGE_SIZE = 14
 
@@ -600,7 +592,7 @@ function formatKeywordConversions(n) {
     : new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(x)
 }
 
-function GoogleQuality() {
+function GoogleQuality({ embedded = false }) {
   const { loading, data } = usePlatformOverview()
   const kq = data?.keywordQuality
   const items = Array.isArray(kq?.items) ? kq.items : []
@@ -661,19 +653,14 @@ function GoogleQuality() {
     </div>
   ) : null
 
-  return (
-    <BlockCard
-      title={titleNode}
-      infoKey="qualityScore"
-      state={loading ? 'loading' : 'ready'}
-      bodyClassName="px-3 sm:px-4 pb-3 sm:pb-4 flex flex-col gap-2"
-    >
+  const listBody = (
+    <>
       {kqError ? (
-        <p className="text-[10px] text-amber-400/90 font-sans leading-snug shrink-0">{kqError}</p>
+        <p className="shrink-0 font-sans text-[10px] leading-snug text-amber-400/90">{kqError}</p>
       ) : null}
-      <div className="flex flex-col gap-1.5 flex-1 min-h-0 overflow-y-auto pr-0.5">
+      <div className="flex max-h-[9.5rem] min-h-0 flex-col gap-1 overflow-y-auto pr-0.5">
         {!loading && pageItems.length === 0 ? (
-          <p className="text-[10px] text-muted-foreground font-sans leading-relaxed">
+          <p className="font-sans text-[10px] leading-relaxed text-muted-foreground">
             Sem palavras-chave de pesquisa com dados no período. Contas com campanhas só em Performance Max podem
             trazer poucos ou nenhum resultado nesta lista.
           </p>
@@ -695,44 +682,83 @@ function GoogleQuality() {
                 ? formatCurrency(Number(kw.costPerConversion))
                 : '—'
             return (
-              <div key={kw.keyword} className="flex flex-col gap-0.5 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-sans text-muted-foreground truncate" title={kw.keyword}>
-                    {kw.keyword}
-                  </span>
-                  <span
-                    className={cn(
-                      'font-mono text-[11px] font-semibold shrink-0 tabular-nums',
-                      score == null || Number.isNaN(score)
-                        ? 'text-muted-foreground'
-                        : score >= 8
-                          ? 'text-green-400'
-                          : score >= 6
-                            ? 'text-yellow-400'
-                            : 'text-red-400'
-                    )}
-                  >
-                    {score != null && !Number.isNaN(score) ? `${Math.round(score)}/10` : '—'}
-                  </span>
-                </div>
-                <div className="h-1.5 bg-surface-border rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${barPct}%`, background: barColor }} />
-                </div>
-                <div className="flex flex-wrap gap-x-2 gap-y-0 text-[9px] font-mono text-muted-foreground tabular-nums leading-tight">
-                  <span>Cliques {formatNumber(Math.round(Number(kw.clicks) || 0))}</span>
-                  <span>Conv. {formatKeywordConversions(kw.conversions)}</span>
-                  <span>Custo/conv. {cpc}</span>
+              <div
+                key={kw.keyword}
+                className="google-quality-row grid grid-cols-[minmax(0,1fr)_3rem_4rem_4rem_5rem] items-center gap-2 rounded-md px-1 py-1.5 hover:bg-white/[0.03]"
+              >
+                <span className="truncate font-sans text-[11px] text-foreground" title={kw.keyword}>
+                  {kw.keyword}
+                </span>
+                <span
+                  className={cn(
+                    'text-center font-mono text-[11px] font-semibold tabular-nums',
+                    score == null || Number.isNaN(score)
+                      ? 'text-muted-foreground'
+                      : score >= 8
+                        ? 'text-green-400'
+                        : score >= 6
+                          ? 'text-yellow-400'
+                          : 'text-red-400'
+                  )}
+                >
+                  {score != null && !Number.isNaN(score) ? `${Math.round(score)}` : '—'}
+                </span>
+                <span className="text-right font-mono text-[10px] tabular-nums text-muted-foreground">
+                  {formatNumber(Math.round(Number(kw.clicks) || 0))}
+                </span>
+                <span className="text-right font-mono text-[10px] tabular-nums text-muted-foreground">
+                  {formatKeywordConversions(kw.conversions)}
+                </span>
+                <span className="text-right font-mono text-[10px] tabular-nums text-muted-foreground">{cpc}</span>
+                <div className="col-span-full h-1 overflow-hidden rounded-full bg-white/[0.05]">
+                  <div
+                    className="h-full rounded-full transition-[width] duration-300"
+                    style={{ width: `${barPct}%`, background: barColor }}
+                  />
                 </div>
               </div>
             )
           })}
       </div>
       {paginationNode}
+    </>
+  )
+
+  if (embedded) {
+    return (
+      <div className="meta-analysis-cell flex min-h-0 flex-col">
+        <div className="mb-2 flex shrink-0 items-center gap-1.5">
+          <Award size={12} className="shrink-0 text-brand" />
+          <span className="text-[11px] font-medium text-foreground font-sans">Índice de qualidade</span>
+          <MetricInfo metricKey="qualityScore" size={10} />
+        </div>
+        {!loading && pageItems.length > 0 ? (
+          <div className="mb-2 grid grid-cols-[minmax(0,1fr)_3rem_4rem_4rem_5rem] gap-2 px-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <span>Palavra-chave</span>
+            <span className="text-center">IQ</span>
+            <span className="text-right">Cliques</span>
+            <span className="text-right">Conv.</span>
+            <span className="text-right">Custo/conv.</span>
+          </div>
+        ) : null}
+        {loading ? <p className="text-[10px] text-muted-foreground">Carregando…</p> : listBody}
+      </div>
+    )
+  }
+
+  return (
+    <BlockCard
+      title={titleNode}
+      infoKey="qualityScore"
+      state={loading ? 'loading' : 'ready'}
+      bodyClassName="px-3 sm:px-4 pb-3 sm:pb-4 flex flex-col gap-2"
+    >
+      {listBody}
     </BlockCard>
   )
 }
 
-function GoogleFunnelBlock() {
+function GoogleFunnelBlock({ embedded = false }) {
   const { loading, data } = usePlatformOverview()
   const [funnelPreset, setFunnelPreset] = useState(readGoogleFunnelPreset)
 
@@ -747,7 +773,7 @@ function GoogleFunnelBlock() {
   const funnelMax = funnelStages[0]?.value ?? 0
   const accountEmpty = !loading && isAccountPreset && funnelMax <= 0
   const showFunnelChart =
-    funnelStages.length > 0 && (funnelPreset === 'illustrative' || funnelMax > 0)
+    funnelStages.length > 0 && funnelMax > 0
 
   const onFunnelPresetChange = (e) => {
     const v = e.target.value
@@ -774,8 +800,47 @@ function GoogleFunnelBlock() {
     </select>
   )
 
-  // Determine BlockCard state
   const blockState = loading && isAccountPreset ? 'loading' : accountEmpty ? 'empty' : 'ready'
+
+  const funnelBody = (
+    <div className={cn('w-full shrink-0', embedded ? 'h-[112px]' : 'min-h-0 flex-1')}>
+      {showFunnelChart ? (
+        <FunnelChart
+          data={funnelStages}
+          orientation="horizontal"
+          color={G_BLUE}
+          layers={funnelStages.length >= 4 ? 4 : 3}
+          staggerDelay={0.1}
+          gap={4}
+          showLabels
+          showValues
+          showPercentage
+          formatPercentage={funnelPercentLabel}
+          edges="curved"
+          className="h-full w-full"
+          style={embedded ? undefined : { aspectRatio: '2.2/1' }}
+        />
+      ) : accountEmpty ? (
+        <p className="text-[10px] text-muted-foreground">Sem totais no período para este funil.</p>
+      ) : null}
+    </div>
+  )
+
+  if (embedded) {
+    return (
+      <div className="meta-analysis-cell flex min-h-0 flex-col border-l border-white/[0.06] lg:border-l">
+        <div className="mb-2 flex shrink-0 flex-col gap-1.5">
+          <span className="text-[11px] font-medium text-foreground font-sans">Funil</span>
+          {funnelSelect}
+        </div>
+        {loading && isAccountPreset ? (
+          <p className="text-[9px] text-muted-foreground">Carregando…</p>
+        ) : (
+          funnelBody
+        )}
+      </div>
+    )
+  }
 
   return (
     <BlockCard
@@ -785,47 +850,129 @@ function GoogleFunnelBlock() {
       emptyMessage="Sem totais no período para este funil. Ajuste as datas ou escolha outro preset."
       bodyClassName="px-4 pb-4 flex flex-col"
     >
-      <div className="flex-1 min-h-0">
-        {showFunnelChart ? (
-          <FunnelChart
-            data={funnelStages}
-            orientation="horizontal"
-            color={G_BLUE}
-            layers={funnelStages.length >= 4 ? 4 : 3}
-            staggerDelay={0.1}
-            gap={6}
-            showLabels
-            showValues
-            showPercentage
-            formatPercentage={funnelPercentLabel}
-            edges="curved"
-            className="w-full"
-          />
-        ) : null}
-      </div>
+      {funnelBody}
     </BlockCard>
   )
 }
 
-const KPI_BLOCKS = GOOGLE_KPI_SHELL.map((_, i) => ({
-  id: `google-kpi-${i}`,
-  tier: 'primary',
-  defaultColSpan: 1,
-  defaultRowSpan: 1,
-  minColSpan: 1,
-  maxColSpan: 4,
-  minRowSpan: 1,
-  maxRowSpan: 3,
-  render: () => <GoogleKpiCard index={i} metricKey={GOOGLE_KPI_KEYS[i]} />,
-}))
+function GoogleAnalysisPanel() {
+  return (
+    <div className="google-analysis-panel-v2">
+      <div className="google-analysis-row-main">
+        <GoogleClicksChart embedded />
+        <GoogleFunnelBlock embedded />
+      </div>
+      <div className="google-analysis-row-quality">
+        <GoogleQuality embedded />
+      </div>
+    </div>
+  )
+}
+
+const GOOGLE_TREE_LABELS = { adsets: 'Grupos de anúncios', ads: 'Anúncios' }
+
+function GoogleCampaignsBlock({ workerPlatformQuery }) {
+  const { activeOrgId } = useOrgWorkspace()
+  const { loading, data } = usePlatformOverview()
+  const { dimensionFilters, setFilterOptions } = useDashboardFilters()
+  const customerId = useMemo(() => {
+    const m = /(?:^|&)customer_id=([^&]+)/.exec(workerPlatformQuery || '')
+    return m ? decodeURIComponent(m[1]) : ''
+  }, [workerPlatformQuery])
+  const { mutate } = useCampaignStatusMutation(activeOrgId, {
+    endpoint: '/api/admin/platform/google-campaign-status',
+    extraBody: useMemo(() => (customerId ? { customerId } : {}), [customerId]),
+  })
+  const [tree, setTree] = useState([])
+  const [pendingToggle, setPendingToggle] = useState(null) // { level, id, name, nextStatus }
+
+  useEffect(() => { setTree(Array.isArray(data?.campaignTree) ? data.campaignTree : []) }, [data?.campaignTree])
+
+  // Publica opções de filtro derivadas da árvore completa; FilterBar consome do contexto.
+  useEffect(() => {
+    if (!Array.isArray(data?.campaignTree)) return
+    const o = filterOptionsFromTree(data.campaignTree)
+    setFilterOptions({ campanha: o.campanha, children: o.children, objetivo: o.objetivo })
+  }, [data?.campaignTree, setFilterOptions])
+
+  useEffect(() => () => setFilterOptions({}), [setFilterOptions])
+
+  const visibleTree = useMemo(() => resolveTreeSlice(tree, dimensionFilters), [tree, dimensionFilters])
+
+  const applyStatus = (node, status) => {
+    const patch = (list) =>
+      list.map((c) => ({
+        ...c,
+        effectiveStatus: c.id === node.id && node.level === 'campaign' ? status : c.effectiveStatus,
+        adsets: (c.adsets || []).map((s) => ({
+          ...s,
+          effectiveStatus: s.id === node.id && node.level === 'adset' ? status : s.effectiveStatus,
+          ads: (s.ads || []).map((a) => ({
+            ...a,
+            effectiveStatus: a.id === node.id && node.level === 'ad' ? status : a.effectiveStatus,
+          })),
+        })),
+      }))
+    setTree(patch)
+  }
+
+  const onConfirmToggle = async () => {
+    const node = pendingToggle
+    if (!node) return
+    const prevStatus = node.nextStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE'
+    applyStatus(node, node.nextStatus) // optimistic
+    const ok = await mutate(node)
+    if (!ok) applyStatus(node, prevStatus) // rollback
+  }
+
+  const state = loading ? 'loading' : data?.campaignsError ? 'error' : visibleTree.length === 0 ? 'empty' : 'ready'
+  const activeCount = visibleTree.filter((c) => String(c.effectiveStatus).toUpperCase() === 'ACTIVE').length
+
+  return (
+    <BlockCard
+      title="Campanhas Google Ads"
+      badge={`${activeCount} ativas · ${visibleTree.length} campanhas`}
+      state={state}
+      emptyMessage="Nenhuma campanha no período."
+      errorMessage={String(data?.campaignsError || '')}
+      bodyClassName="overflow-auto"
+    >
+      <CampaignTree
+        tree={visibleTree}
+        onToggleStatus={(node) => setPendingToggle(node)}
+        labels={GOOGLE_TREE_LABELS}
+        resultsLabel="Conversões"
+      />
+      <ConfirmDialog
+        open={!!pendingToggle}
+        onOpenChange={(o) => { if (!o) setPendingToggle(null) }}
+        title={pendingToggle?.nextStatus === 'PAUSED' ? 'Pausar no Google Ads?' : 'Ativar no Google Ads?'}
+        description={`Isso afeta a entrega ao vivo de "${pendingToggle?.name ?? ''}".`}
+        confirmLabel={pendingToggle?.nextStatus === 'PAUSED' ? 'Pausar' : 'Ativar'}
+        destructive={pendingToggle?.nextStatus === 'PAUSED'}
+        onConfirm={onConfirmToggle}
+      />
+    </BlockCard>
+  )
+}
 
 const GOOGLE_DASHBOARD_BLOCKS = [
-  ...KPI_BLOCKS,
+  {
+    id: 'google-metrics',
+    tier: 'primary',
+    defaultColSpan: 8,
+    defaultRowSpan: 4,
+    minColSpan: 4,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 6,
+    render: () => <GoogleMetricsPanel />,
+  },
   {
     id: 'google-conversions-split',
     tier: 'secondary',
     defaultColSpan: 8,
-    defaultRowSpan: 2,
+    defaultRowSpan: 3,
     minColSpan: 2,
     maxColSpan: 8,
     minRowSpan: 2,
@@ -833,37 +980,15 @@ const GOOGLE_DASHBOARD_BLOCKS = [
     render: () => <GoogleConversionsSplit />,
   },
   {
-    id: 'google-clicks',
+    id: 'google-analysis',
     tier: 'secondary',
-    defaultColSpan: 5,
-    defaultRowSpan: 3,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 2,
-    maxRowSpan: 8,
-    render: () => <GoogleClicksChart />,
-  },
-  {
-    id: 'google-quality',
-    tier: 'secondary',
-    defaultColSpan: 3,
-    defaultRowSpan: 5,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 2,
-    maxRowSpan: 8,
-    render: () => <GoogleQuality />,
-  },
-  {
-    id: 'google-funnel',
-    tier: 'secondary',
-    defaultColSpan: 3,
+    defaultColSpan: 8,
     defaultRowSpan: 4,
-    minColSpan: 2,
+    minColSpan: 4,
     maxColSpan: 8,
-    minRowSpan: 2,
-    maxRowSpan: 10,
-    render: () => <GoogleFunnelBlock />,
+    minRowSpan: 3,
+    maxRowSpan: 6,
+    render: () => <GoogleAnalysisPanel />,
   },
   {
     id: 'google-campaigns',
@@ -900,44 +1025,72 @@ const GOOGLE_DASHBOARD_BLOCKS = [
   },
 ]
 
-function GoogleAdsPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange, periodSubtitle }) {
+function GoogleAdsPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange }) {
+  const { user } = useAuth()
+  const { activeOrgId } = useOrgWorkspace()
+  const secretsMode = user?.role === 'super_admin' && !activeOrgId
+
   return (
-    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-4">
-      <div className="flex w-full min-w-0 flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div className="flex items-center gap-2 rounded-lg border border-[#4285F4]/30 bg-[#4285F4]/15 px-4 py-2">
-            <Search size={14} className="text-[#4285F4]" />
-            <span className="text-xs font-sans font-semibold text-[#4285F4]">Google Ads</span>
-          </div>
-          <span className="text-xs font-sans text-muted-foreground">{periodSubtitle}</span>
+    <header className="shrink-0 border-b border-white/[0.06] py-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#4285F4]">
+            Google Ads
+          </span>
+          {!secretsMode ? (
+            <>
+              <span className="text-white/20" aria-hidden>
+                ·
+              </span>
+              <SuperAdminAccountTitle
+                endpoint="/api/admin/platform/google-ads-overview"
+                emptyLabel="Conta Google Ads"
+                className="min-w-0 max-w-[min(100%,20rem)] text-left"
+                size="sm"
+                workerPlatformQuery={workerPlatformQuery}
+                syncOverviewDates
+              />
+            </>
+          ) : null}
         </div>
-        <SuperAdminAccountTitle
-          endpoint="/api/admin/platform/google-ads-overview"
-          emptyLabel="Nome da conta Google Ads"
-          className="w-full min-w-0 text-left"
-          workerPlatformQuery={workerPlatformQuery}
-          syncOverviewDates
-        />
-        <WorkerSecretsAccountPicker
-          provider="google_ads"
-          onWorkerQueryChange={onWorkerPlatformQueryChange}
-        />
-        <ChannelAccountPicker provider="google_ads" className="shrink-0" />
+        <div className="flex min-w-[12rem] flex-1 flex-wrap items-center justify-end gap-2">
+          <WorkerSecretsAccountPicker
+            compact
+            provider="google_ads"
+            onWorkerQueryChange={onWorkerPlatformQueryChange}
+          />
+          <ChannelAccountPicker provider="google_ads" className="shrink-0" />
+        </div>
       </div>
     </header>
   )
 }
 
-function GoogleAdsInner({ workerPlatformQuery, onWorkerPlatformQueryChange, periodSubtitle }) {
+function GoogleAdsInner({ workerPlatformQuery, onWorkerPlatformQueryChange }) {
+  const definitions = useMemo(() => {
+    const treeBlock = {
+      id: 'google-campaigns-tree',
+      tier: 'secondary',
+      defaultColSpan: 8,
+      defaultRowSpan: 5,
+      minColSpan: 4,
+      maxColSpan: 8,
+      minRowSpan: 3,
+      maxRowSpan: 12,
+      render: () => <GoogleCampaignsBlock workerPlatformQuery={workerPlatformQuery} />,
+    }
+    const [metrics, ...rest] = GOOGLE_DASHBOARD_BLOCKS
+    return [metrics, treeBlock, ...rest]
+  }, [workerPlatformQuery])
+
   return (
     <div className="flex min-h-full min-w-0 flex-col">
       <GoogleAdsPageHeader
         workerPlatformQuery={workerPlatformQuery}
         onWorkerPlatformQueryChange={onWorkerPlatformQueryChange}
-        periodSubtitle={periodSubtitle}
       />
       <div className="min-h-0 flex-1">
-        <DashboardGrid pageId="GoogleAds" definitions={GOOGLE_DASHBOARD_BLOCKS} className="min-h-full" />
+        <DashboardGrid definitions={definitions} className="min-h-full" />
       </div>
     </div>
   )
@@ -948,7 +1101,16 @@ export default function GoogleAds() {
     typeof window !== 'undefined' ? readWorkerGoogleAdsQueryFromStorage() : ''
   )
   const { activeOrgId } = useOrgWorkspace()
-  const { dateRange, compareDateRange, comparePrimaryKpi } = useDashboardFilters()
+  const { dateRange, compareDateRange, comparePrimaryKpi, dimensionFilters } = useDashboardFilters()
+
+  // Traduz seleção do FilterBar em params do overview (campanha explícita ganha de tipo/objetivo).
+  const apiFilters = useMemo(() => {
+    const f = {}
+    if (dimensionFilters.objetivo?.campaignIds?.length) f.campaignIds = dimensionFilters.objetivo.campaignIds
+    if (dimensionFilters.campanha?.id) f.campaignIds = [dimensionFilters.campanha.id]
+    if (dimensionFilters.children?.id) f.adGroupId = dimensionFilters.children.id
+    return f
+  }, [dimensionFilters])
 
   const overviewUrl = useMemo(
     () =>
@@ -958,14 +1120,9 @@ export default function GoogleAds() {
         dateRange,
         compareDateRange,
         compareEnabled: comparePrimaryKpi,
+        filters: apiFilters,
       }),
-    [activeOrgId, workerPlatformQuery, dateRange, compareDateRange, comparePrimaryKpi]
-  )
-
-  const periodSubtitle = useMemo(
-    () =>
-      `${format(dateRange.start, 'd MMM', { locale: ptBR })} – ${format(dateRange.end, 'd MMM yyyy', { locale: ptBR })} · período do filtro`,
-    [dateRange.start, dateRange.end]
+    [activeOrgId, workerPlatformQuery, dateRange, compareDateRange, comparePrimaryKpi, apiFilters]
   )
 
   return (
@@ -973,7 +1130,6 @@ export default function GoogleAds() {
       <GoogleAdsInner
         workerPlatformQuery={workerPlatformQuery}
         onWorkerPlatformQueryChange={setWorkerPlatformQuery}
-        periodSubtitle={periodSubtitle}
       />
     </PlatformOverviewProvider>
   )
