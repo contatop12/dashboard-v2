@@ -172,6 +172,6 @@ export default function Demographics() {
           ))}
         </div>
       </div>
-    </div>
+    </BlockCard>
   )
 }

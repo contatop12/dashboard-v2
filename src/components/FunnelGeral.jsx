@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 
 const ORIENTATIONS = ['horizontal', 'vertical']
 
-export default function FunnelGeral() {
+export default function FunnelGeral({ embedded = false }) {
   const [orientation, setOrientation] = useState('horizontal')
   const [hoveredIndex, setHoveredIndex] = useState(null)
 
@@ -21,7 +21,12 @@ export default function FunnelGeral() {
   }))
 
   return (
-    <div className="bg-surface-card border border-surface-border rounded-lg p-4 flex flex-col gap-3 h-full">
+    <div
+      className={cn(
+        'flex h-full flex-col gap-3',
+        embedded ? 'meta-analysis-cell min-h-0' : 'rounded-lg border border-surface-border bg-surface-card p-4'
+      )}
+    >
       <div className="flex items-center justify-between shrink-0">
         <span className="section-title">Funil Geral</span>
         <div className="flex items-center gap-2">
@@ -59,7 +64,11 @@ export default function FunnelGeral() {
           onHoverChange={setHoveredIndex}
           edges="curved"
           className="w-full"
-          style={orientation === 'horizontal' ? { aspectRatio: '2.2/1' } : { aspectRatio: '1/1.6', maxWidth: '320px', margin: '0 auto' }}
+          style={
+            orientation === 'horizontal'
+              ? { aspectRatio: embedded ? '3.2/1' : '2.2/1' }
+              : { aspectRatio: '1/1.6', maxWidth: embedded ? '100%' : '320px', margin: '0 auto' }
+          }
         />
       </div>
 

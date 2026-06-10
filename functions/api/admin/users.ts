@@ -196,3 +196,55 @@ export async function onRequestPatch(context: {
 
   return json({ ok: true })
 }
+
+export async function onRequestDelete(context: {
+  request: Request
+  env: Env
+  data: { user?: UserRow | null }
+}): Promise<Response> {
+  const admin = context.data.user
+  if (!admin) return jsonError('Não autorizado', 401)
+  if (admin.role !== 'super_admin') return jsonError('Apenas super admin', 403)
+
+  let body: { user_id?: string }
+  try {
+    body = await context.request.json()
+  } catch {
+    return jsonError('JSON inválido', 400)
+  }
+
+  const userId = String(body.user_id ?? '').trim()
+  if (!userId) return jsonError('user_id obrigatório', 400)
+  if (userId === admin.id) return jsonError('Não é possível excluir a si mesmo', 400)
+
+  const target = await context.env.DB.prepare(
+    `SELECT id, email, role FROM users WHERE id = ? LIMIT 1`
+  )
+    .bind(userId)
+    .first<{ id: string; email: string; role: string }>()
+  if (!target || target.role !== 'client') return jsonError('Cliente não encontrado', 404)
+
+  const orgRow = await context.env.DB.prepare(
+    `SELECT o.id as org_id, o.name as org_name FROM organizations o
+     INNER JOIN organization_members m ON m.org_id = o.id AND m.user_id = ? AND m.role = 'owner'
+     LIMIT 1`
+  )
+    .bind(userId)
+    .first<{ org_id: string; org_name: string }>()
+
+  if (orgRow?.org_id) {
+    await context.env.DB.prepare(`DELETE FROM organizations WHERE id = ?`).bind(orgRow.org_id).run()
+  }
+
+  await context.env.DB.prepare(`DELETE FROM users WHERE id = ? AND role = 'client'`).bind(userId).run()
+
+  return json({
+    ok: true,
+    deleted: {
+      user_id: userId,
+      email: target.email,
+      org_id: orgRow?.org_id ?? null,
+      org_name: orgRow?.org_name ?? null,
+    },
+  })
+}

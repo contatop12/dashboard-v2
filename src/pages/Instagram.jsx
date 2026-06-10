@@ -1,4 +1,4 @@
-import { Instagram, Heart, MessageCircle, Share2, Users, TrendingUp, TrendingDown, Eye, Bookmark, UserPlus, Film, Image, Grid } from 'lucide-react'
+import { Heart, MessageCircle, Share2, Users, TrendingUp, TrendingDown, Eye, Bookmark, UserPlus, Film, Image, Grid } from 'lucide-react'
 import CreativesCarousel from '@/components/CreativesCarousel'
 import { cn } from '@/lib/utils'
 import { formatNumber, formatPercent } from '@/lib/utils'
@@ -420,27 +420,25 @@ const IG_DASHBOARD_BLOCKS = [
 
 function InstagramPageHeader() {
   return (
-    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-4">
-      <div className="flex w-full min-w-0 flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div
-            className="flex items-center gap-2 rounded-lg px-4 py-2"
-            style={{
-              background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
-              opacity: 0.9,
-            }}
-          >
-            <Instagram size={14} className="text-white" />
-            <span className="text-xs font-sans font-semibold text-white">Instagram</span>
-          </div>
-          <span className="text-xs font-sans text-muted-foreground">Janeiro 2025</span>
+    <header className="shrink-0 border-b border-white/[0.06] py-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-pink-400">
+            Instagram
+          </span>
+          <span className="text-white/20" aria-hidden>
+            ·
+          </span>
+          <SuperAdminAccountTitle
+            endpoint="/api/admin/platform/instagram-overview"
+            emptyLabel="@usuário"
+            className="min-w-0 max-w-[min(100%,20rem)] text-left"
+            size="sm"
+          />
         </div>
-        <SuperAdminAccountTitle
-          endpoint="/api/admin/platform/instagram-overview"
-          emptyLabel="@usuário do Instagram"
-          className="w-full min-w-0 text-left"
-        />
-        <ChannelAccountPicker provider="instagram" className="shrink-0" />
+        <div className="ml-auto flex shrink-0 items-center">
+          <ChannelAccountPicker provider="instagram" className="shrink-0" />
+        </div>
       </div>
     </header>
   )
@@ -451,7 +449,7 @@ export default function InstagramPage() {
     <div className="flex min-h-full min-w-0 flex-col">
       <InstagramPageHeader />
       <div className="min-h-0 flex-1">
-        <DashboardGrid pageId="Instagram" definitions={IG_DASHBOARD_BLOCKS} className="min-h-full" />
+        <DashboardGrid definitions={IG_DASHBOARD_BLOCKS} className="min-h-full" />
       </div>
     </div>
   )

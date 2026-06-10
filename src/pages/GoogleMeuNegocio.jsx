@@ -1,4 +1,4 @@
-import { MapPin, Eye, Phone, Navigation, Star, Search, TrendingUp, TrendingDown, Globe, MessageSquare } from 'lucide-react'
+import { Eye, Phone, Navigation, Star, Search, TrendingUp, TrendingDown, Globe, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/utils'
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
@@ -294,28 +294,30 @@ const GMB_DASHBOARD_BLOCKS = [
 
 function GoogleMeuNegocioPageHeader() {
   return (
-    <header className="shrink-0 border-b border-surface-border bg-[#0F0F0F] px-4 py-4">
-      <div className="flex w-full min-w-0 flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 rounded-lg border border-[#34A853]/30 bg-[#34A853]/15 px-4 py-2">
-              <MapPin size={14} className="text-[#34A853]" />
-              <span className="text-xs font-sans font-semibold text-[#34A853]">Google Meu Negócio</span>
-            </div>
-            <span className="text-xs font-sans text-muted-foreground">Janeiro 2025</span>
-          </div>
-          <div className="flex shrink-0 items-center gap-2 rounded-md border border-yellow-400/30 bg-yellow-400/10 px-2 py-2">
-            <Star size={11} className="text-yellow-400" fill="currentColor" />
-            <span className="font-mono text-xs font-semibold text-yellow-400">4.8</span>
+    <header className="shrink-0 border-b border-white/[0.06] py-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#34A853]">
+            Google Meu Negócio
+          </span>
+          <span className="text-white/20" aria-hidden>
+            ·
+          </span>
+          <SuperAdminAccountTitle
+            className="min-w-0 max-w-[min(100%,20rem)] text-left"
+            size="sm"
+            endpoint="/api/admin/platform/google-business-overview"
+            emptyLabel="Perfil Google Business"
+          />
+        </div>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-md border border-yellow-400/20 bg-yellow-400/5 px-2 py-1">
+            <Star size={10} className="text-yellow-400" fill="currentColor" />
+            <span className="font-mono text-[11px] font-semibold text-yellow-400">4.8</span>
             <span className="font-sans text-[10px] text-muted-foreground">(148)</span>
           </div>
+          <ChannelAccountPicker provider="google_business" className="shrink-0" />
         </div>
-        <SuperAdminAccountTitle
-          className="w-full min-w-0 text-left"
-          endpoint="/api/admin/platform/google-business-overview"
-          emptyLabel="Nome do perfil (Google Business)"
-        />
-        <ChannelAccountPicker provider="google_business" className="shrink-0" />
       </div>
     </header>
   )
@@ -326,7 +328,7 @@ export default function GoogleMeuNegocio() {
     <div className="flex min-h-full min-w-0 flex-col">
       <GoogleMeuNegocioPageHeader />
       <div className="min-h-0 flex-1">
-        <DashboardGrid pageId="GoogleMeuNegocio" definitions={GMB_DASHBOARD_BLOCKS} className="min-h-full" />
+        <DashboardGrid definitions={GMB_DASHBOARD_BLOCKS} className="min-h-full" />
       </div>
     </div>
   )

@@ -7,7 +7,6 @@ import DashboardGrid from './components/DashboardGrid'
 import { GERAL_DASHBOARD_BLOCKS } from './dashboard/geralBlocks'
 import { useAuth } from './context/AuthContext'
 import { DashboardFiltersProvider } from './context/DashboardFiltersContext'
-import Login from './pages/Login'
 
 // Pages
 import MetaAds from './pages/MetaAds'
@@ -18,20 +17,20 @@ import Configuracoes from './pages/Configuracoes'
 import Clientes from './pages/Clientes'
 
 function GeralPage() {
-  return <DashboardGrid pageId="Geral" definitions={GERAL_DASHBOARD_BLOCKS} className="min-h-full" />
+  return <DashboardGrid definitions={GERAL_DASHBOARD_BLOCKS} className="min-h-full" />
 }
 
-function Splash() {
+function Splash({ message = 'Carregando sessão…' }) {
   return (
-    <div className="min-h-screen bg-[#0F0F0F] flex flex-col items-center justify-center gap-4">
+    <div className="min-h-screen bg-[#0F0F0F] flex flex-col items-center justify-center gap-4 px-4">
       <div className="w-9 h-9 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-      <p className="text-xs text-muted-foreground font-sans">Carregando sessão…</p>
+      <p className="text-xs text-muted-foreground font-sans text-center">{message}</p>
     </div>
   )
 }
 
 export default function App() {
-  const { user, loading } = useAuth()
+  const { user, loading, accessError } = useAuth()
   const [activePage, setActivePage] = useState('Geral')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -67,8 +66,12 @@ export default function App() {
     Clientes,
   }
 
-  if (loading) return <Splash />
-  if (!user) return <Login />
+  if (loading || !user) {
+    if (!loading && accessError) {
+      return <Splash message={accessError} />
+    }
+    return <Splash message={loading ? 'Carregando sessão…' : 'Redirecionando para Cloudflare Access…'} />
+  }
 
   const effectivePage =
     activePage === 'Clientes' && user.role !== 'super_admin' ? 'Geral' : activePage

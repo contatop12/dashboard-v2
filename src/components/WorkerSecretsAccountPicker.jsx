@@ -42,7 +42,7 @@ export function readWorkerGoogleAdsQueryFromStorage() {
  * Super admin, sem organização ativa (modo secrets): lista contas da API e persiste escolha em localStorage.
  * O pai deve inicializar `workerPlatformQuery` com `readWorker*FromStorage()` e passar `setWorkerPlatformQuery` aqui.
  */
-export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChange }) {
+export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChange, compact = false }) {
   const { user } = useAuth()
   const { activeOrgId } = useOrgWorkspace()
   const [accounts, setAccounts] = useState([])
@@ -160,6 +160,41 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
     }
   }, [user?.role, activeOrgId, listEndpoint])
 
+  useEffect(() => {
+    if (loading || accounts.length === 0 || user?.role !== 'super_admin' || activeOrgId) return
+
+    const normSelected = (raw) => {
+      if (!raw) return ''
+      return provider === 'meta_ads'
+        ? normalizeWorkerMetaActId(raw)
+        : String(raw).replace(/\D/g, '')
+    }
+
+    const current = normSelected(selected)
+    const currentRow = current
+      ? accounts.find((a) => {
+          const id =
+            provider === 'meta_ads'
+              ? normalizeWorkerMetaActId(a.id)
+              : String(a.id).replace(/\D/g, '')
+          return id === current
+        })
+      : null
+
+    const isValidClient = currentRow && !currentRow.isManager
+    if (isValidClient) return
+
+    const firstClient = accounts.find((a) => !a.isManager)
+    if (!firstClient) return
+
+    const val =
+      provider === 'meta_ads'
+        ? normalizeWorkerMetaActId(firstClient.id)
+        : String(firstClient.id).replace(/\D/g, '')
+    setSelected(val)
+    emitQuery(val)
+  }, [accounts, loading, selected, provider, emitQuery, user?.role, activeOrgId])
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return accounts
@@ -199,6 +234,79 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
   const label =
     provider === 'meta_ads' ? 'Conta de anúncios (secrets)' : 'Cliente Google Ads (secrets)'
 
+  const selectEl = (
+    <div className="relative min-w-0 flex-1">
+      <select
+        value={selectValue}
+        onChange={onSelectChange}
+        disabled={loading}
+        className={cn(
+          'channel-account-select w-full appearance-none cursor-pointer rounded-md border border-surface-border bg-[#141414] text-white font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50',
+          compact ? 'py-1.5 pl-2.5 pr-8 text-[11px]' : 'py-2.5 pl-3 pr-9 text-xs'
+        )}
+        aria-label={label}
+      >
+        <option value="">
+          {provider === 'meta_ads'
+            ? 'Padrão (.env ou primeira conta)'
+            : 'Selecione a conta Google…'}
+        </option>
+        {selected && !savedInList && (
+          <option
+            value={
+              provider === 'meta_ads'
+                ? normalizeWorkerMetaActId(selected)
+                : String(selected).replace(/\D/g, '')
+            }
+          >
+            {provider === 'meta_ads' ? normalizeWorkerMetaActId(selected) : `Salvo: ${selected}`}
+          </option>
+        )}
+        {filtered.map((a) => {
+          const val =
+            provider === 'meta_ads' ? normalizeWorkerMetaActId(a.id) : String(a.id).replace(/\D/g, '')
+          const suffix = a.isManager ? ' — MCC' : ''
+          return (
+            <option key={val} value={val}>
+              {a.name} ({val}){suffix}
+            </option>
+          )
+        })}
+      </select>
+      <ChevronDown
+        size={compact ? 12 : 14}
+        className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+      />
+    </div>
+  )
+
+  if (compact) {
+    return (
+      <div className="flex min-w-[10rem] max-w-md flex-1 items-center gap-1.5 sm:min-w-[14rem]">
+        {accounts.length > 8 ? (
+          <div className="relative hidden sm:block">
+            <Search
+              size={11}
+              className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar…"
+              className="w-24 rounded-md border border-surface-border bg-[#141414] py-1.5 pl-7 pr-2 text-[10px] text-white placeholder:text-muted-foreground focus:border-brand/40 focus:outline-none font-sans"
+            />
+          </div>
+        ) : null}
+        {selectEl}
+        {loading ? <span className="sr-only">Carregando contas</span> : null}
+        {err ? (
+          <span className="sr-only">{err}</span>
+        ) : null}
+      </div>
+    )
+  }
+
   return (
     <div className="flex w-full min-w-0 flex-col gap-2 rounded-lg border border-surface-border bg-surface-input/40 p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -220,47 +328,7 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
           className="w-full rounded-md border border-surface-border bg-[#141414] py-2 pl-8 pr-3 text-xs text-white placeholder:text-muted-foreground focus:border-brand/40 focus:outline-none font-sans"
         />
       </div>
-      <div className="relative">
-        <select
-          value={selectValue}
-          onChange={onSelectChange}
-          disabled={loading}
-          className={cn(
-            'channel-account-select w-full appearance-none cursor-pointer rounded-md border border-surface-border bg-[#141414] py-2.5 pl-3 pr-9 text-xs text-white font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50'
-          )}
-          aria-label={label}
-        >
-          <option value="">
-            {provider === 'meta_ads'
-              ? 'Padrão (.env ou primeira conta)'
-              : 'Padrão (.env ou selecione um cliente)'}
-          </option>
-          {selected && !savedInList && (
-            <option
-              value={
-                provider === 'meta_ads'
-                  ? normalizeWorkerMetaActId(selected)
-                  : String(selected).replace(/\D/g, '')
-              }
-            >
-              {provider === 'meta_ads' ? normalizeWorkerMetaActId(selected) : `Salvo: ${selected}`}
-            </option>
-          )}
-          {filtered.map((a) => {
-            const val =
-              provider === 'meta_ads' ? normalizeWorkerMetaActId(a.id) : String(a.id).replace(/\D/g, '')
-            return (
-              <option key={val} value={val}>
-                {a.name} ({val})
-              </option>
-            )
-          })}
-        </select>
-        <ChevronDown
-          size={14}
-          className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-        />
-      </div>
+      {selectEl}
       {err ? <p className="text-[10px] text-amber-200/90 font-sans">{err}</p> : null}
       {!loading && accounts.length === 0 && !err ? (
         <p className="text-[10px] text-muted-foreground font-sans">

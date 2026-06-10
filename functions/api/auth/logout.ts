@@ -1,26 +1,15 @@
-import type { D1Database } from '@cloudflare/workers-types'
-import type { UserRow } from '../../_lib/auth'
 import { json } from '../../_lib/json'
-import {
-  getSessionIdFromRequest,
-  buildClearCookieHeader,
-} from '../../_lib/session'
-interface Env {
-  DB: D1Database
-}
+import type { WorkerEnv } from '../../_lib/worker-env'
 
 export async function onRequestPost(context: {
   request: Request
-  env: Env
-  data: { user?: UserRow | null }
+  env: WorkerEnv
 }): Promise<Response> {
-  const { request, env, data } = context
-  const sid = getSessionIdFromRequest(request)
-  if (sid) {
-    await env.DB.prepare(`DELETE FROM sessions WHERE id = ?`).bind(sid).run()
-  }
-  const res = json({ ok: true })
-  res.headers.append('Set-Cookie', buildClearCookieHeader(request))
-  void data
-  return res
+  const { request, env } = context
+  const team = env.CF_ACCESS_TEAM_DOMAIN?.trim()
+  const origin = new URL(request.url).origin
+  const logoutUrl = team
+    ? `https://${team}/cdn-cgi/access/logout?redirect_url=${encodeURIComponent(origin)}`
+    : null
+  return json({ ok: true, logoutUrl })
 }

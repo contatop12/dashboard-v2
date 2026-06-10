@@ -132,11 +132,15 @@ export function blockLayoutStorageKey(pageId) {
   return `${STORAGE_PREFIX}${pageId}`
 }
 
+const RGL_STORAGE_PREFIX = 'dashboard-rgl2-'
+
 export function clearAllBlockLayouts() {
   try {
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i)
-      if (k && k.startsWith(STORAGE_PREFIX)) localStorage.removeItem(k)
+      if (k && (k.startsWith(STORAGE_PREFIX) || k.startsWith(RGL_STORAGE_PREFIX))) {
+        localStorage.removeItem(k)
+      }
     }
   } catch { /* ignore */ }
 }

@@ -9,7 +9,8 @@
  *                                Access: Organizations Read, Account Settings Read
  *   CLOUDFLARE_ACCOUNT_ID        Cloudflare account id
  *   ACCESS_APP_DOMAIN            custom domain the app is served on (e.g. dashboard.p12digital.com.br)
- *   ACCESS_ALLOWED_EMAIL_DOMAIN  email domain allowed to log in (e.g. p12digital.com.br)
+ *   ACCESS_ALLOWED_EMAILS        comma-separated emails (default: ryansantiago@ and danilo@ @p12digital.com.br)
+ *   ACCESS_ALLOWED_EMAIL_DOMAIN  legacy fallback if ACCESS_ALLOWED_EMAILS unset (e.g. p12digital.com.br)
  *
  * Optional env:
  *   ACCESS_APP_NAME              default "P12 Dashboard"
@@ -29,7 +30,14 @@ const API = 'https://api.cloudflare.com/client/v4'
 const token = req('CLOUDFLARE_API_TOKEN')
 const accountId = req('CLOUDFLARE_ACCOUNT_ID')
 const appDomain = req('ACCESS_APP_DOMAIN')
-const emailDomain = req('ACCESS_ALLOWED_EMAIL_DOMAIN')
+const allowedEmailsRaw =
+  process.env.ACCESS_ALLOWED_EMAILS?.trim() ||
+  'ryansantiago@p12digital.com.br,danilo@p12digital.com.br'
+const allowedEmails = allowedEmailsRaw
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean)
+const emailDomain = process.env.ACCESS_ALLOWED_EMAIL_DOMAIN?.trim()
 const appName = process.env.ACCESS_APP_NAME || 'P12 Dashboard'
 const sessionDuration = process.env.ACCESS_SESSION_DURATION || '2h'
 const idpMatch = (process.env.ACCESS_IDP_MATCH || 'google').toLowerCase()
@@ -63,7 +71,9 @@ async function api(path, init = {}) {
 
 async function main() {
   console.log(`→ Account: ${accountId}`)
-  console.log(`→ App domain: ${appDomain} · session: ${sessionDuration} · allow @${emailDomain}\n`)
+  console.log(
+    `→ App domain: ${appDomain} · session: ${sessionDuration} · allow: ${allowedEmails.join(', ')}\n`
+  )
 
   // 1. Team auth domain (the <team>.cloudflareaccess.com used for JWT issuer/JWKS)
   const org = await api(`/accounts/${accountId}/access/organizations`)
@@ -71,16 +81,31 @@ async function main() {
   if (!teamDomain) throw new Error('Could not resolve team auth_domain — is Zero Trust enabled on this account?')
   console.log(`✓ Team domain: ${teamDomain}`)
 
-  // 2. Find a Google identity provider (optional but recommended)
+  // 2. Identity provider — OTP por e-mail (funciona com política por e-mail) ou Google se existir
   const idps = await api(`/accounts/${accountId}/access/identity_providers`)
   const google = (idps || []).find((p) => String(p.name || '').toLowerCase().includes(idpMatch) || p.type === 'google' || p.type === 'google-apps')
+  let otp = (idps || []).find((p) => p.type === 'onetimepin')
+
   if (google) {
     console.log(`✓ Identity provider: ${google.name} (${google.id})`)
-  } else {
-    console.log(`! No Google IdP found. Add one in Zero Trust → Settings → Authentication, then re-run.`)
-    console.log(`  Continuing — the app will be created allowing all configured login methods.`)
+  } else if (!otp && !dryRun) {
+    console.log('+ Creating One-time PIN identity provider')
+    otp = await api(`/accounts/${accountId}/access/identity_providers`, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Login por e-mail (PIN)', type: 'onetimepin', config: {} }),
+    })
+    console.log(`✓ One-time PIN IdP (${otp.id})`)
+  } else if (otp) {
+    console.log(`✓ One-time PIN IdP (${otp.id})`)
+  } else if (dryRun) {
+    console.log('  [DRY_RUN] would create One-time PIN IdP')
   }
-  const allowedIdps = google ? [google.id] : undefined
+
+  const loginIdp = google || otp
+  const allowedIdps = loginIdp ? [loginIdp.id] : undefined
+  if (!loginIdp && !dryRun) {
+    console.log('! Nenhum IdP disponível — configure Google em Zero Trust → Authentication')
+  }
 
   // 3. Reuse or create the Access application for this domain
   const apps = await api(`/accounts/${accountId}/access/apps`)
@@ -91,7 +116,7 @@ async function main() {
     domain: appDomain,
     type: 'self_hosted',
     session_duration: sessionDuration,
-    auto_redirect_to_identity: !!google,
+    auto_redirect_to_identity: !!loginIdp,
     ...(allowedIdps ? { allowed_idps: allowedIdps } : {}),
     app_launcher_visible: true,
   }
@@ -108,12 +133,18 @@ async function main() {
     }
   }
 
-  // 4. Allow policy: only the org's email domain (via Google IdP when present)
-  const policyPayload = {
-    name: `Allow @${emailDomain}`,
-    decision: 'allow',
-    include: [{ email_domain: { domain: emailDomain } }],
-  }
+  // 4. Allow policy: only explicit emails (or legacy email domain)
+  const policyPayload = allowedEmails.length
+    ? {
+        name: `Allow ${allowedEmails.length} email(s)`,
+        decision: 'allow',
+        include: allowedEmails.map((email) => ({ email: { email } })),
+      }
+    : {
+        name: `Allow @${emailDomain}`,
+        decision: 'allow',
+        include: [{ email_domain: { domain: emailDomain } }],
+      }
   if (app && !dryRun) {
     const policies = await api(`/accounts/${accountId}/access/apps/${app.id}/policies`).catch(() => [])
     const existing = (policies || []).find((p) => p.name === policyPayload.name)

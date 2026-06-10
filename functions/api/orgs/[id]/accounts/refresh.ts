@@ -7,6 +7,11 @@ import {
   decryptMetaAccessToken,
   getValidGoogleAccessTokenFromCredential,
 } from '../../../../_lib/org-platform-credentials'
+import {
+  fetchListAccessibleCustomers,
+  resolveCustomerNames,
+  resolveGoogleApiVersion,
+} from '../../../../_lib/google-ads-env'
 
 async function upsertConnection(
   db: D1Database,
@@ -60,8 +65,7 @@ export async function onRequestPost(context: {
   const db = context.env.DB
   const env = context.env
   const devToken = env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim()
-  const rawVer = env.GOOGLE_ADS_API_VERSION?.trim() || 'v17'
-  const ver = rawVer.startsWith('v') ? rawVer : `v${rawVer}`
+  const ver = resolveGoogleApiVersion(env)
 
   let added = 0
   let updated = 0
@@ -156,52 +160,16 @@ export async function onRequestPost(context: {
     const googleToken = await getValidGoogleAccessTokenFromCredential(db, env, credId)
 
     if (googleToken && devToken) {
-      const adsR = await fetch(
-        `https://googleads.googleapis.com/${ver}/customers:listAccessibleCustomers`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${googleToken}`,
-            'Content-Type': 'application/json',
-            'developer-token': devToken,
-          },
-          body: '{}',
-        }
-      )
-      const adsD = (await adsR.json()) as { resourceNames?: string[] }
-      const rns = (adsD.resourceNames ?? []).slice(0, 50)
-
-      const nameResults = await Promise.all(
-        rns.map(async (rn) => {
-          const id = rn.replace('customers/', '').replace(/-/g, '')
-          let name: string | null = null
-          try {
-            const sr = await fetch(
-              `https://googleads.googleapis.com/${ver}/customers/${id}/googleAds:search`,
-              {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${googleToken}`,
-                  'developer-token': devToken,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  query: 'SELECT customer.id, customer.descriptive_name FROM customer LIMIT 1',
-                }),
-              }
-            )
-            if (sr.ok) {
-              const sd = (await sr.json()) as {
-                results?: Array<{ customer?: { descriptiveName?: string } }>
-              }
-              name = sd.results?.[0]?.customer?.descriptiveName?.trim() || null
-            }
-          } catch {
-            // skip — use fallback name
-          }
-          return { id, name }
-        })
-      )
+      const listed = await fetchListAccessibleCustomers(googleToken, devToken, ver)
+      const rns = listed.resourceNames.slice(0, 50)
+      const nameResults = listed.error
+        ? rns.map((rn) => {
+            const id = rn.replace('customers/', '').replace(/-/g, '')
+            return { id, name: null as string | null }
+          })
+        : await resolveCustomerNames(googleToken, devToken, ver, rns, undefined, 50).then((rows) =>
+            rows.map(({ id, name }) => ({ id, name }))
+          )
 
       for (const { id, name } of nameResults) {
         const r = await upsertConnection(

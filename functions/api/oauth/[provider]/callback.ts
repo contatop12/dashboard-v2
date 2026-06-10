@@ -2,6 +2,11 @@ import type { D1Database } from '@cloudflare/workers-types'
 import type { WorkerEnv } from '../../../_lib/worker-env'
 import { verifyOAuthState } from '../../../_lib/oauth-state'
 import { encryptTokenForStorage } from '../../../_lib/token-crypto'
+import {
+  fetchListAccessibleCustomers,
+  resolveCustomerNames,
+  resolveGoogleApiVersion,
+} from '../../../_lib/google-ads-env'
 
 function redirectWithFlash(request: Request, params: Record<string, string>): Response {
   const u = new URL('/', request.url)
@@ -190,8 +195,7 @@ async function finishGoogle(
   const clientId = env.GOOGLE_ADS_CLIENT_ID!.trim()
   const clientSecret = env.GOOGLE_ADS_CLIENT_SECRET!.trim()
   const devToken = env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim()
-  const rawVer = env.GOOGLE_ADS_API_VERSION?.trim() || 'v17'
-  const ver = rawVer.startsWith('v') ? rawVer : `v${rawVer}`
+  const ver = resolveGoogleApiVersion(env)
 
   const body = new URLSearchParams({
     code,
@@ -237,50 +241,10 @@ async function finishGoogle(
   const access = td.access_token
 
   if (devToken) {
-    const adsUrl = `https://googleads.googleapis.com/${ver}/customers:listAccessibleCustomers`
-    const adsR = await fetch(adsUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${access}`,
-        'Content-Type': 'application/json',
-        'developer-token': devToken,
-      },
-      body: '{}',
-    })
-    const adsD = (await adsR.json()) as { resourceNames?: string[] }
-    if (adsR.ok && adsD.resourceNames?.length) {
-      const rns = adsD.resourceNames.slice(0, 50)
-      const nameResults = await Promise.all(
-        rns.map(async (rn) => {
-          const id = rn.replace('customers/', '').replace(/-/g, '')
-          let name: string | null = null
-          try {
-            const sr = await fetch(
-              `https://googleads.googleapis.com/${ver}/customers/${id}/googleAds:search`,
-              {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${access}`,
-                  'developer-token': devToken,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  query: 'SELECT customer.id, customer.descriptive_name FROM customer LIMIT 1',
-                }),
-              }
-            )
-            if (sr.ok) {
-              const sd = (await sr.json()) as {
-                results?: Array<{ customer?: { descriptiveName?: string } }>
-              }
-              name = sd.results?.[0]?.customer?.descriptiveName?.trim() || null
-            }
-          } catch {
-            // skip — use fallback name
-          }
-          return { id, name }
-        })
-      )
+    const listed = await fetchListAccessibleCustomers(access, devToken, ver)
+    if (!listed.error && listed.resourceNames.length) {
+      const rns = listed.resourceNames.slice(0, 50)
+      const nameResults = await resolveCustomerNames(access, devToken, ver, rns, undefined, 50)
       for (const { id, name } of nameResults) {
         await insertConnection(db, orgId, 'google_ads', id, name ?? `Cliente ${id}`, credId)
       }

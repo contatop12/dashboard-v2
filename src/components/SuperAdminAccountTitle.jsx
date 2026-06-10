@@ -17,6 +17,7 @@ export default function SuperAdminAccountTitle({
   className,
   workerPlatformQuery = '',
   syncOverviewDates = false,
+  size = 'default',
 }) {
   const { user } = useAuth()
   const { platformApiSuffix, activeOrgId } = useOrgWorkspace()
@@ -99,7 +100,8 @@ export default function SuperAdminAccountTitle({
     >
       <p
         className={cn(
-          'truncate font-sans text-base font-semibold leading-tight text-white sm:text-lg',
+          'truncate font-sans font-medium leading-tight text-white',
+          size === 'sm' ? 'text-sm' : 'text-base font-semibold sm:text-lg',
           alignLeft ? 'text-left' : 'text-right'
         )}
       >

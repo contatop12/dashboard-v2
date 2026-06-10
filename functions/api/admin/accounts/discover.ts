@@ -3,6 +3,7 @@ import type { UserRow } from '../../../_lib/auth'
 import { requireSuperAdmin } from '../../../_lib/admin-guard'
 import { json } from '../../../_lib/json'
 import { getGoogleAccessTokenFromEnv } from '../../../_lib/google-access-token'
+import { listGoogleAdsAccountsFromEnv } from '../../../_lib/google-ads-env'
 
 type DiscoverResult = {
   meta_ads: number
@@ -93,67 +94,16 @@ export async function onRequestPost(context: {
     }
   }
 
-  const devToken = env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim()
-  const rawVer = env.GOOGLE_ADS_API_VERSION?.trim() || 'v17'
-  const ver = rawVer.startsWith('v') ? rawVer : `v${rawVer}`
   const googleAccess = await getGoogleAccessTokenFromEnv(env)
 
   if (googleAccess) {
-    if (devToken) {
-      const adsR = await fetch(
-        `https://googleads.googleapis.com/${ver}/customers:listAccessibleCustomers`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${googleAccess}`,
-            'Content-Type': 'application/json',
-            'developer-token': devToken,
-          },
-          body: '{}',
-        }
-      )
-      const adsD = (await adsR.json()) as { resourceNames?: string[] }
-      const rns = (adsD.resourceNames ?? []).slice(0, 50)
-
-      const nameResults = await Promise.all(
-        rns.map(async (rn) => {
-          const id = rn.replace('customers/', '').replace(/-/g, '')
-          let name: string | null = null
-          try {
-            const sr = await fetch(
-              `https://googleads.googleapis.com/${ver}/customers/${id}/googleAds:search`,
-              {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${googleAccess}`,
-                  'developer-token': devToken,
-                  'Content-Type': 'application/json',
-                  ...(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.trim()
-                    ? { 'login-customer-id': env.GOOGLE_ADS_LOGIN_CUSTOMER_ID.trim() }
-                    : {}),
-                },
-                body: JSON.stringify({
-                  query: 'SELECT customer.id, customer.descriptive_name FROM customer LIMIT 1',
-                }),
-              }
-            )
-            if (sr.ok) {
-              const sd = (await sr.json()) as {
-                results?: Array<{ customer?: { descriptiveName?: string } }>
-              }
-              name = sd.results?.[0]?.customer?.descriptiveName?.trim() || null
-            }
-          } catch {
-            // skip — use fallback name
-          }
-          return { id, name }
-        })
-      )
-
-      for (const { id, name } of nameResults) {
-        await upsertAdminAccount(db, 'google_ads', id, name ?? `Cliente ${id}`)
-        result.google_ads++
-      }
+    const { accounts, error } = await listGoogleAdsAccountsFromEnv(env, googleAccess, { nameLimit: 200 })
+    if (error && accounts.length === 0) {
+      // continua com google_business mesmo se listagem Ads falhar
+    }
+    for (const { id, name } of accounts) {
+      await upsertAdminAccount(db, 'google_ads', id, name ?? `Cliente ${id}`)
+      result.google_ads++
     }
 
     const bmR = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {

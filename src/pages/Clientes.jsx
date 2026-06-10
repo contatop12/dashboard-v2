@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Users, Plus, X, Pencil, Building2 } from 'lucide-react'
+import { Users, Plus, X, Pencil, Building2, Trash2 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
+import OrgAccountAssignments from '@/components/OrgAccountAssignments'
 
 export default function Clientes() {
   const { user } = useAuth()
-  const { setActiveOrgId, refreshOrgs } = useOrgWorkspace()
+  const { setActiveOrgId, activeOrgId, refreshOrgs } = useOrgWorkspace()
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
@@ -25,6 +26,7 @@ export default function Clientes() {
   })
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -90,6 +92,46 @@ export default function Clientes() {
     }
   }
 
+  async function handleDeleteClient(row) {
+    const label = row.org_name || row.email || 'este cliente'
+    const ok = window.confirm(
+      `Excluir "${label}"?\n\nRemove a organização, contas atribuídas e o usuário de acesso. Esta ação não pode ser desfeita.`
+    )
+    if (!ok) return
+
+    setDeleting(true)
+    setEditError('')
+    try {
+      const r = await fetch('/api/admin/users', {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: row.user_id }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.error || 'Falha ao excluir')
+
+      if (editRow?.user_id === row.user_id) {
+        setEditOpen(false)
+        setEditRow(null)
+      }
+      if (row.org_id && activeOrgId === row.org_id) {
+        setActiveOrgId(null)
+      }
+      await load()
+      await refreshOrgs()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao excluir'
+      if (editOpen && editRow?.user_id === row.user_id) {
+        setEditError(msg)
+      } else {
+        window.alert(msg)
+      }
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   async function handleCreate(e) {
     e.preventDefault()
     setError('')
@@ -131,8 +173,9 @@ export default function Clientes() {
             <Users size={16} className="text-brand" />
             Clientes
           </div>
-          <p className="text-xs text-muted-foreground font-sans mt-1 max-w-lg">
-            Organizações com usuário cliente (owner). Edite nome da organização, dados do usuário ou redefina senha.
+          <p className="text-xs text-muted-foreground font-sans mt-1">
+            Organizações com usuário cliente (owner). Crie o cliente, atribua contas Meta/Google e edite dados de
+            acesso.
           </p>
         </div>
         <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -200,7 +243,7 @@ export default function Clientes() {
       <Dialog.Root open={editOpen} onOpenChange={setEditOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/70 z-[100]" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 z-[101] w-[min(100vw-2rem,420px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-surface-border bg-[#141414] p-5 shadow-xl">
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-[101] w-[min(100vw-2rem,480px)] max-h-[90vh] overflow-y-auto -translate-x-1/2 -translate-y-1/2 rounded-xl border border-surface-border bg-[#141414] p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <Dialog.Title className="text-sm font-display font-semibold text-white">Editar cliente</Dialog.Title>
               <Dialog.Close className="text-muted-foreground hover:text-white p-1 rounded-md">
@@ -226,13 +269,25 @@ export default function Clientes() {
                 </div>
               ))}
               {editError && <p className="text-xs text-red-400 font-sans">{editError}</p>}
-              <button
-                type="submit"
-                disabled={saving}
-                className="mt-2 bg-brand text-[#0F0F0F] text-sm font-semibold py-2 rounded-md disabled:opacity-60 font-sans"
-              >
-                {saving ? 'Salvando…' : 'Salvar alterações'}
-              </button>
+              {editRow?.org_id ? <OrgAccountAssignments orgId={editRow.org_id} /> : null}
+              <div className="flex flex-col gap-2 pt-1">
+                <button
+                  type="submit"
+                  disabled={saving || deleting}
+                  className="bg-brand text-[#0F0F0F] text-sm font-semibold py-2 rounded-md disabled:opacity-60 font-sans"
+                >
+                  {saving ? 'Salvando…' : 'Salvar alterações'}
+                </button>
+                <button
+                  type="button"
+                  disabled={saving || deleting}
+                  onClick={() => handleDeleteClient(editRow)}
+                  className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold py-2 rounded-md border border-red-500/40 text-red-400 hover:bg-red-500/10 disabled:opacity-50 font-sans"
+                >
+                  <Trash2 size={14} />
+                  {deleting ? 'Excluindo…' : 'Excluir cliente'}
+                </button>
+              </div>
             </form>
           </Dialog.Content>
         </Dialog.Portal>
@@ -275,10 +330,20 @@ export default function Clientes() {
                       <button
                         type="button"
                         onClick={() => openEdit(row)}
-                        className="inline-flex items-center gap-1 rounded-md border border-surface-border px-2 py-1 text-[10px] text-white hover:border-brand/40 hover:text-brand"
+                        className="mr-2 inline-flex items-center gap-1 rounded-md border border-surface-border px-2 py-1 text-[10px] text-white hover:border-brand/40 hover:text-brand"
                       >
                         <Pencil size={11} />
                         Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteClient(row)}
+                        disabled={deleting}
+                        className="inline-flex items-center gap-1 rounded-md border border-red-500/30 px-2 py-1 text-[10px] text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                        title="Excluir cliente e organização"
+                      >
+                        <Trash2 size={11} />
+                        Excluir
                       </button>
                     </td>
                   </tr>

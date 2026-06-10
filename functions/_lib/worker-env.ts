@@ -21,6 +21,8 @@ export type WorkerEnv = {
   GOOGLE_ADS_REFRESH_TOKEN?: string
   GOOGLE_ADS_CUSTOMER_ID?: string
   GOOGLE_ADS_LOGIN_CUSTOMER_ID?: string
+  /** Alias comum no .env para MCC (mapeado para login-customer-id). */
+  GOOGLE_ADS_MCC_ID?: string
 
   OAUTH_ENC_KEY?: string
   /** Se vazio, usa OAUTH_ENC_KEY para assinar o state (menos ideal). */
@@ -30,6 +32,8 @@ export type WorkerEnv = {
   CF_ACCESS_TEAM_DOMAIN?: string
   /** AUD tag da Access Application (Zero Trust). */
   CF_ACCESS_AUD?: string
+  /** E-mails permitidos (vírgula). Padrão: ryansantiago@ e danilo@ @p12digital.com.br */
+  ACCESS_ALLOWED_EMAILS?: string
   /** Setar (qualquer valor) desliga o header Content-Security-Policy — escape hatch se quebrar a SPA. */
   CSP_DISABLED?: string
 }

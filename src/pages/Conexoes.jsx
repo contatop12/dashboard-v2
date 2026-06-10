@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plug, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Plug, RefreshCw, Trash2 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 
@@ -46,7 +46,7 @@ function statusForChannel(connections, channelId) {
 
 export default function Conexoes() {
   const { user, loading: authLoading } = useAuth()
-  const { orgs, loading: loadingOrgs, refreshOrgs } = useOrgWorkspace()
+  const { orgs, loading: loadingOrgs, refreshOrgs, setActiveOrgId, activeOrgId } = useOrgWorkspace()
   const [orgId, setOrgId] = useState('')
   const [connections, setConnections] = useState([])
   const [loadingConn, setLoadingConn] = useState(false)
@@ -55,6 +55,7 @@ export default function Conexoes() {
   const [newOrgName, setNewOrgName] = useState('')
   const [creatingOrg, setCreatingOrg] = useState(false)
   const [createError, setCreateError] = useState('')
+  const [deletingOrg, setDeletingOrg] = useState(false)
 
   useEffect(() => {
     setOrgId((prev) => {
@@ -109,12 +110,34 @@ export default function Conexoes() {
     }
   }
 
-  const connectUrl = useMemo(() => {
-    return (oauthPath) => {
-      const q = new URLSearchParams({ org_id: orgId })
-      return `/api/oauth/${oauthPath}/start?${q}`
+  async function handleDeleteOrganization() {
+    if (!orgId) return
+    const org = orgs.find((o) => o.id === orgId)
+    const label = org?.name || 'esta organização'
+    const ok = window.confirm(
+      `Excluir "${label}"?\n\nRemove a organização e contas ligadas. Se houver usuário cliente owner, também será removido.`
+    )
+    if (!ok) return
+
+    setDeletingOrg(true)
+    setError('')
+    try {
+      const r = await fetch(`/api/admin/orgs/${encodeURIComponent(orgId)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Falha ao excluir')
+      if (activeOrgId === orgId) setActiveOrgId(null)
+      setOrgId('')
+      setConnections([])
+      await refreshOrgs()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao excluir organização')
+    } finally {
+      setDeletingOrg(false)
     }
-  }, [orgId])
+  }
 
   return (
     <div className="max-w-3xl flex flex-col gap-6 animate-fade-in">
@@ -125,9 +148,9 @@ export default function Conexoes() {
             Integrações
           </div>
           <p className="text-xs text-muted-foreground font-sans mt-1">
-            Ligações por <strong className="text-white/90">OAuth</strong> guardadas no D1 por organização. Isto é
-            independente dos <strong className="text-white/90">secrets</strong> do Worker (META_ACCESS_TOKEN, etc.)
-            usados no modo &quot;Ambiente Worker&quot;.
+            Contas Meta e Google são atribuídas pelo super admin em{' '}
+            <strong className="text-white/90">Clientes → Editar</strong>, usando os secrets do Worker. Login OAuth
+            está temporariamente desativado.
           </p>
         </div>
         <button
@@ -162,22 +185,36 @@ export default function Conexoes() {
         <label className="text-[11px] uppercase tracking-wider text-muted-foreground font-sans">
           Organização
         </label>
-        <select
-          value={orgId}
-          onChange={(e) => setOrgId(e.target.value)}
-          disabled={loadingOrgs || orgs.length === 0}
-          className="bg-surface-input border border-surface-border rounded-md px-3 py-2 text-sm text-white font-sans focus:outline-none focus:border-brand/50"
-        >
-          {orgs.length === 0 ? (
-            <option value="">Nenhuma organização</option>
-          ) : (
-            orgs.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name} ({o.slug})
-              </option>
-            ))
-          )}
-        </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={orgId}
+            onChange={(e) => setOrgId(e.target.value)}
+            disabled={loadingOrgs || orgs.length === 0}
+            className="flex-1 min-w-[200px] bg-surface-input border border-surface-border rounded-md px-3 py-2 text-sm text-white font-sans focus:outline-none focus:border-brand/50"
+          >
+            {orgs.length === 0 ? (
+              <option value="">Nenhuma organização</option>
+            ) : (
+              orgs.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name} ({o.slug})
+                </option>
+              ))
+            )}
+          </select>
+          {user?.role === 'super_admin' && orgId ? (
+            <button
+              type="button"
+              onClick={handleDeleteOrganization}
+              disabled={deletingOrg}
+              className="inline-flex items-center gap-1.5 rounded-md border border-red-500/30 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50 font-sans"
+              title="Excluir organização"
+            >
+              <Trash2 size={13} />
+              {deletingOrg ? 'Excluindo…' : 'Excluir'}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {!authLoading && !loadingOrgs && orgs.length === 0 && user?.role === 'super_admin' && (
@@ -224,17 +261,12 @@ export default function Conexoes() {
         </p>
       )}
 
-      <div className="rounded-xl border border-brand/20 bg-brand/5 px-4 py-3">
-        <p className="text-xs text-brand font-sans">
-          Configure no Meta for Developers e no Google Cloud Console as URLs de redirecionamento OAuth para{' '}
-          <span className="font-mono">
-            {typeof window !== 'undefined' ? window.location.origin : ''}/api/oauth/meta/callback
-          </span>{' '}
-          e{' '}
-          <span className="font-mono">
-            {typeof window !== 'undefined' ? window.location.origin : ''}/api/oauth/google/callback
-          </span>
-          .
+      <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 px-4 py-3">
+        <p className="text-xs text-amber-100/95 font-sans leading-relaxed">
+          <strong className="text-amber-200">OAuth desativado.</strong> Para ligar contas a uma organização, vá em{' '}
+          <strong className="text-amber-200">Clientes</strong>, edite o cliente e marque as contas em &quot;Contas
+          atribuídas&quot;. Execute &quot;Descobrir contas&quot; em Configurações para atualizar o catálogo a partir do
+          MCC / Business Manager.
         </p>
       </div>
 
@@ -276,17 +308,12 @@ export default function Conexoes() {
                   ))}
                 </ul>
               )}
-              <a
-                href={orgId ? connectUrl(c.oauthPath) : undefined}
-                aria-disabled={!orgId}
-                className={`mt-auto text-center text-xs font-semibold px-4 py-2 rounded-md border transition-colors font-sans ${
-                  orgId
-                    ? 'border-brand/50 bg-brand/10 text-brand hover:bg-brand/20'
-                    : 'border-surface-border text-muted-foreground pointer-events-none opacity-50'
-                }`}
+              <span
+                className={`mt-auto text-center text-xs font-semibold px-4 py-2 rounded-md border font-sans border-surface-border text-muted-foreground opacity-60 cursor-not-allowed`}
+                title="OAuth desativado — atribua contas em Clientes → Editar"
               >
-                {st.ok ? 'Reconectar' : 'Conectar'}
-              </a>
+                OAuth desativado
+              </span>
             </div>
           )
         })}

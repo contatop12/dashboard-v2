@@ -334,10 +334,20 @@ export function GoogleAdsDemographicsBlock() {
       ) : null}
 
       {!loading && rows.length > 0 ? (
-        <div className="min-h-0 flex-1 shrink-0 px-2 pb-2 pt-1 sm:px-3">
-          <div className="h-52 min-h-[200px] w-full">
+        <div className="min-h-0 flex-1 shrink-0 px-2 pb-3 pt-1 sm:px-3">
+          <div className="mb-2 flex flex-wrap items-center gap-3 text-[10px] font-sans text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-sm bg-[#4285F4]" aria-hidden />
+              {metricDef(primaryMetric).label}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-sm bg-[#f43f5e]" aria-hidden />
+              {metricDef(secondaryMetric).label}
+            </span>
+          </div>
+          <div className="h-44 min-h-[160px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 4, right: 8, left: -18, bottom: 0 }} barGap={2}>
+              <BarChart data={chartData} margin={{ top: 8, right: 8, left: -12, bottom: 4 }} barGap={3}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2c2c2c" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#888' }} tickLine={false} axisLine={false} />
                 <YAxis

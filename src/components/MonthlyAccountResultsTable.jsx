@@ -179,16 +179,18 @@ function buildFooterTotals(rows, platform) {
   }
 }
 
-function SparkMetric({ value, display, barKey, maxes }) {
+function SparkMetric({ value, display, barKey, maxes, showBar = true }) {
   const max = maxes[barKey] || 0
   const pct = max > 0 && value != null && !Number.isNaN(value) ? Math.min(100, (Number(value) / max) * 100) : 0
   const color = BAR_COLORS[barKey] ?? '#888'
   return (
-    <div className="flex min-w-[76px] flex-col items-end gap-0.5">
-      <span className="whitespace-nowrap text-[11px] font-mono tabular-nums text-white">{display}</span>
-      <div className="h-1 w-full max-w-[120px] overflow-hidden rounded-full bg-white/[0.06]">
-        <div className="h-full rounded-full transition-[width]" style={{ width: `${pct}%`, backgroundColor: color }} />
-      </div>
+    <div className="flex min-w-[76px] flex-col items-end gap-1">
+      <span className="whitespace-nowrap text-xs font-mono font-medium tabular-nums text-white">{display}</span>
+      {showBar ? (
+        <div className="h-1 w-full max-w-[100px] overflow-hidden rounded-full bg-white/[0.06]">
+          <div className="h-full rounded-full transition-[width]" style={{ width: `${pct}%`, backgroundColor: color }} />
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -216,7 +218,7 @@ function buildColumns(platform) {
       id: 'mes',
       header: 'Mês e ano',
       cell: (info) => (
-        <span className="font-sans text-[11px] text-white">{info.row.original.monthLabel}</span>
+        <span className="whitespace-nowrap font-sans text-[11px] text-white">{info.row.original.monthLabel}</span>
       ),
       sortingFn: 'alphanumeric',
       enableHiding: false,

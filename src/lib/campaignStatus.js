@@ -14,7 +14,7 @@ export function mapEffectiveStatusToColor(status) {
 
 /** Tailwind classes per color key for a tree row (border + tinted bg). */
 export const STATUS_ROW_CLASS = {
-  success: 'border-success/40 bg-success/[0.06]',
-  danger: 'border-danger/40 bg-danger/[0.06]',
-  neutral: 'border-surface-border bg-surface-card',
+  success: 'border-emerald-800/40 bg-emerald-950/35',
+  danger: 'border-danger/40 bg-danger/[0.08]',
+  neutral: 'border-surface-border bg-surface-card/80',
 }

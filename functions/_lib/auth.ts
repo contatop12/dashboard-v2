@@ -7,6 +7,21 @@ export type UserRow = {
   name: string | null
 }
 
+export async function findUserByEmail(
+  db: D1Database,
+  email: string
+): Promise<UserRow | null> {
+  const normalized = email.trim().toLowerCase()
+  if (!normalized) return null
+  const row = await db
+    .prepare(
+      `SELECT id, email, role, name FROM users WHERE email = ? LIMIT 1`
+    )
+    .bind(normalized)
+    .first<UserRow>()
+  return row ?? null
+}
+
 export async function findUserBySession(
   db: D1Database,
   sessionId: string | null

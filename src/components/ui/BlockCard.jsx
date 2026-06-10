@@ -8,7 +8,7 @@ import { BlockState } from './BlockState'
  */
 export function BlockCard({ title, infoKey, actions, badge, state = 'ready', emptyMessage, errorMessage, className, headerClassName, bodyClassName, children }) {
   return (
-    <div className={cn('flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-white/[0.06] bg-surface-card', className)}>
+    <div className={cn('flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-white/[0.06] bg-surface-card', className)}>
       {(title || actions || badge) && (
         <div className={cn('flex shrink-0 items-center justify-between gap-2 px-4 py-3', headerClassName)}>
           <div className="flex min-w-0 items-center gap-1.5">

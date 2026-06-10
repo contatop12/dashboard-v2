@@ -1,0 +1,264 @@
+import { useMemo, useId } from 'react'
+import { format, parse } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import { TrendingDown, TrendingUp, Wallet, Target, Percent } from 'lucide-react'
+import { cn, formatCurrency, formatNumber } from '@/lib/utils'
+import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
+import { useDashboardFilters } from '@/context/DashboardFiltersContext'
+import { MetricInfo } from '@/components/ui/MetricInfo'
+
+const HERO_METRICS = [
+  { label: 'Investimento', index: 0, key: 'invest', icon: Wallet, tone: 'google-blue' },
+  { label: 'Conversões', index: 5, key: 'conversions', icon: Target, tone: 'google-green' },
+  { label: 'Custo / Conv.', index: 6, key: 'cpl', icon: Wallet, tone: 'google-amber' },
+  { label: 'CTR', index: 3, key: 'ctr', icon: Percent, tone: 'google-purple' },
+]
+
+const SECONDARY_METRICS = [
+  { label: 'Impressões', index: 1, key: 'impressions' },
+  { label: 'Cliques', index: 2, key: 'clicks' },
+  { label: 'CPC Médio', index: 4, key: 'cpcAvg' },
+  { label: 'Taxa de Conv.', index: 7, key: 'conversionRate' },
+]
+
+function formatDayLabel(dateStr) {
+  if (!dateStr) return '—'
+  try {
+    return format(parse(dateStr, 'yyyy-MM-dd', new Date()), 'dd/MM', { locale: ptBR })
+  } catch {
+    return dateStr
+  }
+}
+
+function summarizeDailySeries(daily, valueKey) {
+  if (!Array.isArray(daily) || daily.length === 0) return null
+  const rows = daily.map((d) => ({
+    date: d.date,
+    value: Number(d[valueKey]) || 0,
+  }))
+  const total = rows.reduce((s, r) => s + r.value, 0)
+  const avg = total / rows.length
+  let peak = rows[0]
+  let low = rows[0]
+  for (const r of rows) {
+    if (r.value > peak.value) peak = r
+    if (r.value < low.value) low = r
+  }
+  return { total, avg, peak, low, count: rows.length, values: rows.map((r) => r.value) }
+}
+
+function MiniSparkline({ values, color = '#4285F4', height = 36, gradientId = 'googleSparkFill' }) {
+  const stats = useMemo(() => {
+    const pts = (values ?? []).map((v) => Number(v) || 0)
+    if (pts.length === 0) return null
+    const max = Math.max(...pts, 1)
+    const min = Math.min(...pts)
+    return { pts, max, min }
+  }, [values])
+
+  const path = useMemo(() => {
+    if (!stats || stats.pts.length < 2) return null
+    const { pts, max } = stats
+    const w = 120
+    const h = height - 4
+    return pts
+      .map((v, i) => {
+        const x = (i / (pts.length - 1)) * w
+        const y = h - (v / max) * h + 2
+        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
+      })
+      .join(' ')
+  }, [stats, height])
+
+  if (!stats || !path) {
+    return <div className="h-9 w-[120px] rounded bg-white/[0.03]" aria-hidden />
+  }
+
+  return (
+    <div className="flex shrink-0 flex-col items-end gap-0.5">
+      <svg viewBox={`0 0 120 ${height}`} className="h-9 w-[120px]" aria-hidden>
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={`${path} L120,${height} L0,${height} Z`} fill={`url(#${gradientId})`} />
+        <path d={path} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  )
+}
+
+function TrendSparklineStrip({ title, subtitle, daily, valueKey, formatValue, color }) {
+  const gid = useId().replace(/:/g, '')
+  const summary = useMemo(() => summarizeDailySeries(daily, valueKey), [daily, valueKey])
+
+  if (!summary) {
+    return (
+      <div className="google-trend-strip">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</span>
+          <span className="text-[10px] text-muted-foreground/80 font-sans">{subtitle}</span>
+        </div>
+        <span className="text-[10px] text-muted-foreground font-sans">Sem dados</span>
+      </div>
+    )
+  }
+
+  const { avg, peak, low, values } = summary
+
+  return (
+    <div className="google-trend-strip">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</span>
+        <p className="font-mono text-sm font-semibold tabular-nums text-foreground">{formatValue(avg)}</p>
+        <span className="text-[10px] text-muted-foreground/85 font-sans">
+          {subtitle} · {summary.count} dias
+        </span>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-sans text-muted-foreground">
+          <span>
+            Pico{' '}
+            <strong className="font-mono font-medium text-foreground/90">{formatValue(peak.value)}</strong>
+            {peak.date ? ` (${formatDayLabel(peak.date)})` : ''}
+          </span>
+          <span>
+            Mín.{' '}
+            <strong className="font-mono font-medium text-foreground/90">{formatValue(low.value)}</strong>
+            {low.date ? ` (${formatDayLabel(low.date)})` : ''}
+          </span>
+        </div>
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <MiniSparkline values={values} color={color} gradientId={`spark-${gid}`} />
+        <span className="font-mono text-[9px] tabular-nums text-muted-foreground">
+          máx. {formatValue(peak.value)}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function DeltaBadge({ deltaPct }) {
+  const hasDelta = deltaPct !== null && deltaPct !== undefined && !Number.isNaN(Number(deltaPct))
+  if (!hasDelta) return null
+  const n = Number(deltaPct)
+  const isPos = n > 0
+  const isNeg = n < 0
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-mono text-[10px] font-medium',
+        isPos && 'bg-emerald-500/15 text-emerald-400',
+        isNeg && 'bg-red-500/15 text-red-400',
+        !isPos && !isNeg && 'bg-white/5 text-muted-foreground'
+      )}
+    >
+      {isPos ? <TrendingUp size={10} /> : isNeg ? <TrendingDown size={10} /> : null}
+      {n >= 0 ? '+' : ''}
+      {n.toFixed(1)}%
+    </span>
+  )
+}
+
+function HeroMetric({ label, metricKey, index, icon: Icon, tone }) {
+  const { comparePrimaryKpi } = useDashboardFilters()
+  const { loading, data } = usePlatformOverview()
+  const row = data?.metrics?.[index]
+  const value = loading ? '…' : (row?.value ?? '—')
+  const deltaPct = comparePrimaryKpi ? row?.deltaPct : null
+
+  return (
+    <div className={cn('google-hero-metric', `google-hero-metric--${tone}`)}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="google-hero-metric__icon" aria-hidden>
+            <Icon size={14} strokeWidth={2} />
+          </span>
+          <span className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            {label}
+          </span>
+          {metricKey ? <MetricInfo metricKey={metricKey} size={10} /> : null}
+        </div>
+        <DeltaBadge deltaPct={deltaPct} />
+      </div>
+      <p className="google-hero-metric__value">{value}</p>
+    </div>
+  )
+}
+
+function SecondaryMetric({ label, metricKey, index }) {
+  const { comparePrimaryKpi } = useDashboardFilters()
+  const { loading, data } = usePlatformOverview()
+  const row = data?.metrics?.[index]
+  const value = loading ? '…' : (row?.value ?? '—')
+  const deltaPct = comparePrimaryKpi ? row?.deltaPct : null
+
+  return (
+    <div className="google-secondary-metric">
+      <div className="flex items-center gap-1">
+        <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</span>
+        {metricKey ? <MetricInfo metricKey={metricKey} size={9} /> : null}
+      </div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-mono text-sm font-semibold tabular-nums text-foreground">{value}</span>
+        <DeltaBadge deltaPct={deltaPct} />
+      </div>
+    </div>
+  )
+}
+
+export default function GoogleMetricsPanel() {
+  const { comparePrimaryKpi } = useDashboardFilters()
+  const { data } = usePlatformOverview()
+  const daily = data?.daily
+
+  return (
+    <div className="google-metrics-panel">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand/90">Visão geral</p>
+          <p className="mt-0.5 text-xs text-muted-foreground font-sans">Performance da conta no período selecionado</p>
+        </div>
+        {!comparePrimaryKpi ? (
+          <span className="text-[10px] text-muted-foreground/80 font-sans">
+            Ative &quot;Comparar KPIs&quot; para variação vs período anterior
+          </span>
+        ) : (
+          <span className="rounded-md bg-brand/10 px-2 py-0.5 text-[10px] font-medium text-brand">Comparando períodos</span>
+        )}
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {HERO_METRICS.map((m) => (
+          <HeroMetric key={m.label} {...m} />
+        ))}
+      </div>
+
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <TrendSparklineStrip
+          title="Investimento diário"
+          subtitle="Gasto médio por dia no período"
+          daily={daily}
+          valueKey="spend"
+          color="#4285F4"
+          formatValue={(v) => formatCurrency(v)}
+        />
+        <TrendSparklineStrip
+          title="Cliques diários"
+          subtitle="Volume médio de cliques por dia"
+          daily={daily}
+          valueKey="clicks"
+          color="#34A853"
+          formatValue={(v) => formatNumber(Math.round(v))}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {SECONDARY_METRICS.map((m) => (
+          <SecondaryMetric key={m.label} {...m} />
+        ))}
+      </div>
+    </div>
+  )
+}
