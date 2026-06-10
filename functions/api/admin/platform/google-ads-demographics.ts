@@ -184,7 +184,8 @@ async function aggregateDemographicView(
   fromResource: string,
   nestedNames: string[],
   labelMap: Record<string, string>,
-  sortOrder: string[]
+  sortOrder: string[],
+  filterClause = ''
 ): Promise<DemographicsTabPayload> {
   const critSelect = DEMOGRAPHIC_CRITERION_SELECT[fromResource]
   if (!critSelect) {
@@ -200,7 +201,7 @@ async function aggregateDemographicView(
     FROM ${fromResource}
     WHERE segments.date BETWEEN '${since}' AND '${until}'
       AND campaign.status != 'REMOVED'
-      AND ad_group_criterion.status != 'REMOVED'
+      AND ad_group_criterion.status != 'REMOVED'${filterClause}
   `
   const res = await fetchRows(ver, numericId, headers, query)
   if (res.error) {
@@ -256,7 +257,8 @@ export async function fetchGoogleDemographicsPayload(
   headers: Record<string, string>,
   since: string,
   until: string,
-  fetchRows: FetchRowsFn
+  fetchRows: FetchRowsFn,
+  filterClause = ''
 ): Promise<GoogleDemographicsPayload> {
   const [age, gender, income, parental] = await Promise.all([
     aggregateDemographicView(
@@ -269,7 +271,8 @@ export async function fetchGoogleDemographicsPayload(
       'age_range_view',
       ['ageRange', 'age_range'],
       AGE_LABELS,
-      AGE_SORT
+      AGE_SORT,
+      filterClause
     ),
     aggregateDemographicView(
       fetchRows,
@@ -281,7 +284,8 @@ export async function fetchGoogleDemographicsPayload(
       'gender_view',
       ['gender'],
       GENDER_LABELS,
-      GENDER_SORT
+      GENDER_SORT,
+      filterClause
     ),
     aggregateDemographicView(
       fetchRows,
@@ -293,7 +297,8 @@ export async function fetchGoogleDemographicsPayload(
       'income_range_view',
       ['incomeRange', 'income_range'],
       INCOME_LABELS,
-      INCOME_SORT
+      INCOME_SORT,
+      filterClause
     ),
     aggregateDemographicView(
       fetchRows,
@@ -305,7 +310,8 @@ export async function fetchGoogleDemographicsPayload(
       'parental_status_view',
       ['parentalStatus', 'parental_status'],
       PARENTAL_LABELS,
-      PARENTAL_SORT
+      PARENTAL_SORT,
+      filterClause
     ),
   ])
   return { age, gender, income, parental }

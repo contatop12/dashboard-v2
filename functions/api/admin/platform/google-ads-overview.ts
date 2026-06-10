@@ -5,9 +5,31 @@ import { requireSuperAdmin } from '../../../_lib/admin-guard'
 import { json, jsonError } from '../../../_lib/json'
 import { getGoogleAccessTokenFromEnv } from '../../../_lib/google-access-token'
 import {
+  customerPathId,
+  resolveGoogleApiVersion,
+  resolveGoogleLoginCustomerId,
+} from '../../../_lib/google-ads-env'
+import {
+  buildConversionResourceName,
+  extractConversionActionId,
+  parseConversionActionFields,
+  readConversionActionResourceName,
+} from '../../../_lib/google-ads-conversions'
+import {
   getActiveConnectionForOrg,
   getValidGoogleAccessTokenFromCredential,
 } from '../../../_lib/org-platform-credentials'
+import {
+  parseGoogleDimensionFilters,
+  gaqlFilterClause,
+  type GoogleDimensionFilters,
+} from '../../../_lib/google-ads-filters'
+import {
+  buildGoogleTree,
+  parseCampaignNodes,
+  parseAdGroupNodes,
+  parseAdNodes,
+} from '../../../_lib/google-ads-tree'
 import { EMPTY_GOOGLE_DEMOGRAPHICS, fetchGoogleDemographicsPayload } from './google-ads-demographics'
 
 type Metric = { label: string; value: string; deltaPct?: number | null }
@@ -27,10 +49,6 @@ function fmtBRL(n: number): string {
 
 function fmtInt(n: number): string {
   return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(n)
-}
-
-function customerPathId(raw: string): string {
-  return raw.trim().replace(/^customers\//, '').replace(/-/g, '')
 }
 
 function isYmd(s: string): boolean {
@@ -378,7 +396,9 @@ async function fetchConversionBreakdown(
   numericId: string,
   headers: Record<string, string>,
   since: string,
-  until: string
+  until: string,
+  filterClause = '',
+  fromResource = 'campaign'
 ): Promise<ConversionBreakdownPayload> {
   const metaQuery = `
     SELECT
@@ -392,56 +412,86 @@ async function fetchConversionBreakdown(
   const metaMap = new Map<string, { name: string; primaryForGoal: boolean | undefined }>()
   if (!metaRes.error) {
     for (const row of metaRes.rows) {
-      const R = rowObj(row)
-      const ca = R.conversionAction ?? R.conversion_action
-      const rn = readNestedString(ca, 'resourceName', 'resource_name')
+      const ca = parseConversionActionFields(rowObj(row))
+      const rn = ca.resourceName
       if (!rn) continue
-      const name = readNestedString(ca, 'name') ?? 'Conversão'
-      const primaryForGoal = readNestedBool(ca, 'primaryForGoal', 'primary_for_goal')
-      metaMap.set(rn, { name: name.trim() || 'Conversão', primaryForGoal })
+      const key = extractConversionActionId(rn)
+      if (!key) continue
+      const name = ca.name?.trim() || 'Conversão'
+      metaMap.set(key, { name, primaryForGoal: ca.primaryForGoal })
     }
   }
 
   const metricsQuery = `
     SELECT
       segments.conversion_action,
+      conversion_action.resource_name,
+      conversion_action.name,
+      conversion_action.primary_for_goal,
       metrics.conversions,
       metrics.conversions_value
-    FROM campaign
+    FROM ${fromResource}
     WHERE campaign.status != 'REMOVED'
-      AND segments.date BETWEEN '${since}' AND '${until}'
+      AND segments.date BETWEEN '${since}' AND '${until}'${filterClause}
   `
   const metricsRes = await fetchAllGaqlRows(ver, numericId, headers, metricsQuery)
   if (metricsRes.error) {
     return { primary: [], secondary: [], error: metricsRes.error }
   }
 
-  const totals = new Map<string, { conversions: number; value: number }>()
+  type Agg = {
+    resourceName: string
+    name: string | null
+    primaryForGoal: boolean | undefined
+    conversions: number
+    value: number
+  }
+
+  const totals = new Map<string, Agg>()
   for (const row of metricsRes.rows) {
     const R = rowObj(row)
-    const segments = R.segments
-    const rn = readNestedString(segments, 'conversionAction', 'conversion_action')
+    const segmentRn = readConversionActionResourceName(R.segments)
+    const ca = parseConversionActionFields(R)
+    const rn = segmentRn ?? ca.resourceName
     if (!rn) continue
+
+    const key = extractConversionActionId(rn)
+    if (!key) continue
+
     const { conversions, value } = readMetricsConv(R.metrics)
-    const cur = totals.get(rn) ?? { conversions: 0, value: 0 }
+    const cur =
+      totals.get(key) ??
+      ({
+        resourceName: rn.includes('/') ? rn : buildConversionResourceName(numericId, key),
+        name: null,
+        primaryForGoal: undefined,
+        conversions: 0,
+        value: 0,
+      } satisfies Agg)
+
     cur.conversions += conversions
     cur.value += value
-    totals.set(rn, cur)
+    if (ca.name?.trim()) cur.name = ca.name.trim()
+    if (ca.primaryForGoal !== undefined) cur.primaryForGoal = ca.primaryForGoal
+    if (!cur.resourceName.includes('/') && rn.includes('/')) cur.resourceName = rn
+
+    totals.set(key, cur)
   }
 
   const primary: ConversionBreakdownRow[] = []
   const secondary: ConversionBreakdownRow[] = []
-  for (const [resourceName, agg] of totals.entries()) {
+  for (const [key, agg] of totals.entries()) {
     if (agg.conversions === 0 && agg.value === 0) continue
-    const meta = metaMap.get(resourceName)
-    const name = meta?.name ?? resourceName.split('/').pop() ?? 'Conversão'
+    const meta = metaMap.get(key)
+    const name = agg.name ?? meta?.name ?? 'Conversão'
+    const primaryForGoal = agg.primaryForGoal ?? meta?.primaryForGoal
     const rowOut: ConversionBreakdownRow = {
-      id: resourceName,
+      id: agg.resourceName || buildConversionResourceName(numericId, key),
       name,
       conversions: agg.conversions,
       value: agg.value,
     }
-    if (meta && meta.primaryForGoal === false) secondary.push(rowOut)
+    if (primaryForGoal === false) secondary.push(rowOut)
     else primary.push(rowOut)
   }
 
@@ -499,7 +549,8 @@ async function fetchKeywordQualityList(
   numericId: string,
   headers: Record<string, string>,
   since: string,
-  until: string
+  until: string,
+  filterClause = ''
 ): Promise<KeywordQualityPayload> {
   const query = `
     SELECT
@@ -513,7 +564,7 @@ async function fetchKeywordQualityList(
     WHERE segments.date BETWEEN '${since}' AND '${until}'
       AND campaign.status != 'REMOVED'
       AND ad_group_criterion.status != 'REMOVED'
-      AND ad_group_criterion.type = KEYWORD
+      AND ad_group_criterion.type = KEYWORD${filterClause}
   `
   const res = await fetchAllGaqlRows(ver, numericId, headers, query)
   if (res.error) {
@@ -653,7 +704,9 @@ async function fetchCampaignTypesGrouped(
   numericId: string,
   headers: Record<string, string>,
   since: string,
-  until: string
+  until: string,
+  filterClause = '',
+  fromResource = 'campaign'
 ): Promise<CampaignTypesPayload> {
   const query = `
     SELECT
@@ -664,9 +717,9 @@ async function fetchCampaignTypesGrouped(
       metrics.clicks,
       metrics.conversions,
       metrics.conversions_value
-    FROM campaign
+    FROM ${fromResource}
     WHERE campaign.status != 'REMOVED'
-      AND segments.date BETWEEN '${since}' AND '${until}'
+      AND segments.date BETWEEN '${since}' AND '${until}'${filterClause}
   `
   const res = await fetchAllGaqlRows(ver, numericId, headers, query)
   if (res.error) {
@@ -752,6 +805,41 @@ async function fetchCampaignTypesGrouped(
   return { items, error: null }
 }
 
+async function fetchGoogleCampaignTree(
+  ver: string,
+  numericId: string,
+  headers: Record<string, string>,
+  since: string,
+  until: string
+): Promise<{ tree: ReturnType<typeof buildGoogleTree>; error: string | null }> {
+  const dateWhere = `segments.date BETWEEN '${since}' AND '${until}'`
+  const queries = {
+    campCatalog: `SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type FROM campaign WHERE campaign.status != 'REMOVED'`,
+    campMetrics: `SELECT campaign.id, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions FROM campaign WHERE campaign.status != 'REMOVED' AND ${dateWhere}`,
+    agCatalog: `SELECT ad_group.id, ad_group.name, ad_group.status, campaign.id FROM ad_group WHERE ad_group.status != 'REMOVED' AND campaign.status != 'REMOVED'`,
+    agMetrics: `SELECT ad_group.id, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions FROM ad_group WHERE ad_group.status != 'REMOVED' AND ${dateWhere}`,
+    adCatalog: `SELECT ad_group_ad.ad.id, ad_group_ad.ad.name, ad_group_ad.status, ad_group.id FROM ad_group_ad WHERE ad_group_ad.status != 'REMOVED' AND campaign.status != 'REMOVED'`,
+    adMetrics: `SELECT ad_group_ad.ad.id, ad_group.id, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions FROM ad_group_ad WHERE ad_group_ad.status != 'REMOVED' AND ${dateWhere}`,
+  }
+  const [campCat, campMet, agCat, agMet, adCat, adMet] = await Promise.all([
+    fetchAllGaqlRows(ver, numericId, headers, queries.campCatalog),
+    fetchAllGaqlRows(ver, numericId, headers, queries.campMetrics),
+    fetchAllGaqlRows(ver, numericId, headers, queries.agCatalog),
+    fetchAllGaqlRows(ver, numericId, headers, queries.agMetrics),
+    fetchAllGaqlRows(ver, numericId, headers, queries.adCatalog),
+    fetchAllGaqlRows(ver, numericId, headers, queries.adMetrics),
+  ])
+  const firstError =
+    campCat.error || campMet.error || agCat.error || agMet.error || adCat.error || adMet.error || null
+  if (campCat.error) return { tree: [], error: campCat.error }
+  const tree = buildGoogleTree(
+    parseCampaignNodes(campCat.rows, campMet.rows),
+    parseAdGroupNodes(agCat.rows, agMet.rows),
+    parseAdNodes(adCat.rows, adMet.rows)
+  )
+  return { tree, error: firstError }
+}
+
 function ymdAddOneGoogle(ymd: string): string {
   const d = new Date(ymd + 'T12:00:00Z')
   d.setUTCDate(d.getUTCDate() + 1)
@@ -788,7 +876,8 @@ async function buildGoogleOverviewBody(
   since: string,
   until: string,
   compareSince: string | null,
-  compareUntil: string | null
+  compareUntil: string | null,
+  filters: GoogleDimensionFilters = { campaignIds: [], adGroupId: null, adId: null }
 ): Promise<Record<string, unknown>> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${access}`,
@@ -796,10 +885,13 @@ async function buildGoogleOverviewBody(
     'developer-token': env.GOOGLE_ADS_DEVELOPER_TOKEN!.trim(),
   }
   if (loginId) {
-    headers['login-customer-id'] = customerPathId(loginId)
+    headers['login-customer-id'] = loginId
   }
 
-  const baseWhere = `campaign.status != 'REMOVED' AND segments.date BETWEEN '${since}' AND '${until}'`
+  const filterClause = gaqlFilterClause(filters)
+  // ad_group.id não existe no resource campaign — com filtro de grupo, agrega a partir de ad_group
+  const aggFrom = filters.adGroupId ? 'ad_group' : 'campaign'
+  const baseWhere = `campaign.status != 'REMOVED' AND segments.date BETWEEN '${since}' AND '${until}'${filterClause}`
 
   const aggQuery = `
     SELECT
@@ -808,7 +900,7 @@ async function buildGoogleOverviewBody(
       metrics.impressions,
       metrics.clicks,
       metrics.conversions
-    FROM campaign
+    FROM ${aggFrom}
     WHERE ${baseWhere}
   `
 
@@ -820,7 +912,7 @@ async function buildGoogleOverviewBody(
       metrics.clicks,
       metrics.conversions,
       metrics.conversions_value
-    FROM campaign
+    FROM ${aggFrom}
     WHERE ${baseWhere}
   `
 
@@ -845,6 +937,8 @@ async function buildGoogleOverviewBody(
       keywordQuality: EMPTY_KEYWORD_QUALITY,
       campaignTypes: EMPTY_CAMPAIGN_TYPES,
       demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
+      campaignTree: [],
+      campaignsError: null,
     }
   }
 
@@ -852,7 +946,7 @@ async function buildGoogleOverviewBody(
 
   let compareRaw: RawAgg | null = null
   if (compareSince && compareUntil) {
-    const cmpWhere = `campaign.status != 'REMOVED' AND segments.date BETWEEN '${compareSince}' AND '${compareUntil}'`
+    const cmpWhere = `campaign.status != 'REMOVED' AND segments.date BETWEEN '${compareSince}' AND '${compareUntil}'${filterClause}`
     const cmpQuery = `
       SELECT
         campaign.id,
@@ -860,7 +954,7 @@ async function buildGoogleOverviewBody(
         metrics.impressions,
         metrics.clicks,
         metrics.conversions
-      FROM campaign
+      FROM ${aggFrom}
       WHERE ${cmpWhere}
     `
     const cmpRes = await fetchAllGaqlRows(ver, numericId, headers, cmpQuery)
@@ -875,12 +969,14 @@ async function buildGoogleOverviewBody(
   const dailyRaw = aggregateDaily(dailyRes.rows as Parameters<typeof aggregateDaily>[0])
   const daily = fillGoogleDailyGaps(since, until, dailyRaw)
 
-  const [conversionBreakdown, keywordQuality, campaignTypes, demographics] = await Promise.all([
-    fetchConversionBreakdown(ver, numericId, headers, since, until),
-    fetchKeywordQualityList(ver, numericId, headers, since, until),
-    fetchCampaignTypesGrouped(ver, numericId, headers, since, until),
-    fetchGoogleDemographicsPayload(ver, numericId, headers, since, until, fetchAllGaqlRows),
-  ])
+  const [conversionBreakdown, keywordQuality, campaignTypes, demographics, campaignTreeRes] =
+    await Promise.all([
+      fetchConversionBreakdown(ver, numericId, headers, since, until, filterClause, aggFrom),
+      fetchKeywordQualityList(ver, numericId, headers, since, until, filterClause),
+      fetchCampaignTypesGrouped(ver, numericId, headers, since, until, filterClause, aggFrom),
+      fetchGoogleDemographicsPayload(ver, numericId, headers, since, until, fetchAllGaqlRows, filterClause),
+      fetchGoogleCampaignTree(ver, numericId, headers, since, until),
+    ])
 
   return {
     configured: true,
@@ -898,6 +994,8 @@ async function buildGoogleOverviewBody(
     keywordQuality,
     campaignTypes,
     demographics,
+    campaignTree: campaignTreeRes.tree,
+    campaignsError: campaignTreeRes.error,
   }
 }
 
@@ -912,6 +1010,7 @@ export async function onRequestGet(context: {
   const url = new URL(context.request.url)
   const orgId = url.searchParams.get('org_id')?.trim() || ''
   const { since, until, compareSince, compareUntil } = parseRangeParams(url)
+  const dimensionFilters = parseGoogleDimensionFilters(url)
 
   const { env } = context
 
@@ -936,6 +1035,8 @@ export async function onRequestGet(context: {
         keywordQuality: EMPTY_KEYWORD_QUALITY,
         campaignTypes: EMPTY_CAMPAIGN_TYPES,
         demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
+      campaignTree: [],
+      campaignsError: null,
       })
     }
     const devToken = env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim()
@@ -955,16 +1056,24 @@ export async function onRequestGet(context: {
         keywordQuality: EMPTY_KEYWORD_QUALITY,
         campaignTypes: EMPTY_CAMPAIGN_TYPES,
         demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
+      campaignTree: [],
+      campaignsError: null,
       })
     }
-    const access = await getValidGoogleAccessTokenFromCredential(env.DB, env, conn.oauth_credential_id)
+    const useWorkerSecrets = !conn.oauth_credential_id
+    const access = useWorkerSecrets
+      ? await getGoogleAccessTokenFromEnv(env)
+      : await getValidGoogleAccessTokenFromCredential(env.DB, env, conn.oauth_credential_id)
+    const orgSource = useWorkerSecrets ? 'assigned_env' : 'oauth_org'
     if (!access) {
       return json({
         configured: false,
-        source: 'oauth_org',
+        source: orgSource,
         accountDisplay: conn.external_name,
         error: null,
-        detail: 'Token Google indisponível. Reconecte em Integrações.',
+        detail: useWorkerSecrets
+          ? 'Secrets Google não configurados no Worker (refresh token / developer token).'
+          : 'Token Google indisponível. Reconecte em Integrações.',
         metrics: [] as Metric[],
         primaryRange: { since, until },
         compareRange: null,
@@ -974,12 +1083,13 @@ export async function onRequestGet(context: {
         keywordQuality: EMPTY_KEYWORD_QUALITY,
         campaignTypes: EMPTY_CAMPAIGN_TYPES,
         demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
+      campaignTree: [],
+      campaignsError: null,
       })
     }
-    const rawVer = env.GOOGLE_ADS_API_VERSION?.trim() || 'v17'
-    const ver = rawVer.startsWith('v') ? rawVer : `v${rawVer}`
+    const ver = resolveGoogleApiVersion(env)
     const numericId = customerPathId(conn.external_id)
-    const loginId = env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.trim()
+    const loginId = resolveGoogleLoginCustomerId(env)
 
     try {
       const accountDisplay =
@@ -988,7 +1098,7 @@ export async function onRequestGet(context: {
           Authorization: `Bearer ${access}`,
           'Content-Type': 'application/json',
           'developer-token': devToken,
-          ...(loginId ? { 'login-customer-id': customerPathId(loginId) } : {}),
+          ...(loginId ? { 'login-customer-id': loginId } : {}),
         })) ||
         `Cliente ${numericId}`
 
@@ -999,18 +1109,19 @@ export async function onRequestGet(context: {
         loginId,
         ver,
         accountDisplay,
-        'oauth_org',
+        orgSource,
         since,
         until,
         compareSince,
-        compareUntil
+        compareUntil,
+        dimensionFilters
       )
       return json(body)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Erro Google Ads'
       return json({
         configured: true,
-        source: 'oauth_org',
+        source: orgSource,
         accountDisplay: conn.external_name ?? `Cliente ${numericId}`,
         error: msg,
         detail: null,
@@ -1023,6 +1134,8 @@ export async function onRequestGet(context: {
         keywordQuality: EMPTY_KEYWORD_QUALITY,
         campaignTypes: EMPTY_CAMPAIGN_TYPES,
         demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
+      campaignTree: [],
+      campaignsError: null,
       })
     }
   }
@@ -1055,6 +1168,8 @@ export async function onRequestGet(context: {
       keywordQuality: EMPTY_KEYWORD_QUALITY,
       campaignTypes: EMPTY_CAMPAIGN_TYPES,
       demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
+      campaignTree: [],
+      campaignsError: null,
     })
   }
 
@@ -1075,13 +1190,14 @@ export async function onRequestGet(context: {
       keywordQuality: EMPTY_KEYWORD_QUALITY,
       campaignTypes: EMPTY_CAMPAIGN_TYPES,
       demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
+      campaignTree: [],
+      campaignsError: null,
     })
   }
 
-  const rawVer = env.GOOGLE_ADS_API_VERSION?.trim() || 'v17'
-  const ver = rawVer.startsWith('v') ? rawVer : `v${rawVer}`
+  const ver = resolveGoogleApiVersion(env)
   const numericId = customerPathId(cid)
-  const loginId = env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.trim()
+  const loginId = resolveGoogleLoginCustomerId(env)
 
   try {
     const headers: Record<string, string> = {
@@ -1090,7 +1206,7 @@ export async function onRequestGet(context: {
       'developer-token': devToken,
     }
     if (loginId) {
-      headers['login-customer-id'] = customerPathId(loginId)
+      headers['login-customer-id'] = loginId
     }
 
     const accountDisplay =
@@ -1106,7 +1222,8 @@ export async function onRequestGet(context: {
       since,
       until,
       compareSince,
-      compareUntil
+      compareUntil,
+      dimensionFilters
     )
     return json(body)
   } catch (e) {
@@ -1126,6 +1243,8 @@ export async function onRequestGet(context: {
       keywordQuality: EMPTY_KEYWORD_QUALITY,
       campaignTypes: EMPTY_CAMPAIGN_TYPES,
       demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
+      campaignTree: [],
+      campaignsError: null,
     })
   }
 }
