@@ -60,51 +60,41 @@
    * KPI primário — denso, sem ícone decorativo; foco em rótulo + valor + variação.
    */
   .kpi-card {
-    @apply relative flex min-h-0 flex-col gap-3 overflow-hidden rounded-xl px-4 py-4 sm:px-5 sm:py-[1.125rem] transition-[border-color,box-shadow,background-color] duration-200;
+    @apply relative flex min-h-0 flex-col gap-3 overflow-hidden rounded-lg px-4 py-4 sm:px-5 sm:py-5;
     border: 1px solid rgba(255, 255, 255, 0.06);
-    background: linear-gradient(165deg, rgb(var(--color-surface-card) / 0.92) 0%, rgb(var(--color-surface) / 0.88) 100%);
-    box-shadow:
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.045),
-      0 1px 2px rgba(0, 0, 0, 0.35);
+    background-color: rgb(var(--color-surface-card));
   }
 
   .kpi-card:hover {
-    border-color: rgba(var(--color-brand), 0.22);
-    box-shadow:
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
-      0 6px 28px rgba(0, 0, 0, 0.45);
-  }
-
-  /** Linha de comparação (período anterior) — borda interior discreta, levemente recuada. */
-  .kpi-card--compare {
-    @apply opacity-100;
-    border-color: rgba(255, 255, 255, 0.07);
-    background: linear-gradient(180deg, rgb(var(--color-surface-card) / 0.55) 0%, rgb(var(--color-surface) / 0.72) 100%);
-    box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.055),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.03),
-      0 1px 2px rgba(0, 0, 0, 0.3);
-  }
-
-  .kpi-card--compare:hover {
     border-color: rgba(255, 255, 255, 0.1);
   }
 
-  .kpi-compare-strip-title {
-    @apply mb-3 font-display text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground;
+  .kpi-card--compare {
+    border-color: rgba(255, 255, 255, 0.05);
+    background-color: rgb(var(--color-surface) / 0.6);
   }
 
-  /**
-   * Pano atrás de toda a área da grade (margens + gaps entre blocos), não dentro dos cards.
-   * Aplicado no container `DashboardGrid` junto com o padding do Design System.
-   */
-  .dashboard-area-bg {
-    background-color: rgb(var(--color-background));
-    background-image:
-      linear-gradient(to right, rgba(148, 163, 184, 0.09) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(148, 163, 184, 0.09) 1px, transparent 1px),
-      radial-gradient(circle at 50% 58%, rgba(236, 72, 153, 0.06) 0%, rgba(168, 85, 247, 0.03) 40%, transparent 70%);
-    background-size: 40px 40px, 40px 40px, 100% 100%;
+  .kpi-card--compare:hover {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  /** Grade estática de blocos — substitui react-grid-layout. */
+  .dashboard-static-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--grid-cols, 12), minmax(0, 1fr));
+    gap: 1rem;
+    width: 100%;
+  }
+
+  .dashboard-block-item {
+    grid-column: span var(--block-col-span, 1);
+    min-height: var(--block-min-h, auto);
+  }
+
+  @media (max-width: 767px) {
+    .dashboard-block-item {
+      grid-column: 1 / -1;
+    }
   }
 
   .kpi-value {
@@ -113,7 +103,7 @@
   }
 
   .kpi-label {
-    @apply max-w-full font-display text-[10px] font-semibold uppercase leading-tight tracking-[0.12em] text-muted-foreground sm:text-[11px];
+    @apply max-w-full text-[11px] font-medium leading-tight text-muted-foreground sm:text-xs;
   }
 
   .kpi-delta-row {
@@ -125,12 +115,192 @@
   }
 
   .filter-select {
-    @apply bg-surface-card border border-surface-border rounded-md px-4 py-2 flex items-center gap-2 cursor-pointer transition-all hover:bg-surface-hover hover:border-brand/40 select-none text-xs;
+    @apply bg-surface-card border border-surface-border rounded-md h-8 px-3 flex items-center gap-2 cursor-pointer transition-all hover:bg-surface-hover hover:border-brand/40 select-none text-xs;
     color: rgb(var(--color-foreground));
   }
 
+  /** Painel unificado de análise Meta (gráficos + funil). */
+  .meta-analysis-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 34rem;
+    overflow: hidden;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(255 255 255 / 0.06);
+    background-color: rgb(var(--color-surface-card) / 0.95);
+  }
+
+  .meta-analysis-top {
+    display: grid;
+    grid-template-columns: 1fr;
+    min-height: 16rem;
+    border-bottom: 1px solid rgb(255 255 255 / 0.06);
+  }
+
+  @media (min-width: 1024px) {
+    .meta-analysis-top {
+      grid-template-columns: 5fr 3fr;
+    }
+  }
+
+  .meta-analysis-top > *:first-child {
+    border-bottom: 1px solid rgb(255 255 255 / 0.06);
+  }
+
+  @media (min-width: 1024px) {
+    .meta-analysis-top > *:first-child {
+      border-bottom: none;
+      border-right: 1px solid rgb(255 255 255 / 0.06);
+    }
+  }
+
+  .meta-analysis-bottom {
+    flex: 1;
+    min-height: 15rem;
+  }
+
+  .meta-analysis-cell {
+    padding: 1rem 1.25rem;
+  }
+
+  .google-analysis-panel .meta-analysis-top {
+    min-height: 18rem;
+  }
+
+  .google-analysis-panel .meta-analysis-bottom {
+    min-height: 14rem;
+  }
+
+  /** Google Ads — painel de métricas hero */
+  .google-metrics-panel {
+    @apply rounded-lg border p-5;
+    border-color: rgb(255 255 255 / 0.06);
+    background: linear-gradient(165deg, rgb(var(--color-surface-card)) 0%, rgb(20 20 20) 100%);
+  }
+
+  .google-hero-metric {
+    @apply relative overflow-hidden rounded-xl border px-4 py-4;
+    border-color: rgb(255 255 255 / 0.07);
+    background: rgb(var(--color-surface-card) / 0.85);
+  }
+
+  .google-hero-metric::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    border-radius: 3px 0 0 3px;
+    opacity: 0.9;
+  }
+
+  .google-hero-metric--google-blue::before { background: #4285f4; }
+  .google-hero-metric--google-green::before { background: #34a853; }
+  .google-hero-metric--google-amber::before { background: #f59e0b; }
+  .google-hero-metric--google-purple::before { background: #9b8eff; }
+
+  .google-hero-metric__icon {
+    @apply inline-flex h-7 w-7 items-center justify-center rounded-md;
+    background: rgb(255 255 255 / 0.05);
+    color: rgb(var(--color-brand));
+  }
+
+  .google-hero-metric__value {
+    @apply mt-2 font-mono text-2xl font-bold tabular-nums tracking-tight text-foreground sm:text-[1.65rem];
+  }
+
+  .google-secondary-metric {
+    @apply rounded-lg border px-3 py-2.5;
+    border-color: rgb(255 255 255 / 0.05);
+    background: rgb(var(--color-surface) / 0.5);
+  }
+
+  .google-trend-strip {
+    @apply flex items-start justify-between gap-3 rounded-lg border px-3 py-3;
+    border-color: rgb(255 255 255 / 0.05);
+    background: rgb(var(--color-surface) / 0.35);
+  }
+
+  .google-conv-card {
+    @apply flex flex-col overflow-hidden rounded-xl border;
+    border-color: rgb(255 255 255 / 0.06);
+    background: rgb(var(--color-surface-card) / 0.92);
+  }
+
+  .google-conv-card__head {
+    @apply flex items-center justify-between gap-2 border-b px-4 py-3;
+    border-color: rgb(255 255 255 / 0.06);
+  }
+
+  .google-conv-card__body {
+    @apply min-h-0 flex-1 overflow-y-auto px-4 py-3;
+  }
+
+  .google-conv-card__foot {
+    @apply flex items-baseline justify-between gap-2 border-t px-4 py-3;
+    border-color: rgb(255 255 255 / 0.06);
+    background: rgb(var(--color-surface) / 0.35);
+  }
+
+  .google-mix-chart {
+    @apply flex flex-col rounded-xl border p-4;
+    border-color: rgb(255 255 255 / 0.06);
+    background: rgb(var(--color-surface-card) / 0.92);
+  }
+
+  .google-mix-chart--loading,
+  .google-mix-chart--empty {
+    @apply items-center justify-center;
+  }
+
+  .google-conversions-section {
+    @apply rounded-lg border p-4;
+    border-color: rgb(255 255 255 / 0.06);
+    background: rgb(var(--color-surface-card) / 0.5);
+  }
+
+  /** Google Ads — painel de análise compacto */
+  .google-analysis-panel-v2 {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    overflow: hidden;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(255 255 255 / 0.06);
+    background: rgb(var(--color-surface-card) / 0.95);
+  }
+
+  .google-analysis-panel-v2 .meta-analysis-cell {
+    padding: 0.75rem 1rem;
+  }
+
+  .google-analysis-row-main {
+    display: grid;
+    grid-template-columns: 1fr;
+    border-bottom: 1px solid rgb(255 255 255 / 0.06);
+  }
+
+  @media (min-width: 1024px) {
+    .google-analysis-row-main {
+      grid-template-columns: 1.6fr 1fr;
+    }
+  }
+
+  .google-analysis-row-quality {
+    max-height: 11rem;
+    overflow: hidden;
+  }
+
+  .google-chart-canvas {
+    @apply shrink-0;
+  }
+
+  .google-quality-row + .google-quality-row {
+    border-top: 1px solid rgb(255 255 255 / 0.04);
+  }
+
   .section-title {
-    @apply text-xs font-display font-semibold uppercase tracking-widest;
+    @apply text-xs font-medium;
     color: rgb(var(--color-muted-fg));
   }
 
@@ -161,28 +331,3 @@
   }
 }
 
-.dashboard-dot-bg {
-  background-image: radial-gradient(circle, rgba(255,255,255,0.055) 1px, transparent 1px);
-  background-size: 24px 24px;
-}
-
-/* react-grid-layout dark theme overrides */
-.react-grid-item.react-grid-placeholder {
-  background: rgb(var(--color-brand) / 0.15) !important;
-  border: 1px dashed rgb(var(--color-brand) / 0.4) !important;
-  border-radius: 8px;
-  opacity: 1 !important;
-}
-
-.react-resizable-handle {
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.react-grid-item:hover .react-resizable-handle {
-  opacity: 1;
-}
-
-.react-resizable-handle::after {
-  border-color: rgb(var(--color-brand) / 0.5) !important;
-}
