@@ -12,7 +12,7 @@ export function formatYmd(date) {
 /**
  * Monta a query string para meta-overview / google-ads-overview.
  * @param {string} endpoint ex. /api/admin/platform/meta-overview
- * @param {{ orgId?: string | null, workerQuery?: string, dateRange: { start: Date, end: Date }, compareDateRange: { start: Date, end: Date }, compareEnabled: boolean }} opts
+ * @param {{ orgId?: string | null, workerQuery?: string, dateRange: { start: Date, end: Date }, compareDateRange: { start: Date, end: Date }, compareEnabled: boolean, filters?: { campaignIds?: string[], adsetId?: string, adGroupId?: string, adId?: string } }} opts
  */
 export function buildPlatformOverviewUrl(endpoint, opts) {
   const p = new URLSearchParams()
@@ -44,6 +44,12 @@ export function buildPlatformOverviewUrl(endpoint, opts) {
       p.set('compare_until', ct)
     }
   }
+  const f = opts.filters || {}
+  const campaignIds = Array.isArray(f.campaignIds) ? f.campaignIds.filter(Boolean) : []
+  if (campaignIds.length) p.set('campaign_ids', campaignIds.join(','))
+  if (f.adsetId) p.set('adset_id', String(f.adsetId))
+  if (f.adGroupId) p.set('ad_group_id', String(f.adGroupId))
+  if (f.adId) p.set('ad_id', String(f.adId))
   const qs = p.toString()
   return qs ? `${endpoint}?${qs}` : endpoint
 }
