@@ -51,7 +51,7 @@ export default function Sidebar({ activePage, onNavigate, open, onClose, userRol
         )}
       >
         {/* Nav items */}
-        <nav className="flex-1 flex flex-col gap-2 pt-4 px-2">
+        <nav className="flex-1 flex flex-col gap-1 pt-4 px-2">
           {items.map(({ id, label, icon: Icon }) => {
             const isActive = activePage === id
             return (
@@ -73,7 +73,7 @@ export default function Sidebar({ activePage, onNavigate, open, onClose, userRol
                 {isActive && (
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-brand rounded-r-full" />
                 )}
-                <Icon size={15} className="shrink-0" />
+                <Icon size={16} className="shrink-0" />
                 {!collapsed && (
                   <span className="text-xs font-sans font-medium truncate">{label}</span>
                 )}
@@ -98,7 +98,7 @@ export default function Sidebar({ activePage, onNavigate, open, onClose, userRol
                 : 'text-muted-foreground hover:text-white hover:bg-surface-card'
             )}
           >
-            <Settings size={15} className="shrink-0" />
+            <Settings size={16} className="shrink-0" />
             {!collapsed && <span className="text-xs font-sans font-medium">Configurações</span>}
           </button>
 
@@ -108,10 +108,10 @@ export default function Sidebar({ activePage, onNavigate, open, onClose, userRol
             className="hidden lg:flex items-center gap-2 rounded-md px-2 py-2 text-muted-foreground hover:text-white hover:bg-surface-card transition-all"
           >
             {collapsed ? (
-              <ChevronRight size={14} />
+              <ChevronRight size={16} />
             ) : (
               <>
-                <ChevronLeft size={14} />
+                <ChevronLeft size={16} />
                 <span className="text-xs font-sans">Recolher</span>
               </>
             )}

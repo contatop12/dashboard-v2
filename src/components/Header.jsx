@@ -99,13 +99,13 @@ export default function Header({ onMenuToggle, sidebarOpen }) {
   }, [monitorOpen, activeOrgId])
 
   return (
-    <header className="h-12 bg-[#0F0F0F] border-b border-surface-border flex items-center px-4 gap-4 shrink-0 z-50">
+    <header className="h-11 bg-[#0F0F0F] border-b border-white/[0.06] flex items-center px-4 gap-3 shrink-0 z-50">
       <button
         type="button"
         onClick={onMenuToggle}
-        className="lg:hidden w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-white hover:bg-surface-card transition-all"
+        className="lg:hidden h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-white hover:bg-surface-card transition-all"
       >
-        {sidebarOpen ? <X size={15} /> : <Menu size={15} />}
+        {sidebarOpen ? <X size={16} /> : <Menu size={16} />}
       </button>
 
       <div className="flex items-center gap-2">
@@ -125,7 +125,7 @@ export default function Header({ onMenuToggle, sidebarOpen }) {
             <select
               value={activeOrgId ?? ''}
               onChange={(e) => setActiveOrgId(e.target.value || null)}
-              className="max-w-[192px] cursor-pointer rounded-md border border-surface-border bg-surface-input py-2 px-2 text-[10px] text-white font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+              className="h-8 max-w-[192px] cursor-pointer rounded-md border border-surface-border bg-surface-input px-2 text-xs text-white font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
               title="Escolha a conta/cliente"
             >
               <option value="">Conta do cliente…</option>
@@ -148,7 +148,7 @@ export default function Header({ onMenuToggle, sidebarOpen }) {
                   setActiveOrgId(orgs[0].id)
                 }
               }}
-              className="cursor-pointer rounded-md border border-surface-border bg-surface-input py-2 px-2 text-[10px] text-white font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+              className="h-8 cursor-pointer rounded-md border border-surface-border bg-surface-input px-2 text-xs text-white font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
               title="Fonte de conexão"
             >
               <option value="oauth">OAuth</option>
@@ -161,7 +161,7 @@ export default function Header({ onMenuToggle, sidebarOpen }) {
           <select
             value={activeOrgId ?? ''}
             onChange={(e) => setActiveOrgId(e.target.value || null)}
-            className="hidden lg:block max-w-[208px] cursor-pointer rounded-md border border-surface-border bg-surface-input py-2 px-2 text-[10px] text-white font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+            className="hidden lg:block h-8 max-w-[208px] cursor-pointer rounded-md border border-surface-border bg-surface-input px-2 text-xs text-white font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
             title="Escolha a conta/cliente"
           >
             {orgs.map((o) => (
@@ -176,14 +176,14 @@ export default function Header({ onMenuToggle, sidebarOpen }) {
           <DropdownMenu.Trigger asChild>
             <button
               type="button"
-              className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-white hover:bg-surface-card transition-all relative"
+              className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-white hover:bg-surface-card transition-all relative"
               title={
                 workerSecretsMode
                   ? 'Status e dicas — modo Secrets (.env); abra para ver como usar OAuth e filtros vivos'
                   : 'Monitoramento de conexões'
               }
             >
-              <Activity size={14} />
+              <Activity size={16} />
               <span
                 className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${
                   hasIssues ? 'bg-red-400' : workerSecretsMode ? 'bg-amber-400' : 'bg-green-400'
@@ -254,9 +254,9 @@ export default function Header({ onMenuToggle, sidebarOpen }) {
 
         <button
           type="button"
-          className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-white hover:bg-surface-card transition-all relative"
+          className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-white hover:bg-surface-card transition-all relative"
         >
-          <Bell size={14} />
+          <Bell size={16} />
           <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-brand rounded-full" />
         </button>
 
@@ -264,13 +264,13 @@ export default function Header({ onMenuToggle, sidebarOpen }) {
           <DropdownMenu.Trigger asChild>
             <button
               type="button"
-              className="flex items-center gap-2 bg-surface-card border border-surface-border rounded-md px-4 py-2 text-xs text-white hover:bg-surface-hover transition-all outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+              className="flex h-8 items-center gap-2 bg-surface-card border border-surface-border rounded-md px-3 text-xs text-white hover:bg-surface-hover transition-all outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
             >
               <div className="w-5 h-5 bg-brand rounded-full flex items-center justify-center shrink-0">
-                <User size={11} className="text-[#0F0F0F]" />
+                <User size={12} className="text-[#0F0F0F]" />
               </div>
               <span className="font-sans hidden sm:inline max-w-[120px] truncate">{label}</span>
-              <ChevronDown size={11} className="text-muted-foreground shrink-0" />
+              <ChevronDown size={12} className="text-muted-foreground shrink-0" />
             </button>
           </DropdownMenu.Trigger>
 
