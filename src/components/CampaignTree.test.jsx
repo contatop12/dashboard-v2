@@ -30,11 +30,14 @@ describe('CampaignTree', () => {
     expect(screen.getByText('Camp Problema').closest('[data-status]')).toHaveAttribute('data-status', 'danger')
   })
 
-  it('expands a campaign to reveal its adsets', async () => {
+  it('expands a campaign to reveal conjuntos and adsets', async () => {
     render(<CampaignTree tree={tree} onToggleStatus={() => {}} />)
     expect(screen.queryByText('Conjunto 1')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /expandir Camp Ativa/i }))
+    expect(screen.getByText('Conjuntos')).toBeInTheDocument()
     expect(screen.getByText('Conjunto 1')).toBeInTheDocument()
+    expect(screen.getByText(/Anúncios \(1\)/i)).toBeInTheDocument()
+    expect(screen.getByText('AD001')).toBeInTheDocument()
   })
 
   it('calls onToggleStatus with node info when a switch is toggled', async () => {
@@ -43,5 +46,19 @@ describe('CampaignTree', () => {
     const row = screen.getByText('Camp Ativa').closest('[data-status]')
     await userEvent.click(within(row).getByRole('switch'))
     expect(onToggle).toHaveBeenCalledWith({ level: 'campaign', id: 'c1', name: 'Camp Ativa', nextStatus: 'PAUSED' })
+  })
+
+  it('aceita labels custom e resultsLabel (Google)', async () => {
+    render(
+      <CampaignTree
+        tree={tree}
+        onToggleStatus={() => {}}
+        labels={{ adsets: 'Grupos de anúncios', ads: 'Anúncios' }}
+        resultsLabel="Conversões"
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: /expandir Camp Ativa/i }))
+    expect(screen.getByText('Grupos de anúncios')).toBeInTheDocument()
+    expect(screen.getAllByText('Conversões').length).toBeGreaterThan(0)
   })
 })
