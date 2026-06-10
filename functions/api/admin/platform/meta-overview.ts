@@ -8,6 +8,7 @@ import {
   getActiveConnectionForOrg,
 } from '../../../_lib/org-platform-credentials'
 import { buildMetaTree, type MetaNodeInput } from '../../../_lib/meta-tree'
+import { parseMetaDimensionFilters, metaFilteringQuery } from '../../../_lib/meta-filtering'
 
 type Metric = { label: string; value: string; deltaPct?: number | null }
 
@@ -96,22 +97,96 @@ type RawAgg = {
   cpm: number
   frequency: number
   leads: number
+  linkClicks: number
+  lpViews: number
+  hookViews: number
+  thruPlay: number
+  purchases: number
+  messages: number
+  postEngagement: number
+  conversionValue: number
+  videoP25: number
+  videoP50: number
+  videoP75: number
+  videoP100: number
+}
+
+export type MetaMetricsRaw = RawAgg
+
+function sumActionValues(actions: unknown, match: (t: string) => boolean): number {
+  if (!Array.isArray(actions)) return 0
+  let n = 0
+  for (const a of actions) {
+    const o = a as { action_type?: string; value?: string }
+    const t = String(o.action_type ?? '')
+    if (match(t)) n += Number.parseFloat(String(o.value ?? '0')) || 0
+  }
+  return Math.round(n)
+}
+
+function sumVideoField(row: Record<string, unknown>, key: string): number {
+  const v = row[key]
+  if (Array.isArray(v)) return sumActionValues(v, () => true)
+  return Number.parseFloat(String(v ?? '0')) || 0
 }
 
 function rowToRaw(row: Record<string, string | number> | undefined): RawAgg | null {
   if (!row) return null
+  const r = row as Record<string, unknown>
   const spend = Number.parseFloat(String(row.spend ?? 0)) || 0
   const impressions = Number.parseFloat(String(row.impressions ?? 0)) || 0
   const reach = Number.parseFloat(String(row.reach ?? 0)) || 0
   const clicks = Number.parseFloat(String(row.clicks ?? 0)) || 0
+  const linkClicks =
+    Number.parseFloat(String(row.inline_link_clicks ?? 0)) ||
+    sumActionValues(r.actions, (t) => t === 'link_click' || t.includes('link_click'))
   let ctr = Number.parseFloat(String(row.ctr ?? 0)) || 0
   let cpc = Number.parseFloat(String(row.cpc ?? 0)) || 0
   const cpm = Number.parseFloat(String(row.cpm ?? 0)) || 0
   const frequency = Number.parseFloat(String(row.frequency ?? 0)) || 0
-  const leads = parseLeadsFromRow(row as Record<string, unknown>)
-  if (impressions > 0 && ctr === 0 && clicks > 0) ctr = (clicks / impressions) * 100
-  if (clicks > 0 && cpc === 0 && spend > 0) cpc = spend / clicks
-  return { spend, impressions, reach, clicks, ctr, cpc, cpm, frequency, leads }
+  const leads = parseLeadsFromRow(r)
+  const purchases = sumActionValues(r.actions, (t) =>
+    t.includes('purchase') || t.includes('omni_purchase')
+  )
+  const messages = sumActionValues(r.actions, (t) =>
+    t.includes('onsite_conversion.messaging') || t.includes('messaging_conversation')
+  )
+  const postEngagement = sumActionValues(r.actions, (t) => t === 'post_engagement')
+  const lpViews = sumActionValues(r.actions, (t) => t === 'landing_page_view' || t.includes('landing_page'))
+  const hookViews =
+    sumVideoField(r, 'video_3_sec_watched_actions') ||
+    sumActionValues(r.actions, (t) => t.includes('video_view') || t === 'video_view')
+  const thruPlay = sumVideoField(r, 'video_thruplay_watched_actions')
+  const conversionValue = sumActionValues(r.actions, (t) =>
+    t.includes('offsite_conversion.fb_pixel_purchase') || t.includes('purchase')
+  )
+  if (impressions > 0 && linkClicks > 0) ctr = (linkClicks / impressions) * 100
+  else if (impressions > 0 && ctr === 0 && clicks > 0) ctr = (clicks / impressions) * 100
+  if (linkClicks > 0 && spend > 0) cpc = spend / linkClicks
+  else if (clicks > 0 && cpc === 0 && spend > 0) cpc = spend / clicks
+  return {
+    spend,
+    impressions,
+    reach,
+    clicks,
+    ctr,
+    cpc,
+    cpm,
+    frequency,
+    leads,
+    linkClicks,
+    lpViews,
+    hookViews,
+    thruPlay,
+    purchases,
+    messages,
+    postEngagement,
+    conversionValue,
+    videoP25: sumVideoField(r, 'video_p25_watched_actions'),
+    videoP50: sumVideoField(r, 'video_p50_watched_actions'),
+    videoP75: sumVideoField(r, 'video_p75_watched_actions'),
+    videoP100: sumVideoField(r, 'video_p100_watched_actions'),
+  }
 }
 
 function deltaPct(primary: number, compare: number): number | null {
@@ -153,7 +228,8 @@ async function fetchInsightsAggregate(
   token: string,
   actId: string,
   since: string,
-  until: string
+  until: string,
+  filtering = ''
 ): Promise<{ row: Record<string, string | number> | null; error?: string }> {
   const fields = [
     'spend',
@@ -165,13 +241,20 @@ async function fetchInsightsAggregate(
     'cpm',
     'frequency',
     'actions',
+    'inline_link_clicks',
+    'video_p25_watched_actions',
+    'video_p50_watched_actions',
+    'video_p75_watched_actions',
+    'video_p100_watched_actions',
+    'video_thruplay_watched_actions',
+    'video_3_sec_watched_actions',
   ].join(',')
   const iu = new URL(`https://graph.facebook.com/v21.0/${actId}/insights`)
   iu.searchParams.set('fields', fields)
   iu.searchParams.set('time_range', JSON.stringify({ since, until }))
   iu.searchParams.set('access_token', token)
 
-  const ir = await fetch(iu.toString())
+  const ir = await fetch(iu.toString() + filtering)
   const idata = (await ir.json()) as {
     data?: Record<string, string | number>[]
     error?: { message?: string }
@@ -186,7 +269,8 @@ async function fetchInsightsDaily(
   token: string,
   actId: string,
   since: string,
-  until: string
+  until: string,
+  filtering = ''
 ): Promise<DailyRow[]> {
   const fields = ['spend', 'impressions', 'reach', 'clicks', 'actions', 'date_start'].join(',')
   const iu = new URL(`https://graph.facebook.com/v21.0/${actId}/insights`)
@@ -194,7 +278,7 @@ async function fetchInsightsDaily(
   iu.searchParams.set('time_range', JSON.stringify({ since, until }))
   iu.searchParams.set('time_increment', '1')
   iu.searchParams.set('access_token', token)
-  const ir = await fetch(iu.toString())
+  const ir = await fetch(iu.toString() + filtering)
   const idata = (await ir.json()) as {
     data?: Record<string, string | number | unknown>[]
     error?: { message?: string }
@@ -214,14 +298,15 @@ async function fetchPlacementsBreakdown(
   token: string,
   actId: string,
   since: string,
-  until: string
+  until: string,
+  filtering = ''
 ): Promise<Array<{ name: string; spend: number }>> {
   const iu = new URL(`https://graph.facebook.com/v21.0/${actId}/insights`)
   iu.searchParams.set('fields', 'spend,publisher_platform')
   iu.searchParams.set('time_range', JSON.stringify({ since, until }))
   iu.searchParams.set('breakdowns', 'publisher_platform')
   iu.searchParams.set('access_token', token)
-  const ir = await fetch(iu.toString())
+  const ir = await fetch(iu.toString() + filtering)
   const idata = (await ir.json()) as {
     data?: { spend?: string; publisher_platform?: string }[]
     error?: { message?: string }
@@ -780,12 +865,15 @@ async function buildMetaResponse(
   since: string,
   until: string,
   compareSince: string | null,
-  compareUntil: string | null
+  compareUntil: string | null,
+  filtering = ''
 ): Promise<Record<string, unknown>> {
+  // Árvore (fetchAdLevelInsights/fetchMetaCampaignsForOverview) fica sem filtro — volta completa;
+  // o recorte server-side vale para agregados, série diária e posicionamentos.
   const [agg, dailyRaw, places, adInsightRows, campPack] = await Promise.all([
-    fetchInsightsAggregate(token, actId, since, until),
-    fetchInsightsDaily(token, actId, since, until),
-    fetchPlacementsBreakdown(token, actId, since, until),
+    fetchInsightsAggregate(token, actId, since, until, filtering),
+    fetchInsightsDaily(token, actId, since, until, filtering),
+    fetchPlacementsBreakdown(token, actId, since, until, filtering),
     fetchAdLevelInsights(token, actId, since, until),
     fetchMetaCampaignsForOverview(token, actId, since, until),
   ])
@@ -890,7 +978,7 @@ async function buildMetaResponse(
 
   let compareRaw: RawAgg | null = null
   if (compareSince && compareUntil) {
-    const c = await fetchInsightsAggregate(token, actId, compareSince, compareUntil)
+    const c = await fetchInsightsAggregate(token, actId, compareSince, compareUntil, filtering)
     compareRaw = rowToRaw(c.row as Record<string, string | number>) ?? {
       spend: 0,
       impressions: 0,
@@ -901,12 +989,26 @@ async function buildMetaResponse(
       cpm: 0,
       frequency: 0,
       leads: 0,
+      linkClicks: 0,
+      lpViews: 0,
+      hookViews: 0,
+      thruPlay: 0,
+      purchases: 0,
+      messages: 0,
+      postEngagement: 0,
+      conversionValue: 0,
+      videoP25: 0,
+      videoP50: 0,
+      videoP75: 0,
+      videoP100: 0,
     }
   }
 
   const metrics = buildMetrics(primaryRaw, compareRaw)
   const compareMetrics =
     compareSince && compareUntil && compareRaw ? buildCompareMetricsStrip(compareRaw) : null
+  const metaMetricsRaw = primaryRaw
+  const metaMetricsCompareRaw = compareRaw
   const totalSpendPlaces = places.reduce((s, p) => s + p.spend, 0) || 1
   const placements = places.map((p) => ({
     name: labelPlatform(p.name),
@@ -925,6 +1027,9 @@ async function buildMetaResponse(
     compareRange:
       compareSince && compareUntil ? { since: compareSince, until: compareUntil } : null,
     compareMetrics,
+    metaMetricsRaw,
+    metaMetricsCompareRaw,
+    qualityRanking: null as string | null,
     daily,
     placements,
     creatives,
@@ -955,6 +1060,7 @@ export async function onRequestGet(context: {
   const url = new URL(context.request.url)
   const orgId = url.searchParams.get('org_id')?.trim() || ''
   const { since, until, compareSince, compareUntil } = parseRangeParams(url)
+  const filtering = metaFilteringQuery(parseMetaDimensionFilters(url))
 
   if (orgId) {
     if (!(await userCanAccessOrg(context.env.DB, user, orgId))) {
@@ -979,14 +1085,20 @@ export async function onRequestGet(context: {
         tree: [],
       })
     }
-    const token = await decryptMetaAccessToken(context.env.DB, context.env, conn.oauth_credential_id)
+    const useWorkerSecrets = !conn.oauth_credential_id
+    const token = useWorkerSecrets
+      ? context.env.META_ACCESS_TOKEN?.trim() ?? null
+      : await decryptMetaAccessToken(context.env.DB, context.env, conn.oauth_credential_id)
+    const orgSource = useWorkerSecrets ? 'assigned_env' : 'oauth_org'
     if (!token) {
       return json({
         configured: false,
-        source: 'oauth_org',
+        source: orgSource,
         accountDisplay: conn.external_name,
         error: null,
-        detail: 'Token Meta indisponível. Reconecte em Integrações.',
+        detail: useWorkerSecrets
+          ? 'META_ACCESS_TOKEN não configurado no Worker.'
+          : 'Token Meta indisponível. Reconecte em Integrações.',
         metrics: [] as Metric[],
         primaryRange: { since, until },
         compareRange: null,
@@ -1005,11 +1117,12 @@ export async function onRequestGet(context: {
       token,
       actId,
       accountDisplay,
-      'oauth_org',
+      orgSource,
       since,
       until,
       compareSince,
-      compareUntil
+      compareUntil,
+      filtering
     )
     return json(body)
   }
@@ -1078,7 +1191,8 @@ export async function onRequestGet(context: {
       since,
       until,
       compareSince,
-      compareUntil
+      compareUntil,
+      filtering
     )
     return json(body)
   } catch (e) {
