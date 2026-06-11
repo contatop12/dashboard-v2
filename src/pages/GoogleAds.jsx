@@ -27,6 +27,7 @@ import GoogleConversionMixChart from '@/components/GoogleConversionMixChart'
 import { BlockCard } from '@/components/ui/BlockCard'
 import { CampaignTree } from '@/components/CampaignTree'
 import { DimensionFilterSelect } from '@/components/ui/DimensionFilterSelect'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { useCampaignStatusMutation } from '@/hooks/useCampaignStatusMutation'
 import { filterOptionsFromTree, resolveTreeSlice } from '@/lib/filterOptionsFromTree'
 import {
