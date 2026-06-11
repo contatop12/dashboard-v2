@@ -360,3 +360,27 @@
   }
 }
 
+@keyframes intro-progress {
+  0% {
+    width: 0%;
+    transform: translateX(0);
+  }
+  50% {
+    width: 85%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.intro-progress-bar {
+  animation: intro-progress 2.4s ease-in-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-progress-bar {
+    animation: none;
+    width: 100%;
+  }
+}
+

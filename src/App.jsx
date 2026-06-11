@@ -3,6 +3,7 @@ import { Printer, X } from 'lucide-react'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import FilterBar from './components/FilterBar'
+import { IntroSplash, hasSeenIntroThisSession } from './components/IntroSplash'
 
 import DashboardGrid from './components/DashboardGrid'
 import { GERAL_DASHBOARD_BLOCKS } from './dashboard/geralBlocks'
@@ -34,6 +35,7 @@ export default function App() {
   const { user, loading, accessError } = useAuth()
   const [activePage, setActivePage] = useState('Geral')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showIntro, setShowIntro] = useState(() => !hasSeenIntroThisSession())
 
   useEffect(() => {
     if (user?.role !== 'super_admin' && activePage === 'Clientes') {
@@ -103,6 +105,7 @@ export default function App() {
           setSidebarOpen(false)
         }}
       />
+      {showIntro ? <IntroSplash onComplete={() => setShowIntro(false)} /> : null}
     </DashboardFiltersProvider>
   )
 }
