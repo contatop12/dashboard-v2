@@ -696,8 +696,10 @@ const GOOGLE_TREE_LABELS = { adsets: 'Grupos de anúncios', ads: 'Anúncios', ke
 function GoogleCampaignsBlock({ workerPlatformQuery }) {
   const { activeOrgId } = useOrgWorkspace()
   const { loading, data } = usePlatformOverview()
-  const { dimensionFilters, setFilterOptions } = useDashboardFilters()
-  const [blockFilters, setBlockFilters] = useState({})
+  const { dimensionFilters, setFilterOptions, googleCampaignBlockFilters, setGoogleCampaignBlockFilters } =
+    useDashboardFilters()
+  const blockFilters = googleCampaignBlockFilters
+  const setBlockFilters = setGoogleCampaignBlockFilters
   const customerId = useMemo(() => {
     const m = /(?:^|&)customer_id=([^&]+)/.exec(workerPlatformQuery || '')
     return m ? decodeURIComponent(m[1]) : ''
@@ -852,6 +854,8 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
     </div>
   )
 
+  const showToolbar = loading || totalCampaigns > 0 || hasBlockFilters
+
   return (
     <BlockCard
       title="Campanhas Google Ads"
@@ -859,9 +863,9 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
       state={state}
       emptyMessage="Nenhuma campanha no período."
       errorMessage={String(data?.campaignsError || '')}
-      bodyClassName="overflow-auto flex flex-col"
+      bodyClassName="overflow-auto"
+      toolbar={showToolbar ? filterToolbar : null}
     >
-      {state !== 'empty' ? filterToolbar : null}
       {visibleTree.length === 0 && state === 'ready' ? (
         <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
           <p className="text-[11px] text-muted-foreground">

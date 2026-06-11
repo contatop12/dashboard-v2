@@ -6,7 +6,7 @@ import { BlockState } from './BlockState'
  * Single block shell. Replaces ad-hoc `bg-surface-card border rounded-lg p-4`.
  * Consistent radius/border/padding + header (title + info + actions).
  */
-export function BlockCard({ title, infoKey, actions, badge, state = 'ready', emptyMessage, errorMessage, className, headerClassName, bodyClassName, children }) {
+export function BlockCard({ title, infoKey, actions, badge, toolbar, state = 'ready', emptyMessage, errorMessage, className, headerClassName, bodyClassName, children }) {
   return (
     <div className={cn('flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-white/[0.06] bg-surface-card', className)}>
       {(title || actions || badge) && (
@@ -21,8 +21,11 @@ export function BlockCard({ title, infoKey, actions, badge, state = 'ready', emp
           </div>
         </div>
       )}
-      <div className={cn('min-h-0 flex-1 px-4 pb-4', bodyClassName)}>
-        {state === 'ready' ? children : <BlockState state={state} message={state === 'empty' ? emptyMessage : errorMessage} />}
+      <div className={cn('min-h-0 flex-1 px-4 pb-4 flex flex-col', bodyClassName)}>
+        {toolbar ? <div className="shrink-0">{toolbar}</div> : null}
+        <div className="min-h-0 flex-1">
+          {state === 'ready' ? children : <BlockState state={state} message={state === 'empty' ? emptyMessage : errorMessage} />}
+        </div>
       </div>
     </div>
   )

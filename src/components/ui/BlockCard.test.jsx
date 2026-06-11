@@ -15,12 +15,13 @@ describe('BlockCard', () => {
     expect(screen.getByText('conteudo')).toBeInTheDocument()
   })
 
-  it('renders BlockState instead of children when state is empty', () => {
+  it('renders toolbar even when state is empty', () => {
     render(
-      <BlockCard title="Campanhas" state="empty" emptyMessage="Nada aqui">
+      <BlockCard title="Campanhas" state="empty" emptyMessage="Nada aqui" toolbar={<p>filtros</p>}>
         <p>conteudo</p>
       </BlockCard>
     )
+    expect(screen.getByText('filtros')).toBeInTheDocument()
     expect(screen.queryByText('conteudo')).not.toBeInTheDocument()
     expect(screen.getByText('Nada aqui')).toBeInTheDocument()
   })
