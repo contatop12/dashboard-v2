@@ -221,7 +221,10 @@ export function GoogleAdsCampaignTypesTable() {
   return (
     <div className="flex min-h-0 h-full min-w-0 flex-col overflow-hidden rounded-lg border border-surface-border bg-surface-card">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-surface-border px-3 py-3 sm:px-4">
-        <span className="section-title">Tipos de campanhas</span>
+        <div className="min-w-0">
+          <span className="section-title">Tipos de campanhas</span>
+          <p className="mt-0.5 text-[10px] text-muted-foreground font-sans">Período selecionado no filtro de datas</p>
+        </div>
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button

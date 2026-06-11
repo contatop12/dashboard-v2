@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { aggregateSearchTerms, aggregateTopKeywords } from './google-ads-keywords'
+import { aggregateSearchTerms, aggregateTopKeywords, aggregateKeywordsByAdGroup } from './google-ads-keywords'
 
 function kwRow({
   text = 'apartamento sp',
   matchType = 'BROAD',
   campaignId = '1',
   campaignName = 'Campanha A',
+  adGroupId = '10',
   adGroupName = 'Grupo 1',
   costMicros = 0,
   impressions = 0,
@@ -16,7 +17,7 @@ function kwRow({
 } = {}) {
   return {
     campaign: { id: campaignId, name: campaignName },
-    adGroup: { name: adGroupName },
+    adGroup: { id: adGroupId, name: adGroupName },
     adGroupCriterion: { keyword: { text, matchType } },
     metrics: {
       costMicros: String(costMicros),
@@ -82,6 +83,22 @@ describe('aggregateTopKeywords', () => {
       kwRow({ costMicros: 6_000_000, impressions: 10, conversions: 2 }),
     ])
     expect(item2.costPerConversion).toBeCloseTo(3)
+  })
+})
+
+describe('aggregateKeywordsByAdGroup', () => {
+  it('agrupa por ad group e ordena por gasto', () => {
+    const map = aggregateKeywordsByAdGroup([
+      kwRow({ adGroupId: '10', text: 'cyrela', costMicros: 2_000_000, impressions: 100, clicks: 8 }),
+      kwRow({ adGroupId: '10', text: 'apartamento', costMicros: 5_000_000, impressions: 200, clicks: 12 }),
+      kwRow({ adGroupId: '20', text: 'cyrela', costMicros: 1_000_000, impressions: 50, clicks: 3 }),
+    ])
+    expect(map.get('10')).toHaveLength(2)
+    expect(map.get('10')![0].keyword).toBe('apartamento')
+    expect(map.get('10')![0].metrics.spend).toBeCloseTo(5)
+    expect(map.get('10')![0].metrics.impressions).toBe(200)
+    expect(map.get('10')![0].metrics.clicks).toBe(12)
+    expect(map.get('20')).toHaveLength(1)
   })
 })
 

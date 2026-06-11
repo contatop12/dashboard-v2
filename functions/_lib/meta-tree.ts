@@ -3,7 +3,16 @@ export type MetaMetrics = {
   results: number
   ctrLink: number
   cpm: number
-  [k: string]: number
+  impressions?: number
+  clicks?: number
+  [k: string]: number | undefined
+}
+
+export type MetaKeywordNode = {
+  id: string
+  keyword: string
+  matchType: string | null
+  metrics: MetaMetrics
 }
 
 export type MetaNodeInput = {
@@ -18,7 +27,7 @@ export type MetaNodeInput = {
 }
 
 export type MetaAdNode = MetaNodeInput
-export type MetaAdsetNode = MetaNodeInput & { ads: MetaAdNode[] }
+export type MetaAdsetNode = MetaNodeInput & { ads: MetaAdNode[]; keywords?: MetaKeywordNode[] }
 export type MetaCampaignNode = MetaNodeInput & { adsets: MetaAdsetNode[] }
 
 /** Assemble Campaign → AdSet → Ad. Orphans (missing parent) are dropped. */

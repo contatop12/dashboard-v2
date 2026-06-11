@@ -1,11 +1,14 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Trophy } from 'lucide-react'
 import { cn, formatNumber } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { BlockCard } from '@/components/ui/BlockCard'
+import { MiniPagination } from '@/components/ui/MiniPagination'
 
 const MIN_IMPRESSIONS = 10
-const MAX_ROWS = 10
+const PAGE_SIZE = 5
+/** Altura mínima alinhada ao corpo de 5 linhas do bloco Termos de pesquisa. */
+const PAIRED_BODY_MIN_H = 'min-h-[15rem]'
 
 function pctLabel(p) {
   if (p == null || Number.isNaN(Number(p))) return '—'
@@ -33,8 +36,16 @@ export function GoogleKeywordPositionBlock() {
     return list
       .filter((k) => k.impressions >= MIN_IMPRESSIONS && k.absTopPct != null)
       .sort((a, b) => b.absTopPct - a.absTopPct || b.impressions - a.impressions)
-      .slice(0, MAX_ROWS)
   }, [payload])
+  const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    setPage(1)
+  }, [items])
+
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageItems = items.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
   const state = loading
     ? 'loading'
@@ -54,17 +65,19 @@ export function GoogleKeywordPositionBlock() {
   return (
     <BlockCard
       title={titleNode}
+      badge={items.length > 0 ? `${items.length} palavras` : undefined}
       state={state}
       emptyMessage={`Sem palavras-chave de pesquisa com pelo menos ${MIN_IMPRESSIONS} impressões no período.`}
       errorMessage={String(payload?.error || '')}
-      bodyClassName="px-3 sm:px-4 pb-3 sm:pb-4 flex flex-col gap-2"
+      className="h-full"
+      bodyClassName="flex min-h-0 flex-1 flex-col gap-2 px-3 sm:px-4 pb-3 sm:pb-4"
     >
       <p className="shrink-0 text-[9px] leading-snug text-muted-foreground/85 font-sans">
         % das impressões em que o anúncio apareceu em <strong className="text-foreground/80">1º lugar absoluto</strong>{' '}
         na busca (topo da página, acima de todos). Estimativa de impressões em 1º entre parênteses.
       </p>
-      <div className="flex min-h-0 flex-col gap-2 overflow-y-auto pr-0.5">
-        {items.map((kw) => {
+      <div className={cn('flex flex-col gap-2', PAIRED_BODY_MIN_H)}>
+        {pageItems.map((kw) => {
           const pct = Number(kw.absTopPct) || 0
           return (
             <div key={`${kw.campaignId}-${kw.keyword}`} className="min-w-0">
@@ -95,6 +108,12 @@ export function GoogleKeywordPositionBlock() {
           )
         })}
       </div>
+      <MiniPagination
+        page={safePage}
+        totalPages={totalPages}
+        onPage={setPage}
+        className="mt-auto border-t border-surface-border/80 pt-1"
+      />
     </BlockCard>
   )
 }

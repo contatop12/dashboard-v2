@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import DashboardBlock from '@/components/DashboardBlock'
 import { DashboardBlockPeriodContext } from '@/context/DashboardBlockPeriodContext'
@@ -20,6 +22,18 @@ export default function DashboardGrid({ definitions, className }) {
     [definitions]
   )
 
+  const compareRangeLabel = useMemo(() => {
+    const r = filters?.compareDateRange
+    if (!r?.start || !r?.end) return null
+    return `${format(r.start, 'd MMM', { locale: ptBR })} – ${format(r.end, 'd MMM yyyy', { locale: ptBR })}`
+  }, [filters?.compareDateRange])
+
+  const primaryRangeLabel = useMemo(() => {
+    const r = filters?.dateRange
+    if (!r?.start || !r?.end) return null
+    return `${format(r.start, 'd MMM', { locale: ptBR })} – ${format(r.end, 'd MMM yyyy', { locale: ptBR })}`
+  }, [filters?.dateRange])
+
   const gridStyle = useMemo(
     () => ({ '--grid-cols': String(gridCols) }),
     [gridCols]
@@ -29,8 +43,13 @@ export default function DashboardGrid({ definitions, className }) {
     <div className={cn('relative w-full min-h-full', className)}>
       {primaryDefs.length > 0 && (
         <section className="px-6 pt-6">
-          <div className="mb-4 flex items-center gap-2">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">Métricas</span>
+            {primaryRangeLabel ? (
+              <span className="rounded-md bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] tabular-nums text-foreground/80">
+                {primaryRangeLabel}
+              </span>
+            ) : null}
             {comparePrimaryKpi && (
               <span className="rounded-md bg-brand/10 px-2 py-0.5 text-[10px] font-medium text-brand">
                 Comparando
@@ -52,8 +71,15 @@ export default function DashboardGrid({ definitions, className }) {
           </div>
 
           {comparePrimaryKpi && (
-            <div className="mt-4">
-              <p className="mb-3 text-xs text-muted-foreground">Período anterior</p>
+            <div className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <p className="text-xs font-medium text-muted-foreground">Período anterior</p>
+                {compareRangeLabel ? (
+                  <span className="rounded-md bg-white/[0.05] px-2 py-0.5 font-mono text-[10px] tabular-nums text-foreground/85">
+                    {compareRangeLabel}
+                  </span>
+                ) : null}
+              </div>
               <DashboardBlockPeriodContext.Provider value="previous">
                 <div
                   className="grid gap-4"

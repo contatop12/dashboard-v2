@@ -13,6 +13,9 @@ import { ArrowDown, ArrowUp, Columns3, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
+import { MiniPagination } from '@/components/ui/MiniPagination'
+
+const MONTHLY_PAGE_SIZE = 3
 
 const BAR_COLORS = {
   impressoes: '#4A9BFF',
@@ -56,6 +59,31 @@ function formatConvCount(n) {
   return Math.abs(x % 1) < 0.001
     ? formatNumber(Math.round(x))
     : new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(x)
+}
+
+function enrichGoogleMonthlyRows(items) {
+  if (!Array.isArray(items)) return []
+  return items.map((r) => ({
+    monthKey: String(r.monthKey ?? ''),
+    monthLabel: monthLabelPt(String(r.monthKey ?? '')),
+    impressions: Math.round(Number(r.impressions) || 0),
+    clicks: Math.round(Number(r.clicks) || 0),
+    spend: Number(r.spend) || 0,
+    conversions: Number(r.conversions) || 0,
+    conversionsValue: Number(r.conversionsValue ?? r.conversions_value) || 0,
+    cpc: null,
+    ctr: null,
+    custoPorConversao: null,
+    taxaConversao: null,
+    valorPorConversao: null,
+  })).map((r) => ({
+    ...r,
+    cpc: r.clicks > 0 ? r.spend / r.clicks : null,
+    ctr: r.impressions > 0 ? (r.clicks / r.impressions) * 100 : null,
+    custoPorConversao: r.conversions > 0 ? r.spend / r.conversions : null,
+    taxaConversao: r.clicks > 0 ? (r.conversions / r.clicks) * 100 : null,
+    valorPorConversao: r.conversions > 0 ? r.conversionsValue / r.conversions : null,
+  }))
 }
 
 function aggregateGoogleByMonth(daily) {
@@ -392,11 +420,25 @@ const DEFAULT_SORT = [{ id: 'mes', desc: true }]
 export function MonthlyAccountResultsTable({ platform }) {
   const { loading, data } = usePlatformOverview()
   const daily = data?.daily
+  const monthlyPayload = platform === 'google' ? data?.monthlyResults : null
+  const monthlyErr =
+    platform === 'google' && typeof monthlyPayload?.error === 'string' && monthlyPayload.error.trim()
+      ? monthlyPayload.error.trim()
+      : null
 
   const rows = useMemo(() => {
+    if (platform === 'google' && Array.isArray(monthlyPayload?.items)) {
+      return enrichGoogleMonthlyRows(monthlyPayload.items)
+    }
     if (platform === 'meta') return aggregateMetaByMonth(daily)
     return aggregateGoogleByMonth(daily)
-  }, [daily, platform])
+  }, [daily, platform, monthlyPayload?.items])
+
+  const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    setPage(1)
+  }, [rows])
 
   const maxes = useMemo(() => computeColumnMaxes(rows), [rows])
   const footer = useMemo(() => buildFooterTotals(rows, platform), [rows, platform])
@@ -470,6 +512,14 @@ export function MonthlyAccountResultsTable({ platform }) {
     if (columnId === 'mes') return
     setColumnVisibility((prev) => ({ ...prev, [columnId]: visible }))
   }, [])
+
+  const sortedRows = table.getRowModel().rows
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / MONTHLY_PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageRows = sortedRows.slice(
+    (safePage - 1) * MONTHLY_PAGE_SIZE,
+    safePage * MONTHLY_PAGE_SIZE
+  )
 
   const renderFooterCell = (colId) => {
     if (colId === 'mes') {
@@ -571,7 +621,12 @@ export function MonthlyAccountResultsTable({ platform }) {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-surface-border bg-surface-card">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-surface-border px-3 py-3 sm:px-4">
-        <span className="section-title">Resultados mensais da conta</span>
+        <div className="min-w-0">
+          <span className="section-title">Resultados mensais da conta</span>
+          {platform === 'google' ? (
+            <p className="mt-0.5 text-[10px] text-muted-foreground font-sans">Últimos 6 meses · independente do filtro de datas</p>
+          ) : null}
+        </div>
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button
@@ -612,6 +667,10 @@ export function MonthlyAccountResultsTable({ platform }) {
         </DropdownMenu.Root>
       </div>
 
+      {monthlyErr ? (
+        <p className="shrink-0 px-3 py-2 text-[10px] text-amber-400/90 sm:px-4">{monthlyErr}</p>
+      ) : null}
+
       {loading ? (
         <div className="flex flex-1 items-center justify-center gap-2 py-12 text-[11px] text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
@@ -621,12 +680,15 @@ export function MonthlyAccountResultsTable({ platform }) {
 
       {!loading && rows.length === 0 ? (
         <p className="px-3 py-8 text-center text-[11px] text-muted-foreground sm:px-4">
-          Sem dados diários no período para montar os meses.
+          {platform === 'google'
+            ? 'Sem dados mensais nos últimos 6 meses.'
+            : 'Sem dados diários no período para montar os meses.'}
         </p>
       ) : null}
 
       {!loading && rows.length > 0 ? (
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full min-w-[880px] text-xs">
             <thead>
               {table.getHeaderGroups().map((hg) => (
@@ -671,7 +733,7 @@ export function MonthlyAccountResultsTable({ platform }) {
               ))}
             </thead>
             <tbody>
-              {table.getRowModel().rows.map((row) => (
+              {pageRows.map((row) => (
                 <tr
                   key={row.id}
                   className="border-b border-surface-border/40 transition-colors hover:bg-surface-hover/30"
@@ -706,6 +768,13 @@ export function MonthlyAccountResultsTable({ platform }) {
               </tr>
             </tfoot>
           </table>
+          </div>
+          <MiniPagination
+            page={safePage}
+            totalPages={totalPages}
+            onPage={setPage}
+            className="shrink-0 border-t border-surface-border/80 px-3 py-2 sm:px-4"
+          />
         </div>
       ) : null}
     </div>

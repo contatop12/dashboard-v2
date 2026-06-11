@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { endOfDay, startOfDay, subDays } from 'date-fns'
-import { defaultCompareSevenDaysBeforeMain, getPreviousPeriodOfSameLength } from '@/lib/dateRange'
+import { getPreviousPeriodOfSameLength } from '@/lib/dateRange'
 
 const DashboardFiltersContext = createContext(null)
 
@@ -12,9 +12,10 @@ function initialMainRange() {
 
 export function DashboardFiltersProvider({ children }) {
   const [dateRange, setDateRange] = useState(initialMainRange)
-  const [compareDateRange, setCompareDateRange] = useState(() =>
-    defaultCompareSevenDaysBeforeMain(initialMainRange().start)
-  )
+  const [compareDateRange, setCompareDateRange] = useState(() => {
+    const main = initialMainRange()
+    return getPreviousPeriodOfSameLength(main.start, main.end)
+  })
   const [comparePrimaryKpi, setComparePrimaryKpi] = useState(false)
   /** Modo apresentação: esconde navegação/filtros para exibir só os blocos (relatórios ao vivo/print). */
   const [presentationMode, setPresentationMode] = useState(false)
@@ -28,7 +29,7 @@ export function DashboardFiltersProvider({ children }) {
   )
 
   useEffect(() => {
-    setCompareDateRange(defaultCompareSevenDaysBeforeMain(dateRange.start))
+    setCompareDateRange(getPreviousPeriodOfSameLength(dateRange.start, dateRange.end))
   }, [dateRange.start, dateRange.end])
 
   const setDateRangeSafe = useCallback((next) => {

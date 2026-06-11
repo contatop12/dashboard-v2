@@ -12,10 +12,23 @@ export function resolveGoogleLoginCustomerId(env: WorkerEnv): string | undefined
   return raw ? customerPathId(raw) : undefined
 }
 
+/** Versão REST padrão (sunset previsto fev/2027). Sobrescreva com GOOGLE_ADS_API_VERSION. */
+export const DEFAULT_GOOGLE_ADS_API_VERSION = 'v23'
+
+/** Versões com sunset — redireciona para DEFAULT (v20 encerrou em 10/jun/2026). */
+const SUNSET_GOOGLE_ADS_API_VERSIONS = new Set([
+  'v17',
+  'v18',
+  'v19',
+  'v20',
+  'v20.1',
+])
+
 /** Versão REST estável; sobrescreva com GOOGLE_ADS_API_VERSION no Worker. */
 export function resolveGoogleApiVersion(env: WorkerEnv): string {
-  const rawVer = env.GOOGLE_ADS_API_VERSION?.trim() || 'v21'
-  return rawVer.startsWith('v') ? rawVer : `v${rawVer}`
+  const rawVer = env.GOOGLE_ADS_API_VERSION?.trim() || DEFAULT_GOOGLE_ADS_API_VERSION
+  const ver = rawVer.startsWith('v') ? rawVer : `v${rawVer}`
+  return SUNSET_GOOGLE_ADS_API_VERSIONS.has(ver) ? DEFAULT_GOOGLE_ADS_API_VERSION : ver
 }
 
 export async function readGoogleAdsJson(
@@ -27,7 +40,7 @@ export async function readGoogleAdsJson(
     return {
       ok: false,
       data: {},
-      error: `Google Ads API devolveu HTML (HTTP ${res.status}). Verifique GOOGLE_ADS_API_VERSION (ex.: v21) e developer token.`,
+      error: `Google Ads API devolveu HTML (HTTP ${res.status}). Verifique GOOGLE_ADS_API_VERSION (ex.: v23) e developer token.`,
     }
   }
   try {

@@ -5,6 +5,7 @@ import {
   parseAdGroupNodes,
   parseAdNodes,
   buildGoogleTree,
+  attachKeywordsToGoogleTree,
 } from './google-ads-tree'
 
 describe('mapGoogleStatus', () => {
@@ -37,6 +38,8 @@ describe('parseCampaignNodes', () => {
     expect(nodes[0].metrics.spend).toBe(2)
     expect(nodes[0].metrics.results).toBe(2)
     expect(nodes[0].metrics.ctrLink).toBeCloseTo(10)
+    expect(nodes[0].metrics.impressions).toBe(100)
+    expect(nodes[0].metrics.clicks).toBe(10)
   })
 
   test('campanha sem métricas no período entra zerada', () => {
@@ -81,5 +84,25 @@ describe('buildGoogleTree', () => {
     expect(tree).toHaveLength(1)
     expect(tree[0].adsets).toHaveLength(1)
     expect(tree[0].adsets[0].ads).toHaveLength(1)
+  })
+})
+
+describe('attachKeywordsToGoogleTree', () => {
+  test('anexa palavras-chave ao grupo correto', () => {
+    const tree = buildGoogleTree(
+      parseCampaignNodes(campCatalog, campMetrics),
+      parseAdGroupNodes([{ adGroup: { id: '11', name: 'AG', status: 'ENABLED' }, campaign: { id: '1' } }], []),
+      []
+    )
+    const enriched = attachKeywordsToGoogleTree(tree, [
+      {
+        adGroup: { id: '11' },
+        adGroupCriterion: { keyword: { text: 'cyrela', matchType: 'EXACT' } },
+        metrics: { costMicros: '3000000', impressions: '50', clicks: '4', conversions: 1 },
+      },
+    ])
+    expect(enriched[0].adsets[0].keywords).toHaveLength(1)
+    expect(enriched[0].adsets[0].keywords![0].keyword).toBe('cyrela')
+    expect(enriched[0].adsets[0].keywords![0].metrics.spend).toBeCloseTo(3)
   })
 })

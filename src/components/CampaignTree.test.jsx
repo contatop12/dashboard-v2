@@ -61,4 +61,45 @@ describe('CampaignTree', () => {
     expect(screen.getByText('Grupos de anúncios')).toBeInTheDocument()
     expect(screen.getAllByText('Conversões').length).toBeGreaterThan(0)
   })
+
+  it('mostra palavras-chave em campanhas Search (Google)', async () => {
+    const searchTree = [
+      {
+        id: 'c1',
+        name: 'Camp Search',
+        effectiveStatus: 'ACTIVE',
+        objective: 'SEARCH',
+        dailyBudget: 0,
+        metrics: { spend: 100, results: 2, ctrLink: 5, cpm: 10, impressions: 1000, clicks: 50 },
+        adsets: [
+          {
+            id: 's1',
+            name: 'Grupo Cyrela',
+            effectiveStatus: 'ACTIVE',
+            objective: '',
+            dailyBudget: 0,
+            metrics: { spend: 100, results: 2, ctrLink: 5, cpm: 10, impressions: 1000, clicks: 50 },
+            ads: [],
+            keywords: [
+              {
+                id: 'k1',
+                keyword: 'cyrela apartamento',
+                matchType: 'EXACT',
+                metrics: { spend: 80, results: 2, ctrLink: 6, cpm: 8, impressions: 800, clicks: 48 },
+              },
+            ],
+          },
+        ],
+      },
+    ]
+    render(
+      <CampaignTree tree={searchTree} onToggleStatus={() => {}} platform="google" labels={{ keywords: 'Palavras-chave' }} />
+    )
+    await userEvent.click(screen.getByRole('button', { name: /expandir Camp Search/i }))
+    expect(screen.getByText('Palavras-chave (1)')).toBeInTheDocument()
+    expect(screen.getByText('cyrela apartamento')).toBeInTheDocument()
+    expect(screen.getByText('Exata')).toBeInTheDocument()
+    expect(screen.getAllByText('Impr.').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Cliques').length).toBeGreaterThan(0)
+  })
 })

@@ -6,6 +6,7 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tool
 import { cn, formatCurrency, formatNumber } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
+import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 import { MetricInfo } from '@/components/ui/MetricInfo'
 
 const HERO_METRICS = [
@@ -29,6 +30,22 @@ function formatDayLabel(dateStr) {
   } catch {
     return dateStr
   }
+}
+
+function formatRangeLabel(apiRange, fallbackStart, fallbackEnd) {
+  if (apiRange?.since && apiRange?.until) {
+    try {
+      const s = parse(apiRange.since, 'yyyy-MM-dd', new Date())
+      const u = parse(apiRange.until, 'yyyy-MM-dd', new Date())
+      return `${format(s, 'd MMM', { locale: ptBR })} – ${format(u, 'd MMM yyyy', { locale: ptBR })}`
+    } catch {
+      /* fall through */
+    }
+  }
+  if (fallbackStart && fallbackEnd) {
+    return `${format(fallbackStart, 'd MMM', { locale: ptBR })} – ${format(fallbackEnd, 'd MMM yyyy', { locale: ptBR })}`
+  }
+  return null
 }
 
 function summarizeDailySeries(daily, valueKey) {
@@ -174,12 +191,10 @@ function DeltaBadge({ deltaPct }) {
   )
 }
 
-function HeroMetric({ label, metricKey, index, icon: Icon, tone }) {
-  const { comparePrimaryKpi } = useDashboardFilters()
-  const { loading, data } = usePlatformOverview()
-  const row = data?.metrics?.[index]
+function HeroMetric({ label, metricKey, index, icon: Icon, tone, metrics, loading, showDelta }) {
+  const row = metrics?.[index]
   const value = loading ? '…' : (row?.value ?? '—')
-  const deltaPct = comparePrimaryKpi ? row?.deltaPct : null
+  const deltaPct = showDelta ? row?.deltaPct : null
 
   return (
     <div className={cn('google-hero-metric', `google-hero-metric--${tone}`)}>
@@ -200,12 +215,10 @@ function HeroMetric({ label, metricKey, index, icon: Icon, tone }) {
   )
 }
 
-function SecondaryMetric({ label, metricKey, index }) {
-  const { comparePrimaryKpi } = useDashboardFilters()
-  const { loading, data } = usePlatformOverview()
-  const row = data?.metrics?.[index]
+function SecondaryMetric({ label, metricKey, index, metrics, loading, showDelta }) {
+  const row = metrics?.[index]
   const value = loading ? '…' : (row?.value ?? '—')
-  const deltaPct = comparePrimaryKpi ? row?.deltaPct : null
+  const deltaPct = showDelta ? row?.deltaPct : null
 
   return (
     <div className="google-secondary-metric">
@@ -222,29 +235,74 @@ function SecondaryMetric({ label, metricKey, index }) {
 }
 
 export default function GoogleMetricsPanel() {
-  const { comparePrimaryKpi } = useDashboardFilters()
-  const { data } = usePlatformOverview()
-  const daily = data?.daily
+  const period = useDashboardBlockPeriod()
+  const { comparePrimaryKpi, compareDateRange, dateRange } = useDashboardFilters()
+  const { loading, data } = usePlatformOverview()
+  const isPrevious = period === 'previous'
+
+  const metrics = useMemo(
+    () => (isPrevious ? data?.compareMetrics : data?.metrics) ?? [],
+    [isPrevious, data?.compareMetrics, data?.metrics]
+  )
+  const daily = useMemo(
+    () => (isPrevious ? data?.compareDaily : data?.daily) ?? [],
+    [isPrevious, data?.compareDaily, data?.daily]
+  )
+  const showDeltas = comparePrimaryKpi && !isPrevious
+  const rangeLabel = useMemo(() => {
+    if (isPrevious) {
+      return formatRangeLabel(data?.compareRange, compareDateRange.start, compareDateRange.end)
+    }
+    return formatRangeLabel(data?.primaryRange, dateRange.start, dateRange.end)
+  }, [isPrevious, data?.compareRange, data?.primaryRange, compareDateRange, dateRange])
+
+  const hasComparePayload = Array.isArray(metrics) && metrics.length > 0
+
+  if (isPrevious && !loading && !hasComparePayload) {
+    return (
+      <div className="google-metrics-panel google-metrics-panel--compare rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center">
+        <p className="text-xs font-medium text-foreground">Sem dados para o período de comparação</p>
+        <p className="mt-1 text-[11px] text-muted-foreground font-sans">
+          Ajuste as datas em &quot;vs …&quot; no topo ou confira se a conta tinha entrega nesse intervalo.
+        </p>
+      </div>
+    )
+  }
 
   return (
-    <div className="google-metrics-panel">
+    <div className={cn('google-metrics-panel', isPrevious && 'google-metrics-panel--compare')}>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand/90">Visão geral</p>
-          <p className="mt-0.5 text-xs text-muted-foreground font-sans">Performance da conta no período selecionado</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand/90">
+            {isPrevious ? 'Período de comparação' : 'Visão geral'}
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground font-sans">
+            {isPrevious
+              ? 'Valores absolutos do intervalo selecionado para comparar com o período principal'
+              : 'Performance da conta no período selecionado'}
+          </p>
+          {rangeLabel ? (
+            <p className="mt-1 font-mono text-[10px] tabular-nums text-foreground/75">{rangeLabel}</p>
+          ) : null}
         </div>
-        {!comparePrimaryKpi ? (
+        {!isPrevious && !comparePrimaryKpi ? (
           <span className="text-[10px] text-muted-foreground/80 font-sans">
             Ative &quot;Comparar KPIs&quot; para variação vs período anterior
           </span>
+        ) : !isPrevious ? (
+          <span className="rounded-md bg-brand/10 px-2 py-0.5 text-[10px] font-medium text-brand">
+            Variação vs comparação
+          </span>
         ) : (
-          <span className="rounded-md bg-brand/10 px-2 py-0.5 text-[10px] font-medium text-brand">Comparando períodos</span>
+          <span className="rounded-md bg-white/[0.06] px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            Referência (sem variação)
+          </span>
         )}
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
         {HERO_METRICS.map((m) => (
-          <HeroMetric key={m.label} {...m} />
+          <HeroMetric key={m.label} {...m} metrics={metrics} loading={loading} showDelta={showDeltas} />
         ))}
       </div>
 
@@ -254,7 +312,7 @@ export default function GoogleMetricsPanel() {
           subtitle="Gasto médio por dia no período"
           daily={daily}
           valueKey="spend"
-          color="#4285F4"
+          color={isPrevious ? '#8AB4F8' : '#4285F4'}
           formatValue={(v) => formatCurrency(v)}
           formatAxis={(v) => `R$${COMPACT_NUMBER.format(Number(v) || 0)}`}
         />
@@ -263,7 +321,7 @@ export default function GoogleMetricsPanel() {
           subtitle="Volume médio de cliques por dia"
           daily={daily}
           valueKey="clicks"
-          color="#34A853"
+          color={isPrevious ? '#81C995' : '#34A853'}
           formatValue={(v) => formatNumber(Math.round(v))}
           formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
         />
@@ -271,7 +329,7 @@ export default function GoogleMetricsPanel() {
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {SECONDARY_METRICS.map((m) => (
-          <SecondaryMetric key={m.label} {...m} />
+          <SecondaryMetric key={m.label} {...m} metrics={metrics} loading={loading} showDelta={showDeltas} />
         ))}
       </div>
     </div>

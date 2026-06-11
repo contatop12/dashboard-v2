@@ -1,3 +1,4 @@
+import { aggregateKeywordsByAdGroup } from './google-ads-keywords'
 import { buildMetaTree, type MetaCampaignNode, type MetaNodeInput } from './meta-tree'
 
 type GaqlRow = Record<string, unknown>
@@ -16,10 +17,17 @@ function str(v: unknown): string {
   return v != null ? String(v).trim() : ''
 }
 
-type NodeMetrics = { spend: number; results: number; ctrLink: number; cpm: number }
+type NodeMetrics = {
+  spend: number
+  results: number
+  ctrLink: number
+  cpm: number
+  impressions: number
+  clicks: number
+}
 
 function zeroMetrics(): NodeMetrics {
-  return { spend: 0, results: 0, ctrLink: 0, cpm: 0 }
+  return { spend: 0, results: 0, ctrLink: 0, cpm: 0, impressions: 0, clicks: 0 }
 }
 
 /** Agrega métricas por id (linhas GAQL com segments podem repetir entidade). */
@@ -44,6 +52,8 @@ function metricsById(rows: GaqlRow[], idOf: (row: GaqlRow) => string): Map<strin
       results: a.conversions,
       ctrLink: a.impressions > 0 ? (a.clicks / a.impressions) * 100 : 0,
       cpm: a.impressions > 0 ? (a.spend / a.impressions) * 1000 : 0,
+      impressions: a.impressions,
+      clicks: a.clicks,
     })
   }
   return out
@@ -134,4 +144,19 @@ export function buildGoogleTree(
   ads: MetaNodeInput[]
 ): MetaCampaignNode[] {
   return buildMetaTree(campaigns, adGroups, ads)
+}
+
+/** Anexa palavras-chave (Search) aos grupos de anúncios correspondentes. */
+export function attachKeywordsToGoogleTree(
+  tree: MetaCampaignNode[],
+  keywordRows: GaqlRow[]
+): MetaCampaignNode[] {
+  const byAdGroup = aggregateKeywordsByAdGroup(keywordRows)
+  return tree.map((campaign) => ({
+    ...campaign,
+    adsets: campaign.adsets.map((adset) => ({
+      ...adset,
+      keywords: byAdGroup.get(adset.id) ?? [],
+    })),
+  }))
 }

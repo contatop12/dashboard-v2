@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
-import { formatCurrency, formatNumber } from '@/lib/utils'
+import { cn, formatCurrency, formatNumber } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { BlockCard } from '@/components/ui/BlockCard'
 import { MiniPagination } from '@/components/ui/MiniPagination'
 
 const PAGE_SIZE = 5
+/** Altura mínima alinhada ao corpo de 5 linhas (par com Posição de destaque). */
+const PAIRED_BODY_MIN_H = 'min-h-[15rem]'
 
 function fmtConversions(n) {
   const x = Number(n) || 0
@@ -51,12 +53,13 @@ export function GoogleSearchTermsBlock() {
       state={state}
       emptyMessage="Sem termos de pesquisa com cliques ou custo no período."
       errorMessage={String(payload?.error || '')}
-      bodyClassName="px-3 sm:px-4 pb-3 sm:pb-4 flex flex-col gap-2"
+      className="h-full"
+      bodyClassName="flex min-h-0 flex-1 flex-col gap-2 px-3 sm:px-4 pb-3 sm:pb-4"
     >
       <p className="shrink-0 text-[9px] leading-snug text-muted-foreground/85 font-sans">
         O que as pessoas realmente digitaram no Google antes de clicar no anúncio.
       </p>
-      <div className="overflow-x-auto">
+      <div className={cn('overflow-x-auto', PAIRED_BODY_MIN_H)}>
         <table className="w-full min-w-[420px] border-collapse text-xs">
           <thead>
             <tr className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -111,7 +114,7 @@ export function GoogleSearchTermsBlock() {
         page={safePage}
         totalPages={totalPages}
         onPage={setPage}
-        className="border-t border-surface-border/80 pt-1"
+        className="mt-auto border-t border-surface-border/80 pt-1"
       />
     </BlockCard>
   )

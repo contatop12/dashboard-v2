@@ -34,7 +34,7 @@ GOOGLE_ADS_CUSTOMER_ID=
 # Opcional — MCC / gestor (login-customer-id)
 GOOGLE_ADS_LOGIN_CUSTOMER_ID=
 
-# Opcional — default v17
-GOOGLE_ADS_API_VERSION=v17
+# Opcional — default v23 (v20 e anteriores foram descontinuadas)
+# GOOGLE_ADS_API_VERSION=v23
 
 SESSION_COOKIE_SECRET=altere_em_producao

@@ -3,13 +3,17 @@ import { filterOptionsFromTree, resolveTreeSlice } from './filterOptionsFromTree
 
 const tree = [
   {
-    id: '1', name: 'Camp A', objective: 'OUTCOME_LEADS',
+    id: '1', name: 'Camp A', objective: 'OUTCOME_LEADS', effectiveStatus: 'ACTIVE',
     adsets: [
-      { id: '11', name: 'Set 1', ads: [{ id: '111', name: 'Ad 1' }] },
+      {
+        id: '11', name: 'Set 1',
+        ads: [{ id: '111', name: 'Ad 1' }],
+        keywords: [{ id: '11~kw1', keyword: 'cyrela sp' }],
+      },
       { id: '12', name: 'Set 2', ads: [] },
     ],
   },
-  { id: '2', name: 'Camp B', objective: 'OUTCOME_TRAFFIC', adsets: [] },
+  { id: '2', name: 'Camp B', objective: 'OUTCOME_TRAFFIC', effectiveStatus: 'PAUSED', adsets: [] },
 ]
 
 describe('filterOptionsFromTree', () => {
@@ -28,6 +32,21 @@ describe('filterOptionsFromTree', () => {
       { id: 'OUTCOME_LEADS', name: 'OUTCOME_LEADS', campaignIds: ['1'] },
       { id: 'OUTCOME_TRAFFIC', name: 'OUTCOME_TRAFFIC', campaignIds: ['2'] },
     ])
+  })
+
+  test('extrai palavras-chave quando includeKeywords', () => {
+    const o = filterOptionsFromTree(tree, { includeKeywords: true })
+    expect(o.keywords).toEqual([
+      { id: '11~kw1', name: 'cyrela sp', adsetId: '11', campaignId: '1' },
+    ])
+  })
+
+  test('objetivo com rótulos customizados', () => {
+    const o = filterOptionsFromTree(
+      [{ id: '1', name: 'S', objective: 'SEARCH', adsets: [] }],
+      { objectiveLabels: { SEARCH: 'Search' } }
+    )
+    expect(o.objetivo[0].name).toBe('Search')
   })
 })
 
@@ -59,5 +78,18 @@ describe('resolveTreeSlice', () => {
     const out = resolveTreeSlice(tree, { objetivo: { id: 'OUTCOME_TRAFFIC', campaignIds: ['2'] } })
     expect(out).toHaveLength(1)
     expect(out[0].id).toBe('2')
+  })
+
+  test('filtra por status da campanha', () => {
+    const out = resolveTreeSlice(tree, { status: { id: 'ACTIVE' } })
+    expect(out).toHaveLength(1)
+    expect(out[0].id).toBe('1')
+  })
+
+  test('filtra por palavra-chave', () => {
+    const out = resolveTreeSlice(tree, { keywords: { id: '11~kw1' } })
+    expect(out).toHaveLength(1)
+    expect(out[0].adsets[0].keywords).toHaveLength(1)
+    expect(out[0].adsets[0].keywords[0].keyword).toBe('cyrela sp')
   })
 })

@@ -6,12 +6,13 @@ import 'react-datepicker/dist/react-datepicker.css'
 import '@/styles/datepicker-p12.css'
 import { Calendar, ChevronDown, RefreshCw, Columns2, X, Presentation } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DimensionFilterSelect } from '@/components/ui/DimensionFilterSelect'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
 import {
-  defaultCompareSevenDaysBeforeMain,
   rangeLastMonth,
   rangeLastNDays,
   rangeThisMonth,
+  getPreviousPeriodOfSameLength,
 } from '@/lib/dateRange'
 
 registerLocale('pt-BR', ptBR)
@@ -23,7 +24,7 @@ registerLocale('pt-BR', ptBR)
 const PAGE_FILTERS = {
   Geral: ['dateRange'],
   'Meta Ads': ['dateRange', 'campanha', 'children', 'ads', 'objetivo'],
-  'Google Ads': ['dateRange', 'campanha', 'children', 'objetivo'],
+  'Google Ads': ['dateRange', 'ads', 'keywords', 'status'],
   'Google Meu Negócio': ['dateRange'],
   Instagram: ['dateRange'],
   Configurações: [],
@@ -34,7 +35,9 @@ const FILTER_LABELS = {
   campanha: { default: 'Campanha' },
   children: { 'Meta Ads': 'Conjunto de Anúncios', 'Google Ads': 'Grupo de Anúncios', default: 'Grupo' },
   ads: { default: 'Anúncio' },
+  keywords: { 'Google Ads': 'Palavra-chave', default: 'Palavra-chave' },
   objetivo: { 'Google Ads': 'Tipo de campanha', default: 'Objetivo' },
+  status: { 'Google Ads': 'Status', default: 'Status' },
 }
 
 function filterLabel(filterKey, activePage) {
@@ -54,107 +57,6 @@ const DATE_PRESETS = [
   { key: 'month', label: 'Este mês', getRange: () => rangeThisMonth() },
   { key: 'last-month', label: 'Mês passado', getRange: () => rangeLastMonth() },
 ]
-
-const SEARCH_THRESHOLD = 8
-
-function FilterSelect({ filterKey, label, value, options, onChange, onClear }) {
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const wrapRef = useRef(null)
-
-  useEffect(() => {
-    if (!open) return
-    setQuery('')
-    const close = (e) => {
-      if (wrapRef.current?.contains(e.target)) return
-      setOpen(false)
-    }
-    window.addEventListener('pointerdown', close, true)
-    return () => window.removeEventListener('pointerdown', close, true)
-  }, [open])
-
-  const list = Array.isArray(options) ? options : []
-  const filtered = query
-    ? list.filter((o) => String(o.name ?? '').toLowerCase().includes(query.toLowerCase()))
-    : list
-  const showSearch = list.length > SEARCH_THRESHOLD
-
-  return (
-    <div className="relative z-[60]" ref={wrapRef}>
-      <button
-        type="button"
-        aria-label={label}
-        onClick={() => setOpen((o) => !o)}
-        className={cn('filter-select', value && 'border-brand/40 bg-brand/10')}
-      >
-        <span className="max-w-[160px] truncate text-white">{value?.name || label}</span>
-        {value ? (
-          <span
-            role="button"
-            tabIndex={0}
-            aria-label={`Limpar ${label}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              onClear(filterKey)
-            }}
-            onKeyDown={(e) => e.key === 'Enter' && onClear(filterKey)}
-            className="shrink-0 text-muted-foreground hover:text-white"
-          >
-            <X size={12} />
-          </span>
-        ) : (
-          <ChevronDown size={12} className="shrink-0 text-muted-foreground" />
-        )}
-      </button>
-      {open && (
-        <div className="absolute top-full left-0 z-[70] mt-2 max-h-64 min-w-[220px] overflow-y-auto rounded-lg border border-surface-border bg-surface-card py-2 shadow-xl animate-scale-in">
-          {showSearch && (
-            <div className="px-2 pb-2">
-              <input
-                autoFocus
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar…"
-                className="w-full rounded-md border border-surface-border bg-surface-input px-2 py-1.5 text-xs text-white outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-              />
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              onClear(filterKey)
-              setOpen(false)
-            }}
-            className="w-full px-4 py-2 text-left text-xs text-muted-foreground hover:bg-surface-hover transition-colors"
-          >
-            Todos
-          </button>
-          {filtered.length === 0 ? (
-            <p className="px-4 py-2 text-xs text-muted-foreground">Sem opções no período.</p>
-          ) : (
-            filtered.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => {
-                  onChange(filterKey, opt)
-                  setOpen(false)
-                }}
-                className={cn(
-                  'w-full truncate px-4 py-2 text-left text-xs hover:bg-surface-hover transition-colors',
-                  value?.id === opt.id ? 'text-brand' : 'text-white'
-                )}
-                title={opt.name}
-              >
-                {opt.name}
-              </button>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
 
 /**
  * Estado local enquanto o popover está aberto: no 1º clique vem [início, null].
@@ -215,6 +117,7 @@ export default function FilterBar({ activePage }) {
     dimensionFilters,
     setDimensionFilters,
     filterOptions,
+    previousPeriod,
   } = useDashboardFilters()
   const [refreshing, setRefreshing] = useState(false)
   const [dateOpen, setDateOpen] = useState(false)
@@ -318,7 +221,7 @@ export default function FilterBar({ activePage }) {
                   type="button"
                   aria-pressed={comparePrimaryKpi}
                   onClick={() => setComparePrimaryKpi((v) => !v)}
-                  title="Comparar KPIs do período principal com outro intervalo (calendário ao lado). Padrão: 7 dias antes do início do período atual."
+                  title="Comparar KPIs do período principal com outro intervalo (calendário ao lado). Padrão: período anterior com a mesma duração."
                   className={cn(
                     'filter-select shrink-0',
                     comparePrimaryKpi && 'border-brand/40 bg-brand/10 text-brand'
@@ -347,12 +250,12 @@ export default function FilterBar({ activePage }) {
                         <button
                           type="button"
                           onClick={() => {
-                            setCompareDateRange(defaultCompareSevenDaysBeforeMain(dateRange.start))
+                            setCompareDateRange(previousPeriod)
                             setCompareDateOpen(false)
                           }}
                           className="mb-2 w-full rounded border border-surface-border px-2 py-1.5 text-left text-xs text-white hover:bg-surface-hover"
                         >
-                          Padrão: 7 dias antes do período principal
+                          Período anterior (mesma duração)
                         </button>
                         <InlineRangePicker
                           open={compareDateOpen}
@@ -377,7 +280,7 @@ export default function FilterBar({ activePage }) {
           {activeFilters
             .filter((f) => f !== 'dateRange')
             .map((filterKey) => (
-              <FilterSelect
+              <DimensionFilterSelect
                 key={filterKey}
                 filterKey={filterKey}
                 label={filterLabel(filterKey, activePage)}

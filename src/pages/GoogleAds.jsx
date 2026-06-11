@@ -26,9 +26,13 @@ import GoogleMetricsPanel from '@/components/GoogleMetricsPanel'
 import GoogleConversionMixChart from '@/components/GoogleConversionMixChart'
 import { BlockCard } from '@/components/ui/BlockCard'
 import { CampaignTree } from '@/components/CampaignTree'
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { DimensionFilterSelect } from '@/components/ui/DimensionFilterSelect'
 import { useCampaignStatusMutation } from '@/hooks/useCampaignStatusMutation'
 import { filterOptionsFromTree, resolveTreeSlice } from '@/lib/filterOptionsFromTree'
+import {
+  GOOGLE_CAMPAIGN_STATUS_FILTER_OPTIONS,
+  GOOGLE_CHANNEL_TYPE_LABELS,
+} from '@/lib/googleAdsLabels'
 
 // ─── Google brand colors (intentional, not generic surfaces) ───────────────
 const G_BLUE = '#4285F4'
@@ -686,12 +690,13 @@ function GoogleAnalysisPanel() {
   )
 }
 
-const GOOGLE_TREE_LABELS = { adsets: 'Grupos de anúncios', ads: 'Anúncios' }
+const GOOGLE_TREE_LABELS = { adsets: 'Grupos de anúncios', ads: 'Anúncios', keywords: 'Palavras-chave' }
 
 function GoogleCampaignsBlock({ workerPlatformQuery }) {
   const { activeOrgId } = useOrgWorkspace()
   const { loading, data } = usePlatformOverview()
   const { dimensionFilters, setFilterOptions } = useDashboardFilters()
+  const [blockFilters, setBlockFilters] = useState({})
   const customerId = useMemo(() => {
     const m = /(?:^|&)customer_id=([^&]+)/.exec(workerPlatformQuery || '')
     return m ? decodeURIComponent(m[1]) : ''
@@ -705,16 +710,49 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
 
   useEffect(() => { setTree(Array.isArray(data?.campaignTree) ? data.campaignTree : []) }, [data?.campaignTree])
 
-  // Publica opções de filtro derivadas da árvore completa; FilterBar consome do contexto.
+  const allFilterOptions = useMemo(() => {
+    if (!Array.isArray(data?.campaignTree)) return null
+    return filterOptionsFromTree(data.campaignTree, {
+      objectiveLabels: GOOGLE_CHANNEL_TYPE_LABELS,
+      includeKeywords: true,
+    })
+  }, [data?.campaignTree])
+
+  const treeFilterOptions = useMemo(
+    () => ({
+      campanha: allFilterOptions?.campanha ?? [],
+      children: allFilterOptions?.children ?? [],
+      objetivo: allFilterOptions?.objetivo ?? [],
+    }),
+    [allFilterOptions]
+  )
+
   useEffect(() => {
-    if (!Array.isArray(data?.campaignTree)) return
-    const o = filterOptionsFromTree(data.campaignTree)
-    setFilterOptions({ campanha: o.campanha, children: o.children, objetivo: o.objetivo })
-  }, [data?.campaignTree, setFilterOptions])
+    if (!allFilterOptions) return
+    setFilterOptions({
+      ads: allFilterOptions.ads,
+      keywords: allFilterOptions.keywords,
+      status: GOOGLE_CAMPAIGN_STATUS_FILTER_OPTIONS,
+    })
+  }, [allFilterOptions, setFilterOptions])
 
   useEffect(() => () => setFilterOptions({}), [setFilterOptions])
 
-  const visibleTree = useMemo(() => resolveTreeSlice(tree, dimensionFilters), [tree, dimensionFilters])
+  const mergedFilters = useMemo(
+    () => ({ ...dimensionFilters, ...blockFilters }),
+    [dimensionFilters, blockFilters]
+  )
+
+  const visibleTree = useMemo(() => resolveTreeSlice(tree, mergedFilters), [tree, mergedFilters])
+
+  const setBlockFilter = (key, opt) => setBlockFilters((prev) => ({ ...prev, [key]: opt }))
+  const clearBlockFilter = (key) =>
+    setBlockFilters((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  const hasBlockFilters = Object.keys(blockFilters).length > 0
 
   const applyStatus = (node, status) => {
     const patch = (list) =>
@@ -752,13 +790,52 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
       state={state}
       emptyMessage="Nenhuma campanha no período."
       errorMessage={String(data?.campaignsError || '')}
-      bodyClassName="overflow-auto"
+      bodyClassName="overflow-auto flex flex-col"
     >
+      <div className="-mx-4 mb-3 flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-4 pb-3">
+        <DimensionFilterSelect
+          filterKey="objetivo"
+          label="Tipo de campanha"
+          value={blockFilters.objetivo || null}
+          options={treeFilterOptions.objetivo}
+          onChange={setBlockFilter}
+          onClear={clearBlockFilter}
+          compact
+        />
+        <DimensionFilterSelect
+          filterKey="campanha"
+          label="Campanha"
+          value={blockFilters.campanha || null}
+          options={treeFilterOptions.campanha}
+          onChange={setBlockFilter}
+          onClear={clearBlockFilter}
+          compact
+        />
+        <DimensionFilterSelect
+          filterKey="children"
+          label="Grupo de anúncios"
+          value={blockFilters.children || null}
+          options={treeFilterOptions.children}
+          onChange={setBlockFilter}
+          onClear={clearBlockFilter}
+          compact
+        />
+        {hasBlockFilters ? (
+          <button
+            type="button"
+            onClick={() => setBlockFilters({})}
+            className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-muted-foreground transition-colors hover:text-white"
+          >
+            <span aria-hidden>×</span> Limpar
+          </button>
+        ) : null}
+      </div>
       <CampaignTree
         tree={visibleTree}
         onToggleStatus={(node) => setPendingToggle(node)}
         labels={GOOGLE_TREE_LABELS}
         resultsLabel="Conversões"
+        platform="google"
       />
       <ConfirmDialog
         open={!!pendingToggle}
@@ -953,12 +1030,19 @@ export default function GoogleAds() {
   const { activeOrgId } = useOrgWorkspace()
   const { dateRange, compareDateRange, comparePrimaryKpi, dimensionFilters } = useDashboardFilters()
 
-  // Traduz seleção do FilterBar em params do overview (campanha explícita ganha de tipo/objetivo).
+  // Traduz seleção do FilterBar em params do overview (anúncio restringe métricas da API).
   const apiFilters = useMemo(() => {
     const f = {}
-    if (dimensionFilters.objetivo?.campaignIds?.length) f.campaignIds = dimensionFilters.objetivo.campaignIds
-    if (dimensionFilters.campanha?.id) f.campaignIds = [dimensionFilters.campanha.id]
-    if (dimensionFilters.children?.id) f.adGroupId = dimensionFilters.children.id
+    if (dimensionFilters.ads?.id) {
+      const raw = String(dimensionFilters.ads.id)
+      const sep = raw.indexOf('~')
+      if (sep > 0) {
+        f.adGroupId = raw.slice(0, sep)
+        f.adId = raw.slice(sep + 1)
+      } else {
+        f.adId = raw
+      }
+    }
     return f
   }, [dimensionFilters])
 

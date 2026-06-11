@@ -25,6 +25,7 @@ import {
   type GoogleDimensionFilters,
 } from '../../../_lib/google-ads-filters'
 import {
+  attachKeywordsToGoogleTree,
   buildGoogleTree,
   parseCampaignNodes,
   parseAdGroupNodes,
@@ -37,6 +38,12 @@ import {
   type TopKeywordItem,
 } from '../../../_lib/google-ads-keywords'
 import { EMPTY_GOOGLE_DEMOGRAPHICS, fetchGoogleDemographicsPayload } from './google-ads-demographics'
+import {
+  aggregateGoogleMonthlyRows,
+  fillMonthlyGaps,
+  lastNCalendarMonthsWindow,
+  type MonthlyResultItem,
+} from '../../../_lib/google-ads-monthly'
 
 type Metric = { label: string; value: string; deltaPct?: number | null }
 
@@ -376,6 +383,20 @@ type CampaignTypesPayload = {
 
 const EMPTY_CAMPAIGN_TYPES: CampaignTypesPayload = {
   items: [],
+  error: null,
+}
+
+type MonthlyResultsPayload = {
+  items: MonthlyResultItem[]
+  since: string | null
+  until: string | null
+  error: string | null
+}
+
+const EMPTY_MONTHLY_RESULTS: MonthlyResultsPayload = {
+  items: [],
+  since: null,
+  until: null,
   error: null,
 }
 
@@ -874,6 +895,36 @@ async function fetchCampaignTypesGrouped(
   return { items, error: null }
 }
 
+async function fetchGoogleMonthlyResults(
+  ver: string,
+  numericId: string,
+  headers: Record<string, string>,
+  until: string,
+  filterClause = '',
+  months = 6
+): Promise<MonthlyResultsPayload> {
+  const { since, until: untilCap } = lastNCalendarMonthsWindow(until, months)
+  const query = `
+    SELECT
+      segments.month,
+      metrics.cost_micros,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.conversions,
+      metrics.conversions_value
+    FROM campaign
+    WHERE campaign.status != 'REMOVED'
+      AND segments.date BETWEEN '${since}' AND '${untilCap}'${filterClause}
+  `
+  const res = await fetchAllGaqlRows(ver, numericId, headers, query)
+  if (res.error) {
+    return { items: [], since, until: untilCap, error: res.error }
+  }
+  const aggregated = aggregateGoogleMonthlyRows(res.rows)
+  const items = fillMonthlyGaps(untilCap, aggregated, months)
+  return { items, since, until: untilCap, error: null }
+}
+
 async function fetchGoogleCampaignTree(
   ver: string,
   numericId: string,
@@ -890,21 +941,49 @@ async function fetchGoogleCampaignTree(
     adCatalog: `SELECT ad_group_ad.ad.id, ad_group_ad.ad.name, ad_group_ad.status, ad_group.id FROM ad_group_ad WHERE ad_group_ad.status != 'REMOVED' AND campaign.status != 'REMOVED'`,
     adMetrics: `SELECT ad_group_ad.ad.id, ad_group.id, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions FROM ad_group_ad WHERE ad_group_ad.status != 'REMOVED' AND ${dateWhere}`,
   }
-  const [campCat, campMet, agCat, agMet, adCat, adMet] = await Promise.all([
+  const [campCat, campMet, agCat, agMet, adCat, adMet, kwRes] = await Promise.all([
     fetchAllGaqlRows(ver, numericId, headers, queries.campCatalog),
     fetchAllGaqlRows(ver, numericId, headers, queries.campMetrics),
     fetchAllGaqlRows(ver, numericId, headers, queries.agCatalog),
     fetchAllGaqlRows(ver, numericId, headers, queries.agMetrics),
     fetchAllGaqlRows(ver, numericId, headers, queries.adCatalog),
     fetchAllGaqlRows(ver, numericId, headers, queries.adMetrics),
+    fetchAllGaqlRows(
+      ver,
+      numericId,
+      headers,
+      `SELECT
+        ad_group.id,
+        ad_group_criterion.keyword.text,
+        ad_group_criterion.keyword.match_type,
+        metrics.cost_micros,
+        metrics.impressions,
+        metrics.clicks,
+        metrics.conversions
+      FROM keyword_view
+      WHERE segments.date BETWEEN '${since}' AND '${until}'
+        AND campaign.status != 'REMOVED'
+        AND ad_group_criterion.status != 'REMOVED'
+        AND ad_group_criterion.type = KEYWORD`
+    ),
   ])
   const firstError =
-    campCat.error || campMet.error || agCat.error || agMet.error || adCat.error || adMet.error || null
+    campCat.error ||
+    campMet.error ||
+    agCat.error ||
+    agMet.error ||
+    adCat.error ||
+    adMet.error ||
+    kwRes.error ||
+    null
   if (campCat.error) return { tree: [], error: campCat.error }
-  const tree = buildGoogleTree(
-    parseCampaignNodes(campCat.rows, campMet.rows),
-    parseAdGroupNodes(agCat.rows, agMet.rows),
-    parseAdNodes(adCat.rows, adMet.rows)
+  const tree = attachKeywordsToGoogleTree(
+    buildGoogleTree(
+      parseCampaignNodes(campCat.rows, campMet.rows),
+      parseAdGroupNodes(agCat.rows, agMet.rows),
+      parseAdNodes(adCat.rows, adMet.rows)
+    ),
+    kwRes.rows
   )
   return { tree, error: firstError }
 }
@@ -1002,9 +1081,11 @@ async function buildGoogleOverviewBody(
       compareRange: null,
       compareMetrics: null as Metric[] | null,
       daily: [],
+      compareDaily: [],
       conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
       keywordQuality: EMPTY_KEYWORD_QUALITY,
       campaignTypes: EMPTY_CAMPAIGN_TYPES,
+      monthlyResults: EMPTY_MONTHLY_RESULTS,
       demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
@@ -1016,9 +1097,10 @@ async function buildGoogleOverviewBody(
   const primaryRaw = aggregateFromCampaignRows(aggRes.rows as Parameters<typeof aggregateFromCampaignRows>[0])
 
   let compareRaw: RawAgg | null = null
+  let compareDaily: ReturnType<typeof fillGoogleDailyGaps> = []
   if (compareSince && compareUntil) {
     const cmpWhere = `campaign.status != 'REMOVED' AND segments.date BETWEEN '${compareSince}' AND '${compareUntil}'${filterClause}`
-    const cmpQuery = `
+    const cmpAggQuery = `
       SELECT
         campaign.id,
         metrics.cost_micros,
@@ -1028,10 +1110,28 @@ async function buildGoogleOverviewBody(
       FROM ${aggFrom}
       WHERE ${cmpWhere}
     `
-    const cmpRes = await fetchAllGaqlRows(ver, numericId, headers, cmpQuery)
+    const cmpDailyQuery = `
+      SELECT
+        segments.date,
+        metrics.cost_micros,
+        metrics.impressions,
+        metrics.clicks,
+        metrics.conversions,
+        metrics.conversions_value
+      FROM ${aggFrom}
+      WHERE ${cmpWhere}
+    `
+    const [cmpRes, cmpDailyRes] = await Promise.all([
+      fetchAllGaqlRows(ver, numericId, headers, cmpAggQuery),
+      fetchAllGaqlRows(ver, numericId, headers, cmpDailyQuery),
+    ])
     compareRaw = cmpRes.error
       ? emptyRaw()
       : aggregateFromCampaignRows(cmpRes.rows as Parameters<typeof aggregateFromCampaignRows>[0])
+    if (!cmpDailyRes.error) {
+      const cmpDailyRaw = aggregateDaily(cmpDailyRes.rows as Parameters<typeof aggregateDaily>[0])
+      compareDaily = fillGoogleDailyGaps(compareSince, compareUntil, cmpDailyRaw)
+    }
   }
 
   const metrics = buildGoogleMetrics(primaryRaw, compareRaw)
@@ -1044,6 +1144,7 @@ async function buildGoogleOverviewBody(
     conversionBreakdown,
     keywordQuality,
     campaignTypes,
+    monthlyResults,
     demographics,
     campaignTreeRes,
     topKeywords,
@@ -1051,7 +1152,8 @@ async function buildGoogleOverviewBody(
   ] = await Promise.all([
     fetchConversionBreakdown(ver, numericId, headers, since, until, filterClause, aggFrom),
     fetchKeywordQualityList(ver, numericId, headers, since, until, filterClause),
-    fetchCampaignTypesGrouped(ver, numericId, headers, since, until, filterClause, aggFrom),
+    fetchCampaignTypesGrouped(ver, numericId, headers, since, until, filterClause, 'campaign'),
+    fetchGoogleMonthlyResults(ver, numericId, headers, until, filterClause),
     fetchGoogleDemographicsPayload(ver, numericId, headers, since, until, fetchAllGaqlRows, filterClause),
     fetchGoogleCampaignTree(ver, numericId, headers, since, until),
     fetchTopKeywords(ver, numericId, headers, since, until, filterClause),
@@ -1070,9 +1172,11 @@ async function buildGoogleOverviewBody(
       compareSince && compareUntil ? { since: compareSince, until: compareUntil } : null,
     compareMetrics,
     daily,
+    compareDaily,
     conversionBreakdown,
     keywordQuality,
     campaignTypes,
+    monthlyResults,
     demographics,
     campaignTree: campaignTreeRes.tree,
     campaignsError: campaignTreeRes.error,
@@ -1113,9 +1217,11 @@ export async function onRequestGet(context: {
         compareRange: null,
         compareMetrics: null,
         daily: [],
+        compareDaily: [],
         conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
         keywordQuality: EMPTY_KEYWORD_QUALITY,
         campaignTypes: EMPTY_CAMPAIGN_TYPES,
+      monthlyResults: EMPTY_MONTHLY_RESULTS,
         demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
@@ -1136,9 +1242,11 @@ export async function onRequestGet(context: {
         compareRange: null,
         compareMetrics: null,
         daily: [],
+        compareDaily: [],
         conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
         keywordQuality: EMPTY_KEYWORD_QUALITY,
         campaignTypes: EMPTY_CAMPAIGN_TYPES,
+      monthlyResults: EMPTY_MONTHLY_RESULTS,
         demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
@@ -1165,9 +1273,11 @@ export async function onRequestGet(context: {
         compareRange: null,
         compareMetrics: null,
         daily: [],
+        compareDaily: [],
         conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
         keywordQuality: EMPTY_KEYWORD_QUALITY,
         campaignTypes: EMPTY_CAMPAIGN_TYPES,
+      monthlyResults: EMPTY_MONTHLY_RESULTS,
         demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
@@ -1218,9 +1328,11 @@ export async function onRequestGet(context: {
         compareRange: null,
         compareMetrics: null,
         daily: [],
+        compareDaily: [],
         conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
         keywordQuality: EMPTY_KEYWORD_QUALITY,
         campaignTypes: EMPTY_CAMPAIGN_TYPES,
+      monthlyResults: EMPTY_MONTHLY_RESULTS,
         demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
@@ -1254,9 +1366,11 @@ export async function onRequestGet(context: {
       compareRange: null,
       compareMetrics: null,
       daily: [],
+      compareDaily: [],
       conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
       keywordQuality: EMPTY_KEYWORD_QUALITY,
       campaignTypes: EMPTY_CAMPAIGN_TYPES,
+      monthlyResults: EMPTY_MONTHLY_RESULTS,
       demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
@@ -1278,9 +1392,11 @@ export async function onRequestGet(context: {
       compareRange: null,
       compareMetrics: null,
       daily: [],
+      compareDaily: [],
       conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
       keywordQuality: EMPTY_KEYWORD_QUALITY,
       campaignTypes: EMPTY_CAMPAIGN_TYPES,
+      monthlyResults: EMPTY_MONTHLY_RESULTS,
       demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
@@ -1333,9 +1449,11 @@ export async function onRequestGet(context: {
       compareRange: null,
       compareMetrics: null,
       daily: [],
+      compareDaily: [],
       conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
       keywordQuality: EMPTY_KEYWORD_QUALITY,
       campaignTypes: EMPTY_CAMPAIGN_TYPES,
+      monthlyResults: EMPTY_MONTHLY_RESULTS,
       demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,

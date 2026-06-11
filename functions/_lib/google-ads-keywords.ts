@@ -138,6 +138,100 @@ export function aggregateTopKeywords(rows: GaqlRow[], limit = 20): TopKeywordIte
   return items.slice(0, limit)
 }
 
+export type TreeKeywordNode = {
+  id: string
+  keyword: string
+  matchType: string | null
+  metrics: {
+    spend: number
+    results: number
+    impressions: number
+    clicks: number
+    ctrLink: number
+    cpm: number
+  }
+}
+
+type AdGroupKwAgg = {
+  keyword: string
+  matchType: string | null
+  costMicros: number
+  impressions: number
+  clicks: number
+  conversions: number
+}
+
+/**
+ * Agrega keyword_view por grupo de anúncios + palavra-chave (para árvore de campanhas Search).
+ */
+export function aggregateKeywordsByAdGroup(rows: GaqlRow[]): Map<string, TreeKeywordNode[]> {
+  const byAdGroup = new Map<string, Map<string, AdGroupKwAgg>>()
+
+  for (const row of rows) {
+    const R = obj(row)
+    const crit = obj(R.adGroupCriterion ?? R.ad_group_criterion)
+    const kw = obj(crit.keyword)
+    const text = str(kw.text)
+    if (!text) continue
+    const adGroupId = str(obj(R.adGroup ?? R.ad_group).id)
+    if (!adGroupId) continue
+    const m = obj(R.metrics)
+
+    const kwKey = `${text.toLowerCase()}~${str(kw.matchType ?? kw.match_type)}`
+    let groupMap = byAdGroup.get(adGroupId)
+    if (!groupMap) {
+      groupMap = new Map()
+      byAdGroup.set(adGroupId, groupMap)
+    }
+    let a = groupMap.get(kwKey)
+    if (!a) {
+      a = {
+        keyword: text,
+        matchType: str(kw.matchType ?? kw.match_type) || null,
+        costMicros: 0,
+        impressions: 0,
+        clicks: 0,
+        conversions: 0,
+      }
+      groupMap.set(kwKey, a)
+    }
+
+    a.costMicros += int(m.costMicros ?? m.cost_micros)
+    a.impressions += int(m.impressions)
+    a.clicks += int(m.clicks)
+    a.conversions += num(m.conversions)
+  }
+
+  const out = new Map<string, TreeKeywordNode[]>()
+  for (const [adGroupId, groupMap] of byAdGroup) {
+    const items: TreeKeywordNode[] = []
+    for (const a of groupMap.values()) {
+      if (a.impressions === 0 && a.clicks === 0 && a.costMicros === 0) continue
+      const spend = a.costMicros / 1_000_000
+      items.push({
+        id: `${adGroupId}~${a.keyword.toLowerCase()}`,
+        keyword: a.keyword,
+        matchType: a.matchType,
+        metrics: {
+          spend,
+          results: a.conversions,
+          impressions: a.impressions,
+          clicks: a.clicks,
+          ctrLink: a.impressions > 0 ? (a.clicks / a.impressions) * 100 : 0,
+          cpm: a.impressions > 0 ? (spend / a.impressions) * 1000 : 0,
+        },
+      })
+    }
+    items.sort((x, y) => {
+      if (y.metrics.spend !== x.metrics.spend) return y.metrics.spend - x.metrics.spend
+      if (y.metrics.clicks !== x.metrics.clicks) return y.metrics.clicks - x.metrics.clicks
+      return x.keyword.localeCompare(y.keyword, 'pt')
+    })
+    if (items.length > 0) out.set(adGroupId, items)
+  }
+  return out
+}
+
 export type SearchTermItem = {
   term: string
   campaignName: string

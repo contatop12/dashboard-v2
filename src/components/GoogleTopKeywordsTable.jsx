@@ -1,11 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
-import { KeyRound } from 'lucide-react'
+import { ArrowDown, ArrowUp, KeyRound } from 'lucide-react'
 import { cn, formatCurrency, formatNumber } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { BlockCard } from '@/components/ui/BlockCard'
 import { MiniPagination } from '@/components/ui/MiniPagination'
 
 const PAGE_SIZE = 5
+const DEFAULT_SORT = { id: 'spend', desc: true }
+
+const COLUMNS = [
+  { id: 'keyword', label: 'Palavra-chave', align: 'left' },
+  { id: 'spend', label: 'Investimento', align: 'right' },
+  { id: 'impressions', label: 'Impressões', align: 'right' },
+  { id: 'clicks', label: 'Cliques', align: 'right' },
+  { id: 'cpc', label: 'CPC', align: 'right' },
+  { id: 'conversions', label: 'Conversões', align: 'right' },
+  { id: 'costPerConversion', label: 'Custo/Conv.', align: 'right' },
+  { id: 'absTopPct', label: '1º lugar', align: 'right' },
+]
 
 const MATCH_TYPE_LABELS = {
   BROAD: 'Ampla',
@@ -27,20 +39,111 @@ function fmtPct(p) {
   return `${Math.round(n)}%`
 }
 
-/** Top 20 palavras-chave por investimento — tabela paginada (5 por página). */
+function cpcOf(kw) {
+  return kw.clicks > 0 ? kw.spend / kw.clicks : null
+}
+
+function sortValue(kw, sortId) {
+  switch (sortId) {
+    case 'keyword':
+      return String(kw.keyword ?? '').toLowerCase()
+    case 'spend':
+      return Number(kw.spend) || 0
+    case 'impressions':
+      return Number(kw.impressions) || 0
+    case 'clicks':
+      return Number(kw.clicks) || 0
+    case 'cpc':
+      return cpcOf(kw)
+    case 'conversions':
+      return Number(kw.conversions) || 0
+    case 'costPerConversion':
+      return kw.costPerConversion != null ? Number(kw.costPerConversion) : null
+    case 'absTopPct':
+      return kw.absTopPct != null ? Number(kw.absTopPct) : null
+    default:
+      return 0
+  }
+}
+
+function compareSortValues(a, b) {
+  const na = a == null || (typeof a === 'number' && Number.isNaN(a))
+  const nb = b == null || (typeof b === 'number' && Number.isNaN(b))
+  if (na && nb) return 0
+  if (na) return 1
+  if (nb) return -1
+  if (typeof a === 'string' && typeof b === 'string') {
+    return a.localeCompare(b, 'pt-BR')
+  }
+  if (a === b) return 0
+  return a > b ? 1 : -1
+}
+
+function sortKeywords(items, sort) {
+  const list = [...items]
+  list.sort((a, b) => {
+    const cmp = compareSortValues(sortValue(a, sort.id), sortValue(b, sort.id))
+    return sort.desc ? -cmp : cmp
+  })
+  return list
+}
+
+function SortHeader({ column, sort, onSort }) {
+  const active = sort.id === column.id
+  const direction = active ? (sort.desc ? 'desc' : 'asc') : null
+  return (
+    <th
+      className={cn(
+        'px-2 py-2 font-semibold',
+        column.align === 'left' ? 'text-left' : 'text-right'
+      )}
+    >
+      <button
+        type="button"
+        className={cn(
+          'inline-flex items-center gap-0.5 font-semibold uppercase tracking-wider transition-colors hover:text-foreground',
+          column.align === 'left' ? 'justify-start' : 'justify-end ml-auto',
+          active ? 'text-brand' : 'text-muted-foreground'
+        )}
+        onClick={() => onSort(column.id)}
+        aria-sort={direction ?? 'none'}
+      >
+        {column.label}
+        {direction === 'asc' ? (
+          <ArrowUp className="h-3 w-3 shrink-0 text-brand" aria-hidden />
+        ) : direction === 'desc' ? (
+          <ArrowDown className="h-3 w-3 shrink-0 text-brand" aria-hidden />
+        ) : (
+          <span className="inline-block h-3 w-3 shrink-0 opacity-30" aria-hidden />
+        )}
+      </button>
+    </th>
+  )
+}
+
+/** Top palavras-chave por investimento — tabela paginada com ordenação por coluna. */
 export function GoogleTopKeywordsTable() {
   const { loading, data } = usePlatformOverview()
   const payload = data?.topKeywords
   const items = useMemo(() => (Array.isArray(payload?.items) ? payload.items : []), [payload])
   const [page, setPage] = useState(1)
+  const [sort, setSort] = useState(DEFAULT_SORT)
+
+  const sortedItems = useMemo(() => sortKeywords(items, sort), [items, sort])
 
   useEffect(() => {
     setPage(1)
-  }, [items])
+  }, [items, sort])
 
-  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
-  const pageItems = items.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const pageItems = sortedItems.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+
+  const onSort = (columnId) => {
+    setSort((prev) =>
+      prev.id === columnId ? { id: columnId, desc: !prev.desc } : { id: columnId, desc: true }
+    )
+  }
 
   const state = loading
     ? 'loading'
@@ -69,21 +172,16 @@ export function GoogleTopKeywordsTable() {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] border-collapse text-xs">
           <thead>
-            <tr className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
-              <th className="px-2 py-2 text-left font-semibold">Palavra-chave</th>
-              <th className="px-2 py-2 text-right font-semibold">Investimento</th>
-              <th className="px-2 py-2 text-right font-semibold">Impressões</th>
-              <th className="px-2 py-2 text-right font-semibold">Cliques</th>
-              <th className="px-2 py-2 text-right font-semibold">CPC</th>
-              <th className="px-2 py-2 text-right font-semibold">Conversões</th>
-              <th className="px-2 py-2 text-right font-semibold">Custo/Conv.</th>
-              <th className="px-2 py-2 text-right font-semibold">1º lugar</th>
+            <tr className="text-[9px]">
+              {COLUMNS.map((col) => (
+                <SortHeader key={col.id} column={col} sort={sort} onSort={onSort} />
+              ))}
             </tr>
           </thead>
           <tbody>
             {pageItems.map((kw, i) => {
               const rank = (safePage - 1) * PAGE_SIZE + i + 1
-              const cpc = kw.clicks > 0 ? kw.spend / kw.clicks : null
+              const cpc = cpcOf(kw)
               const match = MATCH_TYPE_LABELS[String(kw.matchType || '').toUpperCase()]
               return (
                 <tr

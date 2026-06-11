@@ -11,6 +11,15 @@ describe('parseGoogleDimensionFilters', () => {
     })
   })
 
+  test('ad_id composto grupo~anuncio', () => {
+    const url = new URL('https://x/api?ad_id=11~759615610041')
+    expect(parseGoogleDimensionFilters(url)).toEqual({
+      campaignIds: [],
+      adGroupId: '11',
+      adId: '759615610041',
+    })
+  })
+
   test('vazio quando sem params', () => {
     const url = new URL('https://x/api')
     expect(parseGoogleDimensionFilters(url)).toEqual({ campaignIds: [], adGroupId: null, adId: null })
@@ -33,6 +42,12 @@ describe('gaqlFilterClause', () => {
   test('combina campaign + ad_group', () => {
     expect(gaqlFilterClause({ campaignIds: ['1'], adGroupId: '7', adId: null })).toBe(
       ' AND campaign.id IN (1) AND ad_group.id = 7'
+    )
+  })
+
+  test('ad_group_ad.ad.id quando presente', () => {
+    expect(gaqlFilterClause({ campaignIds: [], adGroupId: '11', adId: '99' })).toBe(
+      ' AND ad_group.id = 11 AND ad_group_ad.ad.id = 99'
     )
   })
 

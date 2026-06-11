@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   customerPathId,
+  DEFAULT_GOOGLE_ADS_API_VERSION,
   mergeGoogleAdsAccountLists,
   resolveGoogleApiVersion,
   resolveGoogleLoginCustomerId,
@@ -18,9 +19,15 @@ describe('google-ads-env', () => {
     ).toBe('3780611396')
   })
 
-  it('default api version v21', () => {
-    expect(resolveGoogleApiVersion({} as never)).toBe('v21')
-    expect(resolveGoogleApiVersion({ GOOGLE_ADS_API_VERSION: '19' } as never)).toBe('v19')
+  it('default api version v23', () => {
+    expect(resolveGoogleApiVersion({} as never)).toBe(DEFAULT_GOOGLE_ADS_API_VERSION)
+    expect(resolveGoogleApiVersion({ GOOGLE_ADS_API_VERSION: '24' } as never)).toBe('v24')
+  })
+
+  it('remapeia versões com sunset (v20 encerrou jun/2026)', () => {
+    expect(resolveGoogleApiVersion({ GOOGLE_ADS_API_VERSION: 'v20' } as never)).toBe('v23')
+    expect(resolveGoogleApiVersion({ GOOGLE_ADS_API_VERSION: '20' } as never)).toBe('v23')
+    expect(resolveGoogleApiVersion({ GOOGLE_ADS_API_VERSION: 'v19' } as never)).toBe('v23')
   })
 
   it('merge deduplica e marca MCC', () => {
