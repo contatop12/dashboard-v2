@@ -754,6 +754,19 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
       return next
     })
   const hasBlockFilters = Object.keys(blockFilters).length > 0
+  const totalCampaigns = tree.length
+  const hasActiveTreeFilters = useMemo(
+    () =>
+      Boolean(
+        mergedFilters.campanha ||
+          mergedFilters.children ||
+          mergedFilters.objetivo ||
+          mergedFilters.status ||
+          mergedFilters.ads ||
+          mergedFilters.keywords
+      ),
+    [mergedFilters]
+  )
 
   const applyStatus = (node, status) => {
     const patch = (list) =>
@@ -781,72 +794,91 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
     if (!ok) applyStatus(node, prevStatus) // rollback
   }
 
-  const state = loading ? 'loading' : data?.campaignsError ? 'error' : visibleTree.length === 0 ? 'empty' : 'ready'
+  const state =
+    loading ? 'loading' : data?.campaignsError ? 'error' : totalCampaigns === 0 ? 'empty' : 'ready'
   const activeCount = visibleTree.filter((c) => String(c.effectiveStatus).toUpperCase() === 'ACTIVE').length
+  const badge =
+    hasActiveTreeFilters && totalCampaigns > 0
+      ? `${activeCount} ativas · ${visibleTree.length} de ${totalCampaigns} campanhas`
+      : `${activeCount} ativas · ${visibleTree.length} campanhas`
+
+  const filterToolbar = (
+    <div className="-mx-4 mb-3 flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-4 pb-3">
+      <DimensionFilterSelect
+        filterKey="objetivo"
+        label="Tipo de campanha"
+        value={blockFilters.objetivo || null}
+        options={treeFilterOptions.objetivo}
+        onChange={setBlockFilter}
+        onClear={clearBlockFilter}
+        compact
+      />
+      <DimensionFilterSelect
+        filterKey="campanha"
+        label="Campanha"
+        value={blockFilters.campanha || null}
+        options={treeFilterOptions.campanha}
+        onChange={setBlockFilter}
+        onClear={clearBlockFilter}
+        compact
+      />
+      <DimensionFilterSelect
+        filterKey="children"
+        label="Grupo de anúncios"
+        value={blockFilters.children || null}
+        options={treeFilterOptions.children}
+        onChange={setBlockFilter}
+        onClear={clearBlockFilter}
+        compact
+      />
+      <DimensionFilterSelect
+        filterKey="status"
+        label="Status"
+        value={blockFilters.status || null}
+        options={treeFilterOptions.status}
+        onChange={setBlockFilter}
+        onClear={clearBlockFilter}
+        compact
+      />
+      {hasBlockFilters ? (
+        <button
+          type="button"
+          onClick={() => setBlockFilters({})}
+          className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-muted-foreground transition-colors hover:text-white"
+        >
+          <span aria-hidden>×</span> Limpar
+        </button>
+      ) : null}
+    </div>
+  )
 
   return (
     <BlockCard
       title="Campanhas Google Ads"
-      badge={`${activeCount} ativas · ${visibleTree.length} campanhas`}
+      badge={badge}
       state={state}
       emptyMessage="Nenhuma campanha no período."
       errorMessage={String(data?.campaignsError || '')}
       bodyClassName="overflow-auto flex flex-col"
     >
-      <div className="-mx-4 mb-3 flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-4 pb-3">
-        <DimensionFilterSelect
-          filterKey="objetivo"
-          label="Tipo de campanha"
-          value={blockFilters.objetivo || null}
-          options={treeFilterOptions.objetivo}
-          onChange={setBlockFilter}
-          onClear={clearBlockFilter}
-          compact
+      {state !== 'empty' ? filterToolbar : null}
+      {visibleTree.length === 0 && state === 'ready' ? (
+        <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+          <p className="text-[11px] text-muted-foreground">
+            {hasActiveTreeFilters
+              ? 'Nenhuma campanha corresponde aos filtros selecionados.'
+              : 'Nenhuma campanha no período.'}
+          </p>
+        </div>
+      ) : (
+        <CampaignTree
+          tree={visibleTree}
+          onToggleStatus={(node) => setPendingToggle(node)}
+          labels={GOOGLE_TREE_LABELS}
+          resultsLabel="Conversões"
+          platform="google"
         />
-        <DimensionFilterSelect
-          filterKey="campanha"
-          label="Campanha"
-          value={blockFilters.campanha || null}
-          options={treeFilterOptions.campanha}
-          onChange={setBlockFilter}
-          onClear={clearBlockFilter}
-          compact
-        />
-        <DimensionFilterSelect
-          filterKey="children"
-          label="Grupo de anúncios"
-          value={blockFilters.children || null}
-          options={treeFilterOptions.children}
-          onChange={setBlockFilter}
-          onClear={clearBlockFilter}
-          compact
-        />
-        <DimensionFilterSelect
-          filterKey="status"
-          label="Status"
-          value={blockFilters.status || null}
-          options={treeFilterOptions.status}
-          onChange={setBlockFilter}
-          onClear={clearBlockFilter}
-          compact
-        />
-        {hasBlockFilters ? (
-          <button
-            type="button"
-            onClick={() => setBlockFilters({})}
-            className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-muted-foreground transition-colors hover:text-white"
-          >
-            <span aria-hidden>×</span> Limpar
-          </button>
-        ) : null}
-      </div>
-      <CampaignTree
-        tree={visibleTree}
-        onToggleStatus={(node) => setPendingToggle(node)}
-        labels={GOOGLE_TREE_LABELS}
-        resultsLabel="Conversões"
-        platform="google"
-      />
+      )}
       <ConfirmDialog
         open={!!pendingToggle}
         onOpenChange={(o) => { if (!o) setPendingToggle(null) }}
