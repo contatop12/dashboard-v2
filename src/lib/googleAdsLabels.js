@@ -21,4 +21,5 @@ export function googleChannelTypeLabel(key) {
 export const GOOGLE_CAMPAIGN_STATUS_FILTER_OPTIONS = [
   { id: 'ACTIVE', name: 'Ativas' },
   { id: 'PAUSED', name: 'Pausadas' },
+  { id: 'ERROR', name: 'Com erros' },
 ]

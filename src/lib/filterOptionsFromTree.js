@@ -1,7 +1,21 @@
 /**
  * Deriva opções de filtro de uma árvore campanha→filhos(adsets)→ads.
- * Chaves neutras de plataforma: `campanha`, `children` (conjuntos/grupos), `ads`, `objetivo`, `keywords`, `status`.
- *
+ * Chaves neutras: `campanha`, `children`, `ads`, `objetivo`, `keywords`.
+ */
+import { isErrorEffectiveStatus } from '@/lib/campaignStatus'
+
+function campaignHasIssues(c) {
+  if (isErrorEffectiveStatus(c.effectiveStatus)) return true
+  for (const s of c.adsets ?? []) {
+    if (isErrorEffectiveStatus(s.effectiveStatus)) return true
+    for (const a of s.ads ?? []) {
+      if (isErrorEffectiveStatus(a.effectiveStatus)) return true
+    }
+  }
+  return false
+}
+
+/**
  * @param {object} [opts]
  * @param {Record<string, string>} [opts.objectiveLabels] mapa de rótulos para objetivo/tipo (ex. SEARCH → Search)
  * @param {boolean} [opts.includeKeywords] incluir palavras-chave dos grupos (Google Search)
@@ -71,7 +85,11 @@ export function resolveTreeSlice(tree, selected) {
   }
   if (statusId) {
     const want = String(statusId).toUpperCase()
-    rows = rows.filter((c) => String(c.effectiveStatus ?? '').toUpperCase() === want)
+    if (want === 'ERROR') {
+      rows = rows.filter(campaignHasIssues)
+    } else {
+      rows = rows.filter((c) => String(c.effectiveStatus ?? '').toUpperCase() === want)
+    }
   }
   if (campId) rows = rows.filter((c) => String(c.id) === String(campId))
   if (childId) {

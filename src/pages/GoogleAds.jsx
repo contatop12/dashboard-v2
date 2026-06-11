@@ -724,6 +724,7 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
       campanha: allFilterOptions?.campanha ?? [],
       children: allFilterOptions?.children ?? [],
       objetivo: allFilterOptions?.objetivo ?? [],
+      status: GOOGLE_CAMPAIGN_STATUS_FILTER_OPTIONS,
     }),
     [allFilterOptions]
   )
@@ -733,7 +734,6 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
     setFilterOptions({
       ads: allFilterOptions.ads,
       keywords: allFilterOptions.keywords,
-      status: GOOGLE_CAMPAIGN_STATUS_FILTER_OPTIONS,
     })
   }, [allFilterOptions, setFilterOptions])
 
@@ -817,6 +817,15 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
           label="Grupo de anúncios"
           value={blockFilters.children || null}
           options={treeFilterOptions.children}
+          onChange={setBlockFilter}
+          onClear={clearBlockFilter}
+          compact
+        />
+        <DimensionFilterSelect
+          filterKey="status"
+          label="Status"
+          value={blockFilters.status || null}
+          options={treeFilterOptions.status}
           onChange={setBlockFilter}
           onClear={clearBlockFilter}
           compact

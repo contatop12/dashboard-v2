@@ -24,7 +24,7 @@ registerLocale('pt-BR', ptBR)
 const PAGE_FILTERS = {
   Geral: ['dateRange'],
   'Meta Ads': ['dateRange', 'campanha', 'children', 'ads', 'objetivo'],
-  'Google Ads': ['dateRange', 'ads', 'keywords', 'status'],
+  'Google Ads': ['dateRange', 'ads', 'keywords'],
   'Google Meu Negócio': ['dateRange'],
   Instagram: ['dateRange'],
   Configurações: [],

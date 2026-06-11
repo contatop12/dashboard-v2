@@ -53,18 +53,14 @@ describe('FilterBar', () => {
     expect(screen.queryByText('Campanha 3')).not.toBeInTheDocument()
   })
 
-  test('Google Ads expõe filtros de anúncio, palavra-chave e status (sem campanha no topo)', () => {
+  test('Google Ads expõe filtros de anúncio e palavra-chave (status fica no bloco de campanhas)', () => {
     renderWithOptions('Google Ads', {
-      campanha: [{ id: '1', name: 'Camp Test' }],
       ads: [{ id: '11~99', name: 'Anúncio RSA' }],
       keywords: [{ id: '11~kw', name: 'cyrela' }],
       status: [{ id: 'ACTIVE', name: 'Ativas' }],
     })
-    expect(screen.queryByRole('button', { name: /^Campanha$/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^Grupo de Anúncios$/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^Tipo de campanha$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Status$/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^Anúncio$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^Palavra-chave$/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Status$/i })).toBeInTheDocument()
   })
 })

@@ -86,6 +86,28 @@ describe('resolveTreeSlice', () => {
     expect(out[0].id).toBe('1')
   })
 
+  test('filtra campanhas com erros (campanha ou filhos reprovados)', () => {
+    const withError = [
+      ...tree,
+      {
+        id: '3',
+        name: 'Camp OK com ad ruim',
+        effectiveStatus: 'ACTIVE',
+        adsets: [
+          {
+            id: '31',
+            name: 'Grupo',
+            effectiveStatus: 'ACTIVE',
+            ads: [{ id: '311', name: 'Ad', effectiveStatus: 'DISAPPROVED' }],
+          },
+        ],
+      },
+      { id: '4', name: 'Camp Reprovada', effectiveStatus: 'DISAPPROVED', adsets: [] },
+    ]
+    const out = resolveTreeSlice(withError, { status: { id: 'ERROR' } })
+    expect(out.map((c) => c.id).sort()).toEqual(['3', '4'])
+  })
+
   test('filtra por palavra-chave', () => {
     const out = resolveTreeSlice(tree, { keywords: { id: '11~kw1' } })
     expect(out).toHaveLength(1)

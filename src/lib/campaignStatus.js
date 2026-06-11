@@ -12,6 +12,11 @@ export function mapEffectiveStatusToColor(status) {
   return STATUS_COLOR.neutral
 }
 
+/** Campanha/entidade com problema de entrega ou política (ex.: reprovada). */
+export function isErrorEffectiveStatus(status) {
+  return mapEffectiveStatusToColor(status) === STATUS_COLOR.danger
+}
+
 /** Tailwind classes per color key for a tree row (border + tinted bg). */
 export const STATUS_ROW_CLASS = {
   success: 'border-emerald-800/40 bg-emerald-950/35',
