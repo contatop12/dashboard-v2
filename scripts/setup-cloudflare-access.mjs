@@ -25,6 +25,10 @@
  *   node scripts/setup-cloudflare-access.mjs
  */
 
+import { loadDotEnv } from './load-dotenv.mjs'
+
+loadDotEnv()
+
 const API = 'https://api.cloudflare.com/client/v4'
 
 const token = req('CLOUDFLARE_API_TOKEN')
@@ -41,7 +45,7 @@ const emailDomain = process.env.ACCESS_ALLOWED_EMAIL_DOMAIN?.trim()
 const appName = process.env.ACCESS_APP_NAME || 'P12 Dashboard'
 const sessionDuration = process.env.ACCESS_SESSION_DURATION || '2h'
 const idpMatch = (process.env.ACCESS_IDP_MATCH || 'google').toLowerCase()
-const dryRun = !!process.env.DRY_RUN && process.env.DRY_RUN !== '0'
+const dryRun = ['1', 'true', 'yes'].includes(String(process.env.DRY_RUN || '').toLowerCase())
 
 function req(name) {
   const v = process.env[name]
@@ -147,11 +151,20 @@ async function main() {
       }
   if (app && !dryRun) {
     const policies = await api(`/accounts/${accountId}/access/apps/${app.id}/policies`).catch(() => [])
-    const existing = (policies || []).find((p) => p.name === policyPayload.name)
+    const allowPolicies = (policies || []).filter((p) => p.decision === 'allow')
+    const existing = allowPolicies.find((p) => p.name === policyPayload.name) ?? allowPolicies[0]
+
     if (existing) {
-      console.log(`✓ Policy exists (${existing.id})`)
+      console.log(`✓ Updating allow policy (${existing.id}) → ${allowedEmails.join(', ')}`)
+      await api(`/accounts/${accountId}/access/apps/${app.id}/policies/${existing.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ ...policyPayload, precedence: existing.precedence ?? 1 }),
+      })
     } else {
-      const created = await api(`/accounts/${accountId}/access/apps/${app.id}/policies`, { method: 'POST', body: JSON.stringify(policyPayload) })
+      const created = await api(`/accounts/${accountId}/access/apps/${app.id}/policies`, {
+        method: 'POST',
+        body: JSON.stringify(policyPayload),
+      })
       console.log(`+ Policy created (${created.id})`)
     }
   } else if (dryRun) {

@@ -82,8 +82,11 @@ for (const u of users) {
   const saltHex = sqlQuote(bytesToHex(salt))
   const hashHex = sqlQuote(bytesToHex(hash))
 
+  const displayName = String(u.name ?? '').trim() || null
+  const role = u.role === 'client' ? 'client' : 'super_admin'
+
   statements.push(
-    `INSERT OR IGNORE INTO users (id, email, password_hash, password_salt, role, name) VALUES (${sqlQuote(id)}, ${sqlQuote(email)}, ${hashHex}, ${saltHex}, 'super_admin', NULL);`
+    `INSERT INTO users (id, email, password_hash, password_salt, role, name) VALUES (${sqlQuote(id)}, ${sqlQuote(email)}, ${hashHex}, ${saltHex}, ${sqlQuote(role)}, ${displayName ? sqlQuote(displayName) : 'NULL'}) ON CONFLICT(email) DO UPDATE SET name = excluded.name, role = excluded.role, updated_at = datetime('now');`
   )
 }
 

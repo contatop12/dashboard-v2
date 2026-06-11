@@ -12,6 +12,7 @@
     "db:migrate": "wrangler d1 execute p12-dashboard --remote --file=migrations/0001_init.sql",
     "db:migrate:local": "wrangler d1 execute p12-dashboard --local --file=migrations/0001_init.sql",
     "db:seed": "node scripts/seed_super_admin.mjs",
+    "db:add-user": "node scripts/add_dashboard_user.mjs",
     "cf:secrets": "wrangler secret bulk .dev.vars",
     "cf:secrets:sync": "node scripts/sync-worker-secrets.mjs",
     "cf:secrets:list": "wrangler secret list",
