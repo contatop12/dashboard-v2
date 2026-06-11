@@ -12,11 +12,7 @@ const OBJECTIVE_RESULT_LABEL = {
   OUTCOME_TRAFFIC: 'Cliques no link',
 }
 
-const SORT_OPTIONS = [
-  { id: 'spend', label: 'Maior gasto' },
-  { id: 'results', label: 'Mais resultados' },
-  { id: 'name', label: 'Nome (A–Z)' },
-]
+import { sortCampaignNodes, CAMPAIGN_SORT_OPTIONS } from '@/lib/campaignTreeSort'
 
 const DEFAULT_LABELS = { adsets: 'Conjuntos', ads: 'Anúncios', keywords: 'Palavras-chave' }
 
@@ -39,15 +35,8 @@ function isOn(status) {
   return String(status ?? '').toUpperCase() === 'ACTIVE'
 }
 
-function sortNodes(items, sortId) {
-  const list = [...(items || [])]
-  if (sortId === 'name') {
-    return list.sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? ''), 'pt-BR'))
-  }
-  if (sortId === 'results') {
-    return list.sort((a, b) => (Number(b.metrics?.results) || 0) - (Number(a.metrics?.results) || 0))
-  }
-  return list.sort((a, b) => (Number(b.metrics?.spend) || 0) - (Number(a.metrics?.spend) || 0))
+function sortNodes(items, sortId, desc = true) {
+  return sortCampaignNodes(items, sortId, desc)
 }
 
 function NodeMetrics({ node, compact = false, resultsLabel = null, searchMode = false }) {
@@ -102,7 +91,7 @@ function Metric({ k, label, v }) {
   )
 }
 
-function SortSelect({ value, onChange, className }) {
+function SortSelect({ value, onChange, className, options = CAMPAIGN_SORT_OPTIONS }) {
   return (
     <select
       value={value}
@@ -113,7 +102,7 @@ function SortSelect({ value, onChange, className }) {
       )}
       aria-label="Ordenar"
     >
-      {SORT_OPTIONS.map((o) => (
+      {options.map((o) => (
         <option key={o.id} value={o.id}>
           {o.label}
         </option>

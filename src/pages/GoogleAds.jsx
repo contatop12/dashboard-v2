@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import { format, parse } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { ArrowDown, ArrowUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
@@ -30,6 +31,14 @@ import { DimensionFilterSelect } from '@/components/ui/DimensionFilterSelect'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { useCampaignStatusMutation } from '@/hooks/useCampaignStatusMutation'
 import { filterOptionsFromTree, resolveTreeSlice } from '@/lib/filterOptionsFromTree'
+import {
+  applyCampaignViewFilters,
+  CAMPAIGN_SORT_OPTIONS,
+  hasActiveCampaignToolbarExtras,
+  resolveCampaignSort,
+  resolveCampaignViewFilters,
+  sortCampaignNodes,
+} from '@/lib/campaignTreeSort'
 import {
   GOOGLE_CAMPAIGN_STATUS_FILTER_OPTIONS,
   GOOGLE_CHANNEL_TYPE_LABELS,
@@ -693,6 +702,13 @@ function GoogleAnalysisPanel() {
 
 const GOOGLE_TREE_LABELS = { adsets: 'Grupos de anúncios', ads: 'Anúncios', keywords: 'Palavras-chave' }
 
+const GOOGLE_VIEW_FILTER_CHIPS = [
+  { key: 'onlyWithSpend', label: 'Com gasto' },
+  { key: 'onlyWithConversions', label: 'Com conversões' },
+  { key: 'onlyWithImpressions', label: 'Com impressões' },
+  { key: 'onlyWithClicks', label: 'Com cliques' },
+]
+
 function GoogleCampaignsBlock({ workerPlatformQuery }) {
   const { activeOrgId } = useOrgWorkspace()
   const { loading, data } = usePlatformOverview()
@@ -748,6 +764,14 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
 
   const visibleTree = useMemo(() => resolveTreeSlice(tree, mergedFilters), [tree, mergedFilters])
 
+  const campaignSort = useMemo(() => resolveCampaignSort(blockFilters), [blockFilters])
+  const viewFilters = useMemo(() => resolveCampaignViewFilters(blockFilters), [blockFilters])
+
+  const displayedTree = useMemo(() => {
+    const filtered = applyCampaignViewFilters(visibleTree, viewFilters)
+    return sortCampaignNodes(filtered, campaignSort.id, campaignSort.desc)
+  }, [visibleTree, viewFilters, campaignSort])
+
   const setBlockFilter = (key, opt) => setBlockFilters((prev) => ({ ...prev, [key]: opt }))
   const clearBlockFilter = (key) =>
     setBlockFilters((prev) => {
@@ -755,7 +779,8 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
       delete next[key]
       return next
     })
-  const hasBlockFilters = Object.keys(blockFilters).length > 0
+  const toggleViewFilter = (key) => setBlockFilters((prev) => ({ ...prev, [key]: !prev[key] }))
+  const hasBlockFilters = hasActiveCampaignToolbarExtras(blockFilters)
   const totalCampaigns = tree.length
   const hasActiveTreeFilters = useMemo(
     () =>
@@ -798,59 +823,112 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
 
   const state =
     loading ? 'loading' : data?.campaignsError ? 'error' : totalCampaigns === 0 ? 'empty' : 'ready'
-  const activeCount = visibleTree.filter((c) => String(c.effectiveStatus).toUpperCase() === 'ACTIVE').length
+  const activeCount = displayedTree.filter((c) => String(c.effectiveStatus).toUpperCase() === 'ACTIVE').length
   const badge =
     hasActiveTreeFilters && totalCampaigns > 0
-      ? `${activeCount} ativas · ${visibleTree.length} de ${totalCampaigns} campanhas`
-      : `${activeCount} ativas · ${visibleTree.length} campanhas`
+      ? `${activeCount} ativas · ${displayedTree.length} de ${totalCampaigns} campanhas`
+      : `${activeCount} ativas · ${displayedTree.length} campanhas`
+
+  const sortLabel = CAMPAIGN_SORT_OPTIONS.find((o) => o.id === campaignSort.id)?.label ?? 'Investimento'
 
   const filterToolbar = (
-    <div className="-mx-4 mb-3 flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-4 pb-3">
-      <DimensionFilterSelect
-        filterKey="objetivo"
-        label="Tipo de campanha"
-        value={blockFilters.objetivo || null}
-        options={treeFilterOptions.objetivo}
-        onChange={setBlockFilter}
-        onClear={clearBlockFilter}
-        compact
-      />
-      <DimensionFilterSelect
-        filterKey="campanha"
-        label="Campanha"
-        value={blockFilters.campanha || null}
-        options={treeFilterOptions.campanha}
-        onChange={setBlockFilter}
-        onClear={clearBlockFilter}
-        compact
-      />
-      <DimensionFilterSelect
-        filterKey="children"
-        label="Grupo de anúncios"
-        value={blockFilters.children || null}
-        options={treeFilterOptions.children}
-        onChange={setBlockFilter}
-        onClear={clearBlockFilter}
-        compact
-      />
-      <DimensionFilterSelect
-        filterKey="status"
-        label="Status"
-        value={blockFilters.status || null}
-        options={treeFilterOptions.status}
-        onChange={setBlockFilter}
-        onClear={clearBlockFilter}
-        compact
-      />
-      {hasBlockFilters ? (
+    <div className="-mx-4 mb-3 flex flex-col gap-2 border-b border-white/[0.06] px-4 pb-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <DimensionFilterSelect
+          filterKey="objetivo"
+          label="Tipo de campanha"
+          value={blockFilters.objetivo || null}
+          options={treeFilterOptions.objetivo}
+          onChange={setBlockFilter}
+          onClear={clearBlockFilter}
+          compact
+        />
+        <DimensionFilterSelect
+          filterKey="campanha"
+          label="Campanha"
+          value={blockFilters.campanha || null}
+          options={treeFilterOptions.campanha}
+          onChange={setBlockFilter}
+          onClear={clearBlockFilter}
+          compact
+        />
+        <DimensionFilterSelect
+          filterKey="children"
+          label="Grupo de anúncios"
+          value={blockFilters.children || null}
+          options={treeFilterOptions.children}
+          onChange={setBlockFilter}
+          onClear={clearBlockFilter}
+          compact
+        />
+        <DimensionFilterSelect
+          filterKey="status"
+          label="Status"
+          value={blockFilters.status || null}
+          options={treeFilterOptions.status}
+          onChange={setBlockFilter}
+          onClear={clearBlockFilter}
+          compact
+        />
+        {hasBlockFilters ? (
+          <button
+            type="button"
+            onClick={() => setBlockFilters({})}
+            className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-muted-foreground transition-colors hover:text-white"
+          >
+            <span aria-hidden>×</span> Limpar
+          </button>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 border-t border-white/[0.04] pt-2">
+        <span className="font-sans text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Ordenar
+        </span>
+        <select
+          value={campaignSort.id}
+          onChange={(e) => setBlockFilters((prev) => ({ ...prev, sortBy: e.target.value }))}
+          className="filter-select h-7 max-w-[140px] cursor-pointer text-[11px]"
+          aria-label="Ordenar campanhas por"
+          title={`Ordenar por ${sortLabel}`}
+        >
+          {CAMPAIGN_SORT_OPTIONS.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
+        </select>
         <button
           type="button"
-          onClick={() => setBlockFilters({})}
-          className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-muted-foreground transition-colors hover:text-white"
+          onClick={() => setBlockFilters((prev) => ({ ...prev, sortDesc: !resolveCampaignSort(prev).desc }))}
+          className={cn(
+            'filter-select flex h-7 w-8 items-center justify-center px-0',
+            'border-brand/30 bg-brand/10 text-brand'
+          )}
+          title={campaignSort.desc ? 'Maior primeiro (decrescente)' : 'Menor primeiro (crescente)'}
+          aria-label={campaignSort.desc ? 'Ordem decrescente' : 'Ordem crescente'}
         >
-          <span aria-hidden>×</span> Limpar
+          {campaignSort.desc ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
         </button>
-      ) : null}
+        <span className="hidden h-4 w-px bg-white/10 sm:block" aria-hidden />
+        <span className="font-sans text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Exibir
+        </span>
+        {GOOGLE_VIEW_FILTER_CHIPS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => toggleViewFilter(key)}
+            className={cn(
+              'filter-select h-7 text-[11px]',
+              blockFilters[key] && 'border-brand/40 bg-brand/10 text-brand'
+            )}
+            aria-pressed={Boolean(blockFilters[key])}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 
@@ -866,7 +944,7 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
       bodyClassName="overflow-auto"
       toolbar={showToolbar ? filterToolbar : null}
     >
-      {visibleTree.length === 0 && state === 'ready' ? (
+      {displayedTree.length === 0 && state === 'ready' ? (
         <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
           <p className="text-[11px] text-muted-foreground">
             {hasActiveTreeFilters
@@ -876,7 +954,7 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
         </div>
       ) : (
         <CampaignTree
-          tree={visibleTree}
+          tree={displayedTree}
           onToggleStatus={(node) => setPendingToggle(node)}
           labels={GOOGLE_TREE_LABELS}
           resultsLabel="Conversões"
