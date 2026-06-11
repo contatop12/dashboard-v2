@@ -39,12 +39,10 @@ export function OrgWorkspaceProvider({ children }) {
       } else {
         const stored =
           typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
-        if (stored === '__worker__' || stored === '' || stored === null) {
-          next = null
-        } else if (stored && list.some((o) => o.id === stored)) {
+        if (stored && stored !== '__worker__' && list.some((o) => o.id === stored)) {
           next = stored
         } else {
-          next = null
+          next = list[0]?.id ?? null
         }
       }
       setActiveOrgIdState(next)
@@ -82,12 +80,10 @@ export function OrgWorkspaceProvider({ children }) {
         } else {
           const stored =
             typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
-          if (stored === '__worker__' || stored === '' || stored === null) {
-            next = null
-          } else if (stored && list.some((o) => o.id === stored)) {
+          if (stored && stored !== '__worker__' && list.some((o) => o.id === stored)) {
             next = stored
           } else {
-            next = null
+            next = list[0]?.id ?? null
           }
         }
         setActiveOrgIdState(next)
@@ -112,14 +108,14 @@ export function OrgWorkspaceProvider({ children }) {
     const resolved = id && id !== '__worker__' ? id : null
     setActiveOrgIdState(resolved)
     if (typeof localStorage === 'undefined') return
-    if (resolved === null) {
-      localStorage.setItem(STORAGE_KEY, '__worker__')
-    } else {
+    if (resolved) {
       localStorage.setItem(STORAGE_KEY, resolved)
+    } else {
+      localStorage.removeItem(STORAGE_KEY)
     }
   }, [])
 
-  /** Sufixo `?org_id=…` para APIs de plataforma; vazio = modo Worker (só super_admin com secrets). */
+  /** Sufixo `?org_id=…` para APIs de plataforma OAuth. */
   const platformApiSuffix = useMemo(() => {
     if (!activeOrgId) return ''
     return `?org_id=${encodeURIComponent(activeOrgId)}`

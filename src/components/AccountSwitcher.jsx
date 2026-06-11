@@ -1,89 +1,46 @@
-import { useEffect, useState } from 'react'
-import { Building2, ChevronRight } from 'lucide-react'
+import { Building2 } from 'lucide-react'
+import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 
 /**
- * Placeholder Onda 1: super admin sempre vê bloco de contexto;
- * cliente só vê se tiver ≥ 2 contas no mesmo provedor (via /connections).
+ * Seletor de organização no menu do usuário (super admin e clientes multi-org).
  */
 export default function AccountSwitcher({ user }) {
-  const [showBlock, setShowBlock] = useState(user?.role === 'super_admin')
-  const [orgs, setOrgs] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { orgs, activeOrgId, setActiveOrgId, loading } = useOrgWorkspace()
 
-  useEffect(() => {
-    let cancelled = false
-    async function run() {
-      if (!user) {
-        setLoading(false)
-        return
-      }
-      setLoading(true)
-      try {
-        const r = await fetch('/api/orgs', { credentials: 'include' })
-        if (!r.ok) throw new Error('orgs')
-        const data = await r.json()
-        const list = data.organizations ?? []
-        if (cancelled) return
-        setOrgs(list)
+  if (!user) return null
 
-        if (user.role === 'super_admin') {
-          setShowBlock(true)
-          return
-        }
+  const showOrgSelect =
+    !loading && orgs.length > 0 && (user.role === 'super_admin' || orgs.length > 1)
 
-        if (list.length === 0) {
-          setShowBlock(false)
-          return
-        }
-        const orgId = list[0].id
-        const cr = await fetch(`/api/orgs/${orgId}/connections`, { credentials: 'include' })
-        if (!cr.ok) throw new Error('connections')
-        const cd = await cr.json()
-        const byProvider = {}
-        for (const c of cd.connections ?? []) {
-          byProvider[c.provider] = (byProvider[c.provider] || 0) + 1
-        }
-        const multi = Object.values(byProvider).some((n) => n >= 2)
-        if (!cancelled) setShowBlock(multi)
-      } catch {
-        if (!cancelled) setShowBlock(user.role === 'super_admin')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    run()
-    return () => {
-      cancelled = true
-    }
-  }, [user])
+  if (!showOrgSelect) return null
 
-  if (!showBlock && !loading) return null
+  const activeOrg = orgs.find((o) => o.id === activeOrgId)
 
   return (
-    <div className="px-2 py-2 border-b border-surface-border">
-      <div className="flex items-center gap-2 px-2 py-2 text-[10px] uppercase tracking-wider text-muted-foreground font-sans">
+    <div className="border-b border-surface-border px-2 py-2">
+      <div className="mb-2 flex items-center gap-2 px-2 text-[10px] font-sans uppercase tracking-wider text-muted-foreground">
         <Building2 size={12} />
-        Contas / organização
+        Organização
       </div>
-      {loading ? (
-        <p className="px-2 py-2 text-xs text-muted-foreground font-sans">Carregando…</p>
-      ) : user?.role === 'super_admin' ? (
-        <div className="px-2 py-2 rounded-md bg-surface-hover/50 border border-surface-border/80">
-          <p className="text-xs text-white font-sans font-medium">Visão administrativa</p>
-          <p className="text-[11px] text-muted-foreground font-sans mt-2">
-            Seletor de conta por canal chega na Onda 2 (OAuth). {orgs.length > 0 ? `${orgs.length} org(s) no sistema.` : ''}
-          </p>
-        </div>
-      ) : (
-        <button
-          type="button"
-          disabled
-          className="w-full flex items-center justify-between gap-2 px-2 py-2 rounded-md text-left text-xs text-muted-foreground opacity-70 cursor-not-allowed"
+      <div className="px-2">
+        <select
+          value={activeOrgId ?? ''}
+          onChange={(e) => setActiveOrgId(e.target.value || null)}
+          className="h-8 w-full cursor-pointer rounded-md border border-surface-border bg-surface-input px-2 font-sans text-xs text-white outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+          title="Organização ativa"
         >
-          <span className="font-sans truncate">Trocar conta conectada</span>
-          <ChevronRight size={14} />
-        </button>
-      )}
+          {orgs.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name}
+            </option>
+          ))}
+        </select>
+        {activeOrg ? (
+          <p className="mt-1.5 px-0.5 font-sans text-[10px] text-muted-foreground">
+            Dados OAuth de <span className="text-white/90">{activeOrg.name}</span>
+          </p>
+        ) : null}
+      </div>
     </div>
   )
 }

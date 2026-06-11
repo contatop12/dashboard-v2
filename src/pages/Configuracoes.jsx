@@ -5,6 +5,14 @@ import { useAuth } from '@/context/AuthContext'
 import { normalizeLayout } from '@/lib/dashboardGrid'
 import DesignSystem from './DesignSystem'
 import Conexoes from './Conexoes'
+import {
+  browserNotificationsSupported,
+  getBrowserNotificationPermission,
+  loadNotificationPrefs,
+  requestBrowserNotificationPermission,
+  saveNotificationPrefs,
+  showBrowserNotification,
+} from '@/lib/notifications'
 
 const TABS = [
   { id: 'design', label: 'Design System', icon: Palette },
@@ -46,29 +54,106 @@ function ContaTab() {
 }
 
 function NotificacoesTab() {
-  const [prefs, setPrefs] = useState({ emailDiario: true, emailSemanal: false, alertaKPI: true, alertaCusto: true, novoCampanha: false })
+  const [prefs, setPrefs] = useState(() => loadNotificationPrefs())
+  const [permission, setPermission] = useState(() => getBrowserNotificationPermission())
+  const supported = browserNotificationsSupported()
+
+  const updatePref = (key, value) => {
+    const next = { ...prefs, [key]: value }
+    setPrefs(next)
+    saveNotificationPrefs(next)
+  }
+
+  const enableBrowserNotifications = async () => {
+    const result = await requestBrowserNotificationPermission()
+    setPermission(result)
+    if (result === 'granted') {
+      updatePref('browserEnabled', true)
+      showBrowserNotification('Notificações ativadas', {
+        body: 'Você receberá alertas do P12 Dashboard neste navegador.',
+        tag: 'p12-welcome',
+      })
+    }
+  }
+
   return (
-    <div className="max-w-lg">
-      <div className="bg-surface-card border border-surface-border rounded-xl p-4">
-        <h3 className="font-display font-semibold text-white text-sm mb-4">Preferências de Notificação</h3>
+    <div className="max-w-lg flex flex-col gap-4">
+      <div className="rounded-xl border border-surface-border bg-surface-card p-4">
+        <h3 className="mb-1 font-display text-sm font-semibold text-white">Notificações do navegador</h3>
+        <p className="mb-4 font-sans text-xs text-muted-foreground">
+          Receba alertas nativos do sistema (Windows, macOS, Android) mesmo com a aba em segundo plano.
+        </p>
+        {!supported ? (
+          <p className="font-sans text-xs text-muted-foreground">Seu navegador não suporta notificações push.</p>
+        ) : permission === 'denied' ? (
+          <p className="font-sans text-xs text-amber-200/90">
+            Permissão bloqueada. Libere notificações nas configurações do site no navegador.
+          </p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                if (prefs.browserEnabled) {
+                  updatePref('browserEnabled', false)
+                  return
+                }
+                if (permission === 'granted') {
+                  updatePref('browserEnabled', true)
+                  return
+                }
+                void enableBrowserNotifications()
+              }}
+              className={`relative h-5 w-9 rounded-full transition-all ${prefs.browserEnabled ? 'bg-brand' : 'bg-surface-border'}`}
+              aria-pressed={prefs.browserEnabled}
+            >
+              <span
+                className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all"
+                style={{ left: prefs.browserEnabled ? '18px' : '2px' }}
+              />
+            </button>
+            <span className="font-sans text-sm text-white">
+              {prefs.browserEnabled ? 'Ativadas neste navegador' : 'Desativadas'}
+            </span>
+            {permission === 'default' && !prefs.browserEnabled ? (
+              <button
+                type="button"
+                onClick={() => void enableBrowserNotifications()}
+                className="rounded-md border border-brand/30 bg-brand/10 px-3 py-1.5 font-sans text-xs text-brand hover:bg-brand/20"
+              >
+                Permitir no navegador
+              </button>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-surface-border bg-surface-card p-4">
+        <h3 className="mb-4 font-display text-sm font-semibold text-white">Preferências de alerta</h3>
         <div className="flex flex-col gap-4">
           {[
-            { key: 'emailDiario', label: 'Relatório Diário por Email', desc: 'Resumo dos KPIs principais todo dia às 8h' },
-            { key: 'emailSemanal', label: 'Relatório Semanal', desc: 'Comparativo semanal com métricas detalhadas' },
+            { key: 'alertaConexao', label: 'Conexões OAuth', desc: 'Quando Meta, Google Ads ou GBP ficarem desconectados' },
             { key: 'alertaKPI', label: 'Alertas de KPI', desc: 'Notificação quando algum KPI sair do normal' },
-            { key: 'alertaCusto', label: 'Alerta de Orçamento', desc: 'Aviso quando o gasto atingir 80% do budget' },
-            { key: 'novoCampanha', label: 'Nova Campanha', desc: 'Notificar quando uma campanha for criada' },
+            { key: 'alertaCusto', label: 'Alerta de orçamento', desc: 'Aviso quando o gasto atingir 80% do budget' },
+            { key: 'novoCampanha', label: 'Nova campanha', desc: 'Notificar quando uma campanha for criada' },
+            { key: 'emailDiario', label: 'Relatório diário por email', desc: 'Resumo dos KPIs principais todo dia às 8h' },
+            { key: 'emailSemanal', label: 'Relatório semanal', desc: 'Comparativo semanal com métricas detalhadas' },
           ].map(({ key, label, desc }) => (
-            <div key={key} className="flex items-center justify-between">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-sans text-white">{label}</span>
-                <span className="text-[11px] text-muted-foreground font-sans">{desc}</span>
+            <div key={key} className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="font-sans text-sm text-white">{label}</span>
+                <span className="font-sans text-[11px] text-muted-foreground">{desc}</span>
               </div>
               <button
-                onClick={() => setPrefs(p => ({ ...p, [key]: !p[key] }))}
-                className={`relative w-9 h-5 rounded-full transition-all ${prefs[key] ? 'bg-brand' : 'bg-surface-border'}`}
+                type="button"
+                onClick={() => updatePref(key, !prefs[key])}
+                className={`relative h-5 w-9 shrink-0 rounded-full transition-all ${prefs[key] ? 'bg-brand' : 'bg-surface-border'}`}
+                aria-pressed={prefs[key]}
               >
-                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${prefs[key] ? 'left-4.5 translate-x-0' : 'left-0.5'}`} style={{ left: prefs[key] ? '18px' : '2px' }} />
+                <span
+                  className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all"
+                  style={{ left: prefs[key] ? '18px' : '2px' }}
+                />
               </button>
             </div>
           ))}
@@ -173,6 +258,18 @@ export default function Configuracoes() {
   const { theme } = useTheme()
   const { user } = useAuth()
   const L = normalizeLayout(theme.layout)
+
+  useEffect(() => {
+    try {
+      const tab = sessionStorage.getItem('p12_settings_tab')
+      if (tab) {
+        setActiveTab(tab)
+        sessionStorage.removeItem('p12_settings_tab')
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   const contentPad = {
     paddingTop: L.marginTop,

@@ -42,6 +42,15 @@ export default function App() {
   }, [user, activePage])
 
   useEffect(() => {
+    const onNavigate = (e) => {
+      const page = e.detail?.page
+      if (page) setActivePage(page)
+    }
+    window.addEventListener('p12-navigate', onNavigate)
+    return () => window.removeEventListener('p12-navigate', onNavigate)
+  }, [])
+
+  useEffect(() => {
     if (!user) return
     const sp = new URLSearchParams(window.location.search)
     const ok = sp.get('oauth_ok')
