@@ -4,10 +4,15 @@ import { ptBR } from 'date-fns/locale/pt-BR'
 import DatePicker, { registerLocale } from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import '@/styles/datepicker-p12.css'
-import { Calendar, ChevronDown, RefreshCw, Columns2, X } from 'lucide-react'
+import { Calendar, ChevronDown, RefreshCw, Columns2, X, Presentation } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
-import { defaultCompareSevenDaysBeforeMain, rangeLastNDays, rangeThisMonth } from '@/lib/dateRange'
+import {
+  defaultCompareSevenDaysBeforeMain,
+  rangeLastMonth,
+  rangeLastNDays,
+  rangeThisMonth,
+} from '@/lib/dateRange'
 
 registerLocale('pt-BR', ptBR)
 
@@ -43,8 +48,11 @@ const DASHBOARD_KPI_PAGES = new Set(['Geral', 'Meta Ads', 'Google Ads', 'Google 
 
 const DATE_PRESETS = [
   { key: '7d', label: 'Últimos 7 dias', getRange: () => rangeLastNDays(7) },
+  { key: '14d', label: 'Últimos 14 dias', getRange: () => rangeLastNDays(14) },
   { key: '30d', label: 'Últimos 30 dias', getRange: () => rangeLastNDays(30) },
+  { key: '90d', label: 'Últimos 90 dias', getRange: () => rangeLastNDays(90) },
   { key: 'month', label: 'Este mês', getRange: () => rangeThisMonth() },
+  { key: 'last-month', label: 'Mês passado', getRange: () => rangeLastMonth() },
 ]
 
 const SEARCH_THRESHOLD = 8
@@ -203,6 +211,7 @@ export default function FilterBar({ activePage }) {
     setCompareDateRange,
     comparePrimaryKpi,
     setComparePrimaryKpi,
+    setPresentationMode,
     dimensionFilters,
     setDimensionFilters,
     filterOptions,
@@ -396,6 +405,15 @@ export default function FilterBar({ activePage }) {
         </div>
 
         <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setPresentationMode(true)}
+            className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-all hover:bg-surface-card hover:text-white"
+            title="Modo apresentação: esconde menus e filtros para exibir só o relatório (Esc para sair)"
+          >
+            <Presentation size={14} />
+            <span className="hidden lg:inline">Apresentar</span>
+          </button>
           <button
             type="button"
             onClick={handleRefresh}

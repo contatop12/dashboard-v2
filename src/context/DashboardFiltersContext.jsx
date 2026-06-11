@@ -16,6 +16,8 @@ export function DashboardFiltersProvider({ children }) {
     defaultCompareSevenDaysBeforeMain(initialMainRange().start)
   )
   const [comparePrimaryKpi, setComparePrimaryKpi] = useState(false)
+  /** Modo apresentação: esconde navegação/filtros para exibir só os blocos (relatórios ao vivo/print). */
+  const [presentationMode, setPresentationMode] = useState(false)
   const [dimensionFilters, setDimensionFilters] = useState({})
   /** Opções publicadas pela página ativa a partir da árvore do overview: { [key]: [{id,name,...}] } */
   const [filterOptions, setFilterOptions] = useState({})
@@ -53,6 +55,8 @@ export function DashboardFiltersProvider({ children }) {
       setCompareDateRange: setCompareDateRangeSafe,
       comparePrimaryKpi,
       setComparePrimaryKpi,
+      presentationMode,
+      setPresentationMode,
       previousPeriod,
       dimensionFilters,
       setDimensionFilters,
@@ -65,6 +69,7 @@ export function DashboardFiltersProvider({ children }) {
       compareDateRange,
       setCompareDateRangeSafe,
       comparePrimaryKpi,
+      presentationMode,
       previousPeriod,
       dimensionFilters,
       filterOptions,

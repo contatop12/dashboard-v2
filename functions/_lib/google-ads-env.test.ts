@@ -18,8 +18,8 @@ describe('google-ads-env', () => {
     ).toBe('3780611396')
   })
 
-  it('default api version v18', () => {
-    expect(resolveGoogleApiVersion({} as never)).toBe('v18')
+  it('default api version v21', () => {
+    expect(resolveGoogleApiVersion({} as never)).toBe('v21')
     expect(resolveGoogleApiVersion({ GOOGLE_ADS_API_VERSION: '19' } as never)).toBe('v19')
   })
 

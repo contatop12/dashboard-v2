@@ -215,8 +215,8 @@
     background: rgb(var(--color-surface) / 0.5);
   }
 
-  .google-trend-strip {
-    @apply flex items-start justify-between gap-3 rounded-lg border px-3 py-3;
+  .google-trend-card {
+    @apply flex flex-col rounded-lg border px-4 py-3;
     border-color: rgb(255 255 255 / 0.05);
     background: rgb(var(--color-surface) / 0.35);
   }
@@ -286,17 +286,8 @@
     }
   }
 
-  .google-analysis-row-quality {
-    max-height: 11rem;
-    overflow: hidden;
-  }
-
   .google-chart-canvas {
     @apply shrink-0;
-  }
-
-  .google-quality-row + .google-quality-row {
-    border-top: 1px solid rgb(255 255 255 / 0.04);
   }
 
   .section-title {
@@ -328,6 +319,44 @@
       grid-template-rows: masonry;
       grid-auto-rows: unset;
     }
+  }
+}
+
+/* Impressão / exportar PDF (modo apresentação) — só o conteúdo dos blocos. */
+@media print {
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: #0f0f0f;
+  }
+
+  #root > div,
+  #root .flex.h-screen {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .presentation-toolbar,
+  header,
+  aside,
+  nav {
+    display: none !important;
+  }
+
+  .app-main {
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  .dashboard-block-item {
+    break-inside: avoid;
   }
 }
 

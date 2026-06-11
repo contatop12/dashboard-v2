@@ -1,12 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import { format, parse } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import {
-  Award,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
@@ -23,12 +17,14 @@ import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 import { buildPlatformOverviewUrl } from '@/lib/platformOverviewUrl'
 import { PlatformOverviewProvider, usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { GoogleAdsCampaignTypesTable } from '@/components/GoogleAdsCampaignTypesTable'
+import { GoogleTopKeywordsTable } from '@/components/GoogleTopKeywordsTable'
+import { GoogleKeywordPositionBlock } from '@/components/GoogleKeywordPositionBlock'
+import { GoogleSearchTermsBlock } from '@/components/GoogleSearchTermsBlock'
 import { MonthlyAccountResultsTable } from '@/components/MonthlyAccountResultsTable'
 import { GoogleAdsDemographicsBlock } from '@/components/GoogleAdsDemographicsBlock'
 import GoogleMetricsPanel from '@/components/GoogleMetricsPanel'
 import GoogleConversionMixChart from '@/components/GoogleConversionMixChart'
 import { BlockCard } from '@/components/ui/BlockCard'
-import { MetricInfo } from '@/components/ui/MetricInfo'
 import { CampaignTree } from '@/components/CampaignTree'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { useCampaignStatusMutation } from '@/hooks/useCampaignStatusMutation'
@@ -582,182 +578,6 @@ function GoogleClicksChart({ embedded = false }) {
 }
 
 
-const GOOGLE_QUALITY_PAGE_SIZE = 14
-
-function formatKeywordConversions(n) {
-  if (n == null || Number.isNaN(Number(n))) return '—'
-  const x = Number(n)
-  return Math.abs(x % 1) < 0.001
-    ? formatNumber(Math.round(x))
-    : new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(x)
-}
-
-function GoogleQuality({ embedded = false }) {
-  const { loading, data } = usePlatformOverview()
-  const kq = data?.keywordQuality
-  const items = Array.isArray(kq?.items) ? kq.items : []
-  const kqError = typeof kq?.error === 'string' && kq.error.trim() ? kq.error.trim() : null
-  const [page, setPage] = useState(1)
-
-  useEffect(() => {
-    setPage(1)
-  }, [items])
-
-  const totalPages = Math.max(1, Math.ceil(items.length / GOOGLE_QUALITY_PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const pageItems = items.slice(
-    (safePage - 1) * GOOGLE_QUALITY_PAGE_SIZE,
-    safePage * GOOGLE_QUALITY_PAGE_SIZE
-  )
-
-  const titleNode = (
-    <div className="flex items-center gap-1.5">
-      <Award size={13} className="text-brand shrink-0" />
-      <span className="section-title">Índice de Qualidade</span>
-    </div>
-  )
-
-  const paginationNode = !loading && items.length > GOOGLE_QUALITY_PAGE_SIZE ? (
-    <div className="flex shrink-0 items-center justify-end gap-1 pt-1 border-t border-surface-border/80">
-      <button
-        type="button"
-        disabled={safePage <= 1}
-        className={cn(
-          'p-1 rounded-md border border-transparent',
-          safePage <= 1
-            ? 'text-muted-foreground/40 cursor-not-allowed'
-            : 'text-muted-foreground hover:text-foreground hover:bg-surface-input border-surface-border'
-        )}
-        aria-label="Página anterior"
-        onClick={() => setPage((p) => Math.max(1, p - 1))}
-      >
-        <ChevronLeft size={14} />
-      </button>
-      <span className="text-[10px] font-mono text-muted-foreground tabular-nums px-1">
-        {safePage}/{totalPages}
-      </span>
-      <button
-        type="button"
-        disabled={safePage >= totalPages}
-        className={cn(
-          'p-1 rounded-md border border-transparent',
-          safePage >= totalPages
-            ? 'text-muted-foreground/40 cursor-not-allowed'
-            : 'text-muted-foreground hover:text-foreground hover:bg-surface-input border-surface-border'
-        )}
-        aria-label="Próxima página"
-        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-      >
-        <ChevronRight size={14} />
-      </button>
-    </div>
-  ) : null
-
-  const listBody = (
-    <>
-      {kqError ? (
-        <p className="shrink-0 font-sans text-[10px] leading-snug text-amber-400/90">{kqError}</p>
-      ) : null}
-      <div className="flex max-h-[9.5rem] min-h-0 flex-col gap-1 overflow-y-auto pr-0.5">
-        {!loading && pageItems.length === 0 ? (
-          <p className="font-sans text-[10px] leading-relaxed text-muted-foreground">
-            Sem palavras-chave de pesquisa com dados no período. Contas com campanhas só em Performance Max podem
-            trazer poucos ou nenhum resultado nesta lista.
-          </p>
-        ) : null}
-        {!loading &&
-          pageItems.map((kw) => {
-            const score = kw.qualityScore != null ? Number(kw.qualityScore) : null
-            const barPct = score != null && !Number.isNaN(score) ? Math.min(100, Math.max(0, score * 10)) : 0
-            const barColor =
-              score == null || Number.isNaN(score)
-                ? '#64748b'
-                : score >= 8
-                  ? '#4ade80'
-                  : score >= 6
-                    ? '#F5C518'
-                    : '#f87171'
-            const cpc =
-              kw.costPerConversion != null && kw.costPerConversion !== undefined
-                ? formatCurrency(Number(kw.costPerConversion))
-                : '—'
-            return (
-              <div
-                key={kw.keyword}
-                className="google-quality-row grid grid-cols-[minmax(0,1fr)_3rem_4rem_4rem_5rem] items-center gap-2 rounded-md px-1 py-1.5 hover:bg-white/[0.03]"
-              >
-                <span className="truncate font-sans text-[11px] text-foreground" title={kw.keyword}>
-                  {kw.keyword}
-                </span>
-                <span
-                  className={cn(
-                    'text-center font-mono text-[11px] font-semibold tabular-nums',
-                    score == null || Number.isNaN(score)
-                      ? 'text-muted-foreground'
-                      : score >= 8
-                        ? 'text-green-400'
-                        : score >= 6
-                          ? 'text-yellow-400'
-                          : 'text-red-400'
-                  )}
-                >
-                  {score != null && !Number.isNaN(score) ? `${Math.round(score)}` : '—'}
-                </span>
-                <span className="text-right font-mono text-[10px] tabular-nums text-muted-foreground">
-                  {formatNumber(Math.round(Number(kw.clicks) || 0))}
-                </span>
-                <span className="text-right font-mono text-[10px] tabular-nums text-muted-foreground">
-                  {formatKeywordConversions(kw.conversions)}
-                </span>
-                <span className="text-right font-mono text-[10px] tabular-nums text-muted-foreground">{cpc}</span>
-                <div className="col-span-full h-1 overflow-hidden rounded-full bg-white/[0.05]">
-                  <div
-                    className="h-full rounded-full transition-[width] duration-300"
-                    style={{ width: `${barPct}%`, background: barColor }}
-                  />
-                </div>
-              </div>
-            )
-          })}
-      </div>
-      {paginationNode}
-    </>
-  )
-
-  if (embedded) {
-    return (
-      <div className="meta-analysis-cell flex min-h-0 flex-col">
-        <div className="mb-2 flex shrink-0 items-center gap-1.5">
-          <Award size={12} className="shrink-0 text-brand" />
-          <span className="text-[11px] font-medium text-foreground font-sans">Índice de qualidade</span>
-          <MetricInfo metricKey="qualityScore" size={10} />
-        </div>
-        {!loading && pageItems.length > 0 ? (
-          <div className="mb-2 grid grid-cols-[minmax(0,1fr)_3rem_4rem_4rem_5rem] gap-2 px-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
-            <span>Palavra-chave</span>
-            <span className="text-center">IQ</span>
-            <span className="text-right">Cliques</span>
-            <span className="text-right">Conv.</span>
-            <span className="text-right">Custo/conv.</span>
-          </div>
-        ) : null}
-        {loading ? <p className="text-[10px] text-muted-foreground">Carregando…</p> : listBody}
-      </div>
-    )
-  }
-
-  return (
-    <BlockCard
-      title={titleNode}
-      infoKey="qualityScore"
-      state={loading ? 'loading' : 'ready'}
-      bodyClassName="px-3 sm:px-4 pb-3 sm:pb-4 flex flex-col gap-2"
-    >
-      {listBody}
-    </BlockCard>
-  )
-}
-
 function GoogleFunnelBlock({ embedded = false }) {
   const { loading, data } = usePlatformOverview()
   const [funnelPreset, setFunnelPreset] = useState(readGoogleFunnelPreset)
@@ -861,9 +681,6 @@ function GoogleAnalysisPanel() {
       <div className="google-analysis-row-main">
         <GoogleClicksChart embedded />
         <GoogleFunnelBlock embedded />
-      </div>
-      <div className="google-analysis-row-quality">
-        <GoogleQuality embedded />
       </div>
     </div>
   )
@@ -991,9 +808,42 @@ const GOOGLE_DASHBOARD_BLOCKS = [
     render: () => <GoogleAnalysisPanel />,
   },
   {
+    id: 'google-top-keywords',
+    tier: 'secondary',
+    defaultColSpan: 8,
+    defaultRowSpan: 5,
+    minColSpan: 4,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 10,
+    render: () => <GoogleTopKeywordsTable />,
+  },
+  {
+    id: 'google-keyword-position',
+    tier: 'secondary',
+    defaultColSpan: 4,
+    defaultRowSpan: 5,
+    minColSpan: 2,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 10,
+    render: () => <GoogleKeywordPositionBlock />,
+  },
+  {
+    id: 'google-search-terms',
+    tier: 'secondary',
+    defaultColSpan: 4,
+    defaultRowSpan: 5,
+    minColSpan: 2,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 10,
+    render: () => <GoogleSearchTermsBlock />,
+  },
+  {
     id: 'google-campaigns',
     tier: 'secondary',
-    defaultColSpan: 5,
+    defaultColSpan: 8,
     defaultRowSpan: 4,
     minColSpan: 2,
     maxColSpan: 8,

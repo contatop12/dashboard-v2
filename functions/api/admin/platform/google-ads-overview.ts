@@ -30,6 +30,12 @@ import {
   parseAdGroupNodes,
   parseAdNodes,
 } from '../../../_lib/google-ads-tree'
+import {
+  aggregateSearchTerms,
+  aggregateTopKeywords,
+  type SearchTermItem,
+  type TopKeywordItem,
+} from '../../../_lib/google-ads-keywords'
 import { EMPTY_GOOGLE_DEMOGRAPHICS, fetchGoogleDemographicsPayload } from './google-ads-demographics'
 
 type Metric = { label: string; value: string; deltaPct?: number | null }
@@ -223,10 +229,24 @@ async function fetchAllGaqlRows(
     const j = (await res.json()) as {
       results?: GaqlRow[]
       nextPageToken?: string
-      error?: { message?: string; status?: string }
+      error?: {
+        message?: string
+        status?: string
+        details?: Array<{ errors?: Array<{ message?: string }> }>
+      }
     }
     if (!res.ok || j.error) {
-      return { rows: [], error: j.error?.message || `Google Ads API (${res.status})` }
+      // A mensagem top-level é genérica ("Request contains an invalid argument.");
+      // a causa real vem em details[].errors[].message (GoogleAdsFailure).
+      const detailMessages = (j.error?.details ?? [])
+        .flatMap((d) => d.errors ?? [])
+        .map((e) => e.message?.trim())
+        .filter((m): m is string => !!m)
+      const error =
+        detailMessages.length > 0
+          ? detailMessages.join(' · ')
+          : j.error?.message || `Google Ads API (${res.status})`
+      return { rows: [], error }
     }
     rows.push(...(j.results ?? []))
     pageToken = j.nextPageToken
@@ -359,6 +379,68 @@ const EMPTY_CAMPAIGN_TYPES: CampaignTypesPayload = {
   error: null,
 }
 
+type TopKeywordsPayload = { items: TopKeywordItem[]; error: string | null }
+type SearchTermsPayload = { items: SearchTermItem[]; error: string | null }
+
+const EMPTY_TOP_KEYWORDS: TopKeywordsPayload = { items: [], error: null }
+const EMPTY_SEARCH_TERMS: SearchTermsPayload = { items: [], error: null }
+
+async function fetchTopKeywords(
+  ver: string,
+  numericId: string,
+  headers: Record<string, string>,
+  since: string,
+  until: string,
+  filterClause = ''
+): Promise<TopKeywordsPayload> {
+  const query = `
+    SELECT
+      ad_group_criterion.keyword.text,
+      ad_group_criterion.keyword.match_type,
+      campaign.id,
+      campaign.name,
+      ad_group.name,
+      metrics.cost_micros,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.conversions,
+      metrics.absolute_top_impression_percentage,
+      metrics.top_impression_percentage
+    FROM keyword_view
+    WHERE segments.date BETWEEN '${since}' AND '${until}'
+      AND campaign.status != 'REMOVED'
+      AND ad_group_criterion.status != 'REMOVED'
+      AND ad_group_criterion.type = KEYWORD${filterClause}
+  `
+  const res = await fetchAllGaqlRows(ver, numericId, headers, query)
+  if (res.error) return { items: [], error: res.error }
+  return { items: aggregateTopKeywords(res.rows, 20), error: null }
+}
+
+async function fetchSearchTerms(
+  ver: string,
+  numericId: string,
+  headers: Record<string, string>,
+  since: string,
+  until: string,
+  filterClause = ''
+): Promise<SearchTermsPayload> {
+  const query = `
+    SELECT
+      search_term_view.search_term,
+      campaign.name,
+      metrics.cost_micros,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.conversions
+    FROM search_term_view
+    WHERE segments.date BETWEEN '${since}' AND '${until}'${filterClause}
+  `
+  const res = await fetchAllGaqlRows(ver, numericId, headers, query)
+  if (res.error) return { items: [], error: res.error }
+  return { items: aggregateSearchTerms(res.rows, 60), error: null }
+}
+
 function rowObj(row: GaqlRow): Record<string, unknown> {
   return row && typeof row === 'object' ? (row as Record<string, unknown>) : {}
 }
@@ -369,16 +451,6 @@ function readNestedString(obj: unknown, ...keys: string[]): string | undefined {
   for (const k of keys) {
     const v = o[k]
     if (typeof v === 'string' && v) return v
-  }
-  return undefined
-}
-
-function readNestedBool(obj: unknown, ...keys: string[]): boolean | undefined {
-  if (!obj || typeof obj !== 'object') return undefined
-  const o = obj as Record<string, unknown>
-  for (const k of keys) {
-    const v = o[k]
-    if (typeof v === 'boolean') return v
   }
   return undefined
 }
@@ -422,12 +494,13 @@ async function fetchConversionBreakdown(
     }
   }
 
+  // conversion_action.* não pode ser selecionado FROM campaign/ad_group
+  // (PROHIBITED_RESOURCE_TYPE_IN_SELECT_CLAUSE) — nome vem do segmento e
+  // primary_for_goal do catálogo carregado acima.
   const metricsQuery = `
     SELECT
       segments.conversion_action,
-      conversion_action.resource_name,
-      conversion_action.name,
-      conversion_action.primary_for_goal,
+      segments.conversion_action_name,
       metrics.conversions,
       metrics.conversions_value
     FROM ${fromResource}
@@ -442,7 +515,6 @@ async function fetchConversionBreakdown(
   type Agg = {
     resourceName: string
     name: string | null
-    primaryForGoal: boolean | undefined
     conversions: number
     value: number
   }
@@ -450,29 +522,26 @@ async function fetchConversionBreakdown(
   const totals = new Map<string, Agg>()
   for (const row of metricsRes.rows) {
     const R = rowObj(row)
-    const segmentRn = readConversionActionResourceName(R.segments)
-    const ca = parseConversionActionFields(R)
-    const rn = segmentRn ?? ca.resourceName
+    const rn = readConversionActionResourceName(R.segments)
     if (!rn) continue
 
     const key = extractConversionActionId(rn)
     if (!key) continue
 
+    const segName = readNestedString(R.segments, 'conversionActionName', 'conversion_action_name')
     const { conversions, value } = readMetricsConv(R.metrics)
     const cur =
       totals.get(key) ??
       ({
         resourceName: rn.includes('/') ? rn : buildConversionResourceName(numericId, key),
         name: null,
-        primaryForGoal: undefined,
         conversions: 0,
         value: 0,
       } satisfies Agg)
 
     cur.conversions += conversions
     cur.value += value
-    if (ca.name?.trim()) cur.name = ca.name.trim()
-    if (ca.primaryForGoal !== undefined) cur.primaryForGoal = ca.primaryForGoal
+    if (segName?.trim()) cur.name = segName.trim()
     if (!cur.resourceName.includes('/') && rn.includes('/')) cur.resourceName = rn
 
     totals.set(key, cur)
@@ -484,7 +553,7 @@ async function fetchConversionBreakdown(
     if (agg.conversions === 0 && agg.value === 0) continue
     const meta = metaMap.get(key)
     const name = agg.name ?? meta?.name ?? 'Conversão'
-    const primaryForGoal = agg.primaryForGoal ?? meta?.primaryForGoal
+    const primaryForGoal = meta?.primaryForGoal
     const rowOut: ConversionBreakdownRow = {
       id: agg.resourceName || buildConversionResourceName(numericId, key),
       name,
@@ -939,6 +1008,8 @@ async function buildGoogleOverviewBody(
       demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
+      topKeywords: EMPTY_TOP_KEYWORDS,
+      searchTerms: EMPTY_SEARCH_TERMS,
     }
   }
 
@@ -969,14 +1040,23 @@ async function buildGoogleOverviewBody(
   const dailyRaw = aggregateDaily(dailyRes.rows as Parameters<typeof aggregateDaily>[0])
   const daily = fillGoogleDailyGaps(since, until, dailyRaw)
 
-  const [conversionBreakdown, keywordQuality, campaignTypes, demographics, campaignTreeRes] =
-    await Promise.all([
-      fetchConversionBreakdown(ver, numericId, headers, since, until, filterClause, aggFrom),
-      fetchKeywordQualityList(ver, numericId, headers, since, until, filterClause),
-      fetchCampaignTypesGrouped(ver, numericId, headers, since, until, filterClause, aggFrom),
-      fetchGoogleDemographicsPayload(ver, numericId, headers, since, until, fetchAllGaqlRows, filterClause),
-      fetchGoogleCampaignTree(ver, numericId, headers, since, until),
-    ])
+  const [
+    conversionBreakdown,
+    keywordQuality,
+    campaignTypes,
+    demographics,
+    campaignTreeRes,
+    topKeywords,
+    searchTerms,
+  ] = await Promise.all([
+    fetchConversionBreakdown(ver, numericId, headers, since, until, filterClause, aggFrom),
+    fetchKeywordQualityList(ver, numericId, headers, since, until, filterClause),
+    fetchCampaignTypesGrouped(ver, numericId, headers, since, until, filterClause, aggFrom),
+    fetchGoogleDemographicsPayload(ver, numericId, headers, since, until, fetchAllGaqlRows, filterClause),
+    fetchGoogleCampaignTree(ver, numericId, headers, since, until),
+    fetchTopKeywords(ver, numericId, headers, since, until, filterClause),
+    fetchSearchTerms(ver, numericId, headers, since, until, filterClause),
+  ])
 
   return {
     configured: true,
@@ -996,6 +1076,8 @@ async function buildGoogleOverviewBody(
     demographics,
     campaignTree: campaignTreeRes.tree,
     campaignsError: campaignTreeRes.error,
+    topKeywords,
+    searchTerms,
   }
 }
 
@@ -1037,6 +1119,8 @@ export async function onRequestGet(context: {
         demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
+      topKeywords: EMPTY_TOP_KEYWORDS,
+      searchTerms: EMPTY_SEARCH_TERMS,
       })
     }
     const devToken = env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim()
@@ -1058,6 +1142,8 @@ export async function onRequestGet(context: {
         demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
+      topKeywords: EMPTY_TOP_KEYWORDS,
+      searchTerms: EMPTY_SEARCH_TERMS,
       })
     }
     const useWorkerSecrets = !conn.oauth_credential_id
@@ -1085,6 +1171,8 @@ export async function onRequestGet(context: {
         demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
+      topKeywords: EMPTY_TOP_KEYWORDS,
+      searchTerms: EMPTY_SEARCH_TERMS,
       })
     }
     const ver = resolveGoogleApiVersion(env)
@@ -1136,6 +1224,8 @@ export async function onRequestGet(context: {
         demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
+      topKeywords: EMPTY_TOP_KEYWORDS,
+      searchTerms: EMPTY_SEARCH_TERMS,
       })
     }
   }
@@ -1170,6 +1260,8 @@ export async function onRequestGet(context: {
       demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
+      topKeywords: EMPTY_TOP_KEYWORDS,
+      searchTerms: EMPTY_SEARCH_TERMS,
     })
   }
 
@@ -1192,6 +1284,8 @@ export async function onRequestGet(context: {
       demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
+      topKeywords: EMPTY_TOP_KEYWORDS,
+      searchTerms: EMPTY_SEARCH_TERMS,
     })
   }
 
@@ -1245,6 +1339,8 @@ export async function onRequestGet(context: {
       demographics: EMPTY_GOOGLE_DEMOGRAPHICS,
       campaignTree: [],
       campaignsError: null,
+      topKeywords: EMPTY_TOP_KEYWORDS,
+      searchTerms: EMPTY_SEARCH_TERMS,
     })
   }
 }

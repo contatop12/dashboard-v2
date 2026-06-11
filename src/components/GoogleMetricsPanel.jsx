@@ -2,6 +2,7 @@ import { useMemo, useId } from 'react'
 import { format, parse } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { TrendingDown, TrendingUp, Wallet, Target, Percent } from 'lucide-react'
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { cn, formatCurrency, formatNumber } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
@@ -47,76 +48,56 @@ function summarizeDailySeries(daily, valueKey) {
   return { total, avg, peak, low, count: rows.length, values: rows.map((r) => r.value) }
 }
 
-function MiniSparkline({ values, color = '#4285F4', height = 36, gradientId = 'googleSparkFill' }) {
-  const stats = useMemo(() => {
-    const pts = (values ?? []).map((v) => Number(v) || 0)
-    if (pts.length === 0) return null
-    const max = Math.max(...pts, 1)
-    const min = Math.min(...pts)
-    return { pts, max, min }
-  }, [values])
-
-  const path = useMemo(() => {
-    if (!stats || stats.pts.length < 2) return null
-    const { pts, max } = stats
-    const w = 120
-    const h = height - 4
-    return pts
-      .map((v, i) => {
-        const x = (i / (pts.length - 1)) * w
-        const y = h - (v / max) * h + 2
-        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
-      })
-      .join(' ')
-  }, [stats, height])
-
-  if (!stats || !path) {
-    return <div className="h-9 w-[120px] rounded bg-white/[0.03]" aria-hidden />
-  }
-
+function DailyTrendTooltip({ active, payload, label, formatValue }) {
+  if (!active || !payload?.length) return null
   return (
-    <div className="flex shrink-0 flex-col items-end gap-0.5">
-      <svg viewBox={`0 0 120 ${height}`} className="h-9 w-[120px]" aria-hidden>
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.35" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={`${path} L120,${height} L0,${height} Z`} fill={`url(#${gradientId})`} />
-        <path d={path} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+    <div className="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-xs shadow-xl">
+      <p className="font-sans text-muted-foreground mb-1">Dia {label}</p>
+      <p className="font-mono text-white font-semibold tabular-nums">
+        {formatValue(Number(payload[0]?.value) || 0)}
+      </p>
     </div>
   )
 }
 
-function TrendSparklineStrip({ title, subtitle, daily, valueKey, formatValue, color }) {
+const COMPACT_NUMBER = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 })
+
+function DailyTrendCard({ title, subtitle, daily, valueKey, formatValue, formatAxis, color }) {
   const gid = useId().replace(/:/g, '')
   const summary = useMemo(() => summarizeDailySeries(daily, valueKey), [daily, valueKey])
+  const chartData = useMemo(() => {
+    if (!Array.isArray(daily)) return []
+    return daily.map((d) => ({
+      dia: formatDayLabel(d.date),
+      valor: Number(d[valueKey]) || 0,
+    }))
+  }, [daily, valueKey])
 
   if (!summary) {
     return (
-      <div className="google-trend-strip">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <div className="google-trend-card items-start justify-between">
+        <div className="flex min-w-0 flex-col gap-0.5">
           <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</span>
           <span className="text-[10px] text-muted-foreground/80 font-sans">{subtitle}</span>
         </div>
-        <span className="text-[10px] text-muted-foreground font-sans">Sem dados</span>
+        <span className="text-[10px] text-muted-foreground font-sans">Sem dados no período.</span>
       </div>
     )
   }
 
-  const { avg, peak, low, values } = summary
+  const { avg, peak, low, count } = summary
 
   return (
-    <div className="google-trend-strip">
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</span>
-        <p className="font-mono text-sm font-semibold tabular-nums text-foreground">{formatValue(avg)}</p>
-        <span className="text-[10px] text-muted-foreground/85 font-sans">
-          {subtitle} · {summary.count} dias
-        </span>
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-sans text-muted-foreground">
+    <div className="google-trend-card">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</span>
+          <p className="font-mono text-xl font-bold tabular-nums text-foreground">{formatValue(avg)}</p>
+          <span className="text-[10px] text-muted-foreground/85 font-sans">
+            {subtitle} · {count} dias
+          </span>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-0.5 text-[10px] font-sans text-muted-foreground">
           <span>
             Pico{' '}
             <strong className="font-mono font-medium text-foreground/90">{formatValue(peak.value)}</strong>
@@ -129,11 +110,43 @@ function TrendSparklineStrip({ title, subtitle, daily, valueKey, formatValue, co
           </span>
         </div>
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <MiniSparkline values={values} color={color} gradientId={`spark-${gid}`} />
-        <span className="font-mono text-[9px] tabular-nums text-muted-foreground">
-          máx. {formatValue(peak.value)}
-        </span>
+      <div className="mt-2 h-28 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id={`trend-${gid}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+                <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+            <XAxis
+              dataKey="dia"
+              tick={{ fontSize: 9, fill: '#666', fontFamily: 'Outfit' }}
+              tickLine={false}
+              axisLine={false}
+              interval="preserveStartEnd"
+              minTickGap={28}
+            />
+            <YAxis
+              tick={{ fontSize: 9, fill: '#666', fontFamily: 'JetBrains Mono' }}
+              tickLine={false}
+              axisLine={false}
+              width={42}
+              tickFormatter={formatAxis}
+            />
+            <Tooltip content={<DailyTrendTooltip formatValue={formatValue} />} />
+            <Area
+              type="monotone"
+              dataKey="valor"
+              stroke={color}
+              strokeWidth={2}
+              fill={`url(#trend-${gid})`}
+              dot={false}
+              activeDot={{ r: 3, fill: color, strokeWidth: 0 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     </div>
   )
@@ -235,22 +248,24 @@ export default function GoogleMetricsPanel() {
         ))}
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <TrendSparklineStrip
+      <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
+        <DailyTrendCard
           title="Investimento diário"
           subtitle="Gasto médio por dia no período"
           daily={daily}
           valueKey="spend"
           color="#4285F4"
           formatValue={(v) => formatCurrency(v)}
+          formatAxis={(v) => `R$${COMPACT_NUMBER.format(Number(v) || 0)}`}
         />
-        <TrendSparklineStrip
+        <DailyTrendCard
           title="Cliques diários"
           subtitle="Volume médio de cliques por dia"
           daily={daily}
           valueKey="clicks"
           color="#34A853"
           formatValue={(v) => formatNumber(Math.round(v))}
+          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
         />
       </div>
 

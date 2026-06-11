@@ -14,7 +14,7 @@ export function resolveGoogleLoginCustomerId(env: WorkerEnv): string | undefined
 
 /** Versão REST estável; sobrescreva com GOOGLE_ADS_API_VERSION no Worker. */
 export function resolveGoogleApiVersion(env: WorkerEnv): string {
-  const rawVer = env.GOOGLE_ADS_API_VERSION?.trim() || 'v18'
+  const rawVer = env.GOOGLE_ADS_API_VERSION?.trim() || 'v21'
   return rawVer.startsWith('v') ? rawVer : `v${rawVer}`
 }
 
@@ -27,7 +27,7 @@ export async function readGoogleAdsJson(
     return {
       ok: false,
       data: {},
-      error: `Google Ads API devolveu HTML (HTTP ${res.status}). Verifique GOOGLE_ADS_API_VERSION (ex.: v18) e developer token.`,
+      error: `Google Ads API devolveu HTML (HTTP ${res.status}). Verifique GOOGLE_ADS_API_VERSION (ex.: v21) e developer token.`,
     }
   }
   try {

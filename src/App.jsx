@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Printer, X } from 'lucide-react'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import FilterBar from './components/FilterBar'
@@ -6,7 +7,7 @@ import FilterBar from './components/FilterBar'
 import DashboardGrid from './components/DashboardGrid'
 import { GERAL_DASHBOARD_BLOCKS } from './dashboard/geralBlocks'
 import { useAuth } from './context/AuthContext'
-import { DashboardFiltersProvider } from './context/DashboardFiltersContext'
+import { DashboardFiltersProvider, useDashboardFilters } from './context/DashboardFiltersContext'
 
 // Pages
 import MetaAds from './pages/MetaAds'
@@ -81,29 +82,82 @@ export default function App() {
 
   return (
     <DashboardFiltersProvider>
-      <div className="flex flex-col h-screen bg-[#0F0F0F] overflow-hidden">
-        <Header onMenuToggle={() => setSidebarOpen((o) => !o)} sidebarOpen={sidebarOpen} />
+      <AppShell
+        user={user}
+        effectivePage={effectivePage}
+        PageComponent={PageComponent}
+        showFilterBar={showFilterBar}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        onNavigate={(page) => {
+          setActivePage(page)
+          setSidebarOpen(false)
+        }}
+      />
+    </DashboardFiltersProvider>
+  )
+}
 
-        <div className="flex flex-1 overflow-hidden">
+function PresentationToolbar({ onExit }) {
+  return (
+    <div className="presentation-toolbar fixed right-4 top-3 z-[90] flex items-center gap-1 rounded-lg border border-surface-border bg-surface-card/95 px-1.5 py-1 shadow-xl">
+      <button
+        type="button"
+        onClick={() => window.print()}
+        className="flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-surface-hover hover:text-white"
+        title="Imprimir / salvar em PDF"
+      >
+        <Printer size={13} /> PDF
+      </button>
+      <button
+        type="button"
+        onClick={onExit}
+        className="flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-surface-hover hover:text-white"
+        title="Sair do modo apresentação (Esc)"
+      >
+        <X size={13} /> Sair
+      </button>
+    </div>
+  )
+}
+
+function AppShell({ user, effectivePage, PageComponent, showFilterBar, sidebarOpen, setSidebarOpen, onNavigate }) {
+  const { presentationMode, setPresentationMode } = useDashboardFilters()
+
+  useEffect(() => {
+    if (!presentationMode) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') setPresentationMode(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [presentationMode, setPresentationMode])
+
+  return (
+    <div className="flex flex-col h-screen bg-[#0F0F0F] overflow-hidden">
+      {!presentationMode && (
+        <Header onMenuToggle={() => setSidebarOpen((o) => !o)} sidebarOpen={sidebarOpen} />
+      )}
+
+      <div className="flex flex-1 overflow-hidden">
+        {!presentationMode && (
           <Sidebar
             activePage={effectivePage}
-            onNavigate={(page) => {
-              setActivePage(page)
-              setSidebarOpen(false)
-            }}
+            onNavigate={onNavigate}
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
             userRole={user.role}
           />
+        )}
 
-          <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-            {showFilterBar && <FilterBar activePage={effectivePage} />}
-            <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden px-4 sm:px-6">
-              <PageComponent />
-            </main>
-          </div>
+        <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+          {showFilterBar && !presentationMode && <FilterBar activePage={effectivePage} />}
+          {presentationMode && <PresentationToolbar onExit={() => setPresentationMode(false)} />}
+          <main className="app-main flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden px-4 sm:px-6">
+            <PageComponent />
+          </main>
         </div>
       </div>
-    </DashboardFiltersProvider>
+    </div>
   )
 }

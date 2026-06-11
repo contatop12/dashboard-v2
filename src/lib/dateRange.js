@@ -38,3 +38,12 @@ export function rangeThisMonth(now = new Date()) {
   const end = endOfDay(new Date(y, m + 1, 0))
   return { start, end }
 }
+
+/** Mês civil anterior completo (início → fim). */
+export function rangeLastMonth(now = new Date()) {
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  const start = startOfDay(new Date(y, m - 1, 1))
+  const end = endOfDay(new Date(y, m, 0))
+  return { start, end }
+}
