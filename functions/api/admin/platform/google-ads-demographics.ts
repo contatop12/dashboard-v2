@@ -28,16 +28,18 @@ function readNestedEnumType(crit: Record<string, unknown>, nestedNames: string[]
 function parseMetricsBasic(m: unknown): {
   impressions: number
   clicks: number
+  interactions: number
   costMicros: number
   conversions: number
 } {
   if (!m || typeof m !== 'object') {
-    return { impressions: 0, clicks: 0, costMicros: 0, conversions: 0 }
+    return { impressions: 0, clicks: 0, interactions: 0, costMicros: 0, conversions: 0 }
   }
   const o = m as Record<string, unknown>
   return {
     impressions: Number.parseInt(String(o.impressions ?? '0'), 10) || 0,
     clicks: Number.parseInt(String(o.clicks ?? '0'), 10) || 0,
+    interactions: Number.parseInt(String(o.interactions ?? '0'), 10) || 0,
     costMicros: Number.parseInt(String(o.costMicros ?? o.cost_micros ?? '0'), 10) || 0,
     conversions: Number.parseFloat(String(o.conversions ?? '0')) || 0,
   }
@@ -48,6 +50,8 @@ export type DemographicRow = {
   segmentLabel: string
   impressions: number
   interactions: number
+  /** Origem do valor de interações usado nos cálculos derivados. */
+  interactionSource: 'interactions' | 'clicks'
   interactionRate: number | null
   averageCpc: number | null
   cost: number
@@ -196,6 +200,7 @@ async function aggregateDemographicView(
       ${critSelect},
       metrics.impressions,
       metrics.clicks,
+      metrics.interactions,
       metrics.cost_micros,
       metrics.conversions
     FROM ${fromResource}
@@ -208,16 +213,17 @@ async function aggregateDemographicView(
     return { items: [], error: res.error }
   }
 
-  const agg = new Map<string, { impressions: number; clicks: number; costMicros: number; conversions: number }>()
+  const agg = new Map<string, { impressions: number; clicks: number; interactions: number; costMicros: number; conversions: number }>()
   for (const row of res.rows) {
     const crit = parseAdGroupCriterion(row)
     if (!crit) continue
     const segKey = readNestedEnumType(crit, nestedNames)
     if (!segKey) continue
     const m = parseMetricsBasic(rowObj(row).metrics)
-    const cur = agg.get(segKey) ?? { impressions: 0, clicks: 0, costMicros: 0, conversions: 0 }
+    const cur = agg.get(segKey) ?? { impressions: 0, clicks: 0, interactions: 0, costMicros: 0, conversions: 0 }
     cur.impressions += m.impressions
     cur.clicks += m.clicks
+    cur.interactions += m.interactions
     cur.costMicros += m.costMicros
     cur.conversions += m.conversions
     agg.set(segKey, cur)
@@ -227,7 +233,8 @@ async function aggregateDemographicView(
   for (const [segmentKey, a] of agg.entries()) {
     if (a.impressions === 0 && a.clicks === 0 && a.costMicros === 0 && a.conversions === 0) continue
     const cost = a.costMicros / 1_000_000
-    const interactions = a.clicks
+    const usedApiInteractions = a.interactions > 0
+    const interactions = usedApiInteractions ? a.interactions : a.clicks
     const impressions = a.impressions
     const conversions = a.conversions
     const interactionRate = impressions > 0 ? (interactions / impressions) * 100 : null
@@ -239,6 +246,7 @@ async function aggregateDemographicView(
       segmentLabel: labelFor(segmentKey, labelMap),
       impressions,
       interactions,
+      interactionSource: usedApiInteractions ? 'interactions' : 'clicks',
       interactionRate,
       averageCpc,
       cost,

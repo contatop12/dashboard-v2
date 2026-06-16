@@ -624,7 +624,7 @@ export function MonthlyAccountResultsTable({ platform }) {
         <div className="min-w-0">
           <span className="section-title">Resultados mensais da conta</span>
           {platform === 'google' ? (
-            <p className="mt-0.5 text-[10px] text-muted-foreground font-sans">Últimos 6 meses · independente do filtro de datas</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground font-sans">Últimos 12 meses · independente do filtro de datas</p>
           ) : null}
         </div>
         <DropdownMenu.Root>
@@ -681,7 +681,7 @@ export function MonthlyAccountResultsTable({ platform }) {
       {!loading && rows.length === 0 ? (
         <p className="px-3 py-8 text-center text-[11px] text-muted-foreground sm:px-4">
           {platform === 'google'
-            ? 'Sem dados mensais nos últimos 6 meses.'
+            ? 'Sem dados mensais nos últimos 12 meses.'
             : 'Sem dados diários no período para montar os meses.'}
         </p>
       ) : null}

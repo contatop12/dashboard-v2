@@ -8,19 +8,27 @@ import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
 import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 import { MetricInfo } from '@/components/ui/MetricInfo'
+import GoogleAnalysisPanel from '@/components/GoogleAnalysisPanel'
+
+function formatDailyConversions(v) {
+  const n = Number(v) || 0
+  return Math.abs(n % 1) < 0.001
+    ? formatNumber(Math.round(n))
+    : new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
+}
 
 const HERO_METRICS = [
-  { label: 'Investimento', index: 0, key: 'invest', icon: Wallet, tone: 'google-blue' },
-  { label: 'Conversões', index: 5, key: 'conversions', icon: Target, tone: 'google-green' },
-  { label: 'Custo / Conv.', index: 6, key: 'cpl', icon: Wallet, tone: 'google-amber' },
-  { label: 'CTR', index: 3, key: 'ctr', icon: Percent, tone: 'google-purple' },
+  { label: 'Investimento', index: 0, key: 'invest', icon: Wallet, tone: 'google-blue', higherIsBetter: true },
+  { label: 'Conversões', index: 5, key: 'conversions', icon: Target, tone: 'google-green', higherIsBetter: true },
+  { label: 'Custo / Conv.', index: 6, key: 'cpl', icon: Wallet, tone: 'google-amber', higherIsBetter: false },
+  { label: 'Taxa de Conv.', index: 7, key: 'conversionRate', icon: Percent, tone: 'google-purple', higherIsBetter: true },
 ]
 
 const SECONDARY_METRICS = [
-  { label: 'Impressões', index: 1, key: 'impressions' },
-  { label: 'Cliques', index: 2, key: 'clicks' },
-  { label: 'CPC Médio', index: 4, key: 'cpcAvg' },
-  { label: 'Taxa de Conv.', index: 7, key: 'conversionRate' },
+  { label: 'Impressões', index: 1, key: 'impressions', higherIsBetter: true },
+  { label: 'Cliques', index: 2, key: 'clicks', higherIsBetter: true },
+  { label: 'CPC Médio', index: 4, key: 'cpcAvg', higherIsBetter: false },
+  { label: 'CTR', index: 3, key: 'ctr', higherIsBetter: true },
 ]
 
 function formatDayLabel(dateStr) {
@@ -169,29 +177,31 @@ function DailyTrendCard({ title, subtitle, daily, valueKey, formatValue, formatA
   )
 }
 
-function DeltaBadge({ deltaPct }) {
+function DeltaBadge({ deltaPct, higherIsBetter = true }) {
   const hasDelta = deltaPct !== null && deltaPct !== undefined && !Number.isNaN(Number(deltaPct))
   if (!hasDelta) return null
   const n = Number(deltaPct)
-  const isPos = n > 0
-  const isNeg = n < 0
+  const isUp = n > 0
+  const isDown = n < 0
+  const isGood = higherIsBetter ? isUp : isDown
+  const isBad = higherIsBetter ? isDown : isUp
   return (
     <span
       className={cn(
         'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-mono text-[10px] font-medium',
-        isPos && 'bg-emerald-500/15 text-emerald-400',
-        isNeg && 'bg-red-500/15 text-red-400',
-        !isPos && !isNeg && 'bg-white/5 text-muted-foreground'
+        isGood && 'bg-emerald-500/15 text-emerald-400',
+        isBad && 'bg-red-500/15 text-red-400',
+        !isGood && !isBad && 'bg-white/5 text-muted-foreground'
       )}
     >
-      {isPos ? <TrendingUp size={10} /> : isNeg ? <TrendingDown size={10} /> : null}
+      {isUp ? <TrendingUp size={10} /> : isDown ? <TrendingDown size={10} /> : null}
       {n >= 0 ? '+' : ''}
       {n.toFixed(1)}%
     </span>
   )
 }
 
-function HeroMetric({ label, metricKey, index, icon: Icon, tone, metrics, loading, showDelta }) {
+function HeroMetric({ label, metricKey, index, icon: Icon, tone, higherIsBetter, metrics, loading, showDelta }) {
   const row = metrics?.[index]
   const value = loading ? '…' : (row?.value ?? '—')
   const deltaPct = showDelta ? row?.deltaPct : null
@@ -208,14 +218,14 @@ function HeroMetric({ label, metricKey, index, icon: Icon, tone, metrics, loadin
           </span>
           {metricKey ? <MetricInfo metricKey={metricKey} size={10} /> : null}
         </div>
-        <DeltaBadge deltaPct={deltaPct} />
+        <DeltaBadge deltaPct={deltaPct} higherIsBetter={higherIsBetter} />
       </div>
       <p className="google-hero-metric__value">{value}</p>
     </div>
   )
 }
 
-function SecondaryMetric({ label, metricKey, index, metrics, loading, showDelta }) {
+function SecondaryMetric({ label, metricKey, index, higherIsBetter, metrics, loading, showDelta }) {
   const row = metrics?.[index]
   const value = loading ? '…' : (row?.value ?? '—')
   const deltaPct = showDelta ? row?.deltaPct : null
@@ -228,7 +238,7 @@ function SecondaryMetric({ label, metricKey, index, metrics, loading, showDelta 
       </div>
       <div className="flex items-baseline justify-between gap-2">
         <span className="font-mono text-sm font-semibold tabular-nums text-foreground">{value}</span>
-        <DeltaBadge deltaPct={deltaPct} />
+        <DeltaBadge deltaPct={deltaPct} higherIsBetter={higherIsBetter} />
       </div>
     </div>
   )
@@ -306,7 +316,13 @@ export default function GoogleMetricsPanel() {
         ))}
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {SECONDARY_METRICS.map((m) => (
+          <SecondaryMetric key={m.label} {...m} metrics={metrics} loading={loading} showDelta={showDeltas} />
+        ))}
+      </div>
+
+      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         <DailyTrendCard
           title="Investimento diário"
           subtitle="Gasto médio por dia no período"
@@ -325,12 +341,19 @@ export default function GoogleMetricsPanel() {
           formatValue={(v) => formatNumber(Math.round(v))}
           formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
         />
+        <DailyTrendCard
+          title="Conversões diárias"
+          subtitle="Volume médio de conversões por dia"
+          daily={daily}
+          valueKey="conversions"
+          color={isPrevious ? '#FDD663' : '#FBBC04'}
+          formatValue={formatDailyConversions}
+          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
+        />
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {SECONDARY_METRICS.map((m) => (
-          <SecondaryMetric key={m.label} {...m} metrics={metrics} loading={loading} showDelta={showDeltas} />
-        ))}
+      <div className="mb-4">
+        <GoogleAnalysisPanel />
       </div>
     </div>
   )

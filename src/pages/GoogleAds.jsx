@@ -23,6 +23,7 @@ import { GoogleKeywordPositionBlock } from '@/components/GoogleKeywordPositionBl
 import { GoogleSearchTermsBlock } from '@/components/GoogleSearchTermsBlock'
 import { MonthlyAccountResultsTable } from '@/components/MonthlyAccountResultsTable'
 import { GoogleAdsDemographicsBlock } from '@/components/GoogleAdsDemographicsBlock'
+import { GoogleAdGroupResultsTable } from '@/components/GoogleAdGroupResultsTable'
 import GoogleMetricsPanel from '@/components/GoogleMetricsPanel'
 import GoogleConversionMixChart from '@/components/GoogleConversionMixChart'
 import { BlockCard } from '@/components/ui/BlockCard'
@@ -998,17 +999,6 @@ const GOOGLE_DASHBOARD_BLOCKS = [
     render: () => <GoogleConversionsSplit />,
   },
   {
-    id: 'google-analysis',
-    tier: 'secondary',
-    defaultColSpan: 8,
-    defaultRowSpan: 4,
-    minColSpan: 4,
-    maxColSpan: 8,
-    minRowSpan: 3,
-    maxRowSpan: 6,
-    render: () => <GoogleAnalysisPanel />,
-  },
-  {
     id: 'google-top-keywords',
     tier: 'secondary',
     defaultColSpan: 8,
@@ -1130,8 +1120,19 @@ function GoogleAdsInner({ workerPlatformQuery, onWorkerPlatformQueryChange }) {
       maxRowSpan: 12,
       render: () => <GoogleCampaignsBlock workerPlatformQuery={workerPlatformQuery} />,
     }
-    const [metrics, ...rest] = GOOGLE_DASHBOARD_BLOCKS
-    return [metrics, treeBlock, ...rest]
+    const adGroupResultsBlock = {
+      id: 'google-ad-group-results',
+      tier: 'secondary',
+      defaultColSpan: 8,
+      defaultRowSpan: 4,
+      minColSpan: 4,
+      maxColSpan: 8,
+      minRowSpan: 3,
+      maxRowSpan: 10,
+      render: () => <GoogleAdGroupResultsTable />,
+    }
+    const [metrics, conversionsSplit, ...rest] = GOOGLE_DASHBOARD_BLOCKS
+    return [metrics, conversionsSplit, treeBlock, adGroupResultsBlock, ...rest]
   }, [workerPlatformQuery])
 
   return (
