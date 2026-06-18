@@ -649,6 +649,7 @@ function GoogleFunnelBlock({ embedded = false }) {
           showLabels
           showValues
           showPercentage
+          percentMode="step"
           formatPercentage={funnelPercentLabel}
           edges="curved"
           className="h-full w-full"

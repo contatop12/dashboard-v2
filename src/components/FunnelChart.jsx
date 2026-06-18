@@ -5,6 +5,23 @@ import { cn } from '@/lib/utils'
 const springConfig = { stiffness: 120, damping: 20, mass: 1 }
 const hoverSpring = { stiffness: 300, damping: 24 }
 
+/**
+ * Percentuais de cada etapa do funil.
+ * - 'total': relativo à primeira etapa (taxa acumulada).
+ * - 'step': relativo à etapa anterior (perda de uma métrica para a outra).
+ * A primeira etapa é sempre 100% (base). Etapa anterior zerada → 0% (sem Infinity/NaN).
+ */
+export function funnelPercents(values, mode = 'total') {
+  const max = values[0] ?? 0
+  return values.map((v, i) => {
+    if (mode === 'step') {
+      const prev = i === 0 ? v : values[i - 1]
+      return prev > 0 ? (v / prev) * 100 : 0
+    }
+    return max > 0 ? (v / max) * 100 : 0
+  })
+}
+
 function hSegmentPath(normStart, normEnd, segW, H, layerScale, straight = false) {
   const my = H / 2
   const h0 = normStart * H * 0.44 * layerScale
@@ -199,6 +216,7 @@ export function FunnelChart({
   showPercentage = true,
   showValues = true,
   showLabels = true,
+  percentMode = 'total',
   hoveredIndex: hoveredIndexProp,
   onHoverChange,
   formatPercentage = (p) => `${Math.round(p)}%`,
@@ -237,6 +255,7 @@ export function FunnelChart({
   const max = data[0].value
   const n = data.length
   const norms = data.map(d => d.value / max)
+  const pcts = funnelPercents(data.map(d => d.value), percentMode)
   const horiz = orientation === 'horizontal'
   const { w: W, h: H } = sz
 
@@ -266,7 +285,7 @@ export function FunnelChart({
           </div>
 
           {data.map((stage, i) => {
-            const pct = (stage.value / max) * 100
+            const pct = pcts[i]
             const posStyle = horiz
               ? { left: (segW + gap) * i, width: segW, top: 0, height: H }
               : { top: (segH + gap) * i, height: segH, left: 0, width: W }

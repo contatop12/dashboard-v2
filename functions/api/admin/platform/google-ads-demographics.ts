@@ -200,8 +200,7 @@ async function aggregateDemographicView(
       metrics.conversions
     FROM ${fromResource}
     WHERE segments.date BETWEEN '${since}' AND '${until}'
-      AND campaign.status != 'REMOVED'
-      AND ad_group_criterion.status != 'REMOVED'${filterClause}
+      AND campaign.status != 'REMOVED'${filterClause}
   `
   const res = await fetchRows(ver, numericId, headers, query)
   if (res.error) {
