@@ -50,6 +50,7 @@ export function buildPlatformOverviewUrl(endpoint, opts) {
   if (f.adsetId) p.set('adset_id', String(f.adsetId))
   if (f.adGroupId) p.set('ad_group_id', String(f.adGroupId))
   if (f.adId) p.set('ad_id', String(f.adId))
+  if (f.locationId) p.set('location_id', String(f.locationId))
   const qs = p.toString()
   return qs ? `${endpoint}?${qs}` : endpoint
 }

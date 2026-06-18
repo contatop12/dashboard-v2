@@ -1,238 +1,61 @@
-import { Eye, Phone, Navigation, Star, Search, TrendingUp, TrendingDown, Globe, MessageSquare } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Eye, Phone, Navigation, Globe, MessageSquare, TrendingUp, TrendingDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { formatNumber } from '@/lib/utils'
-import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
-import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
+import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
+import { useDashboardFilters } from '@/context/DashboardFiltersContext'
+import { buildPlatformOverviewUrl } from '@/lib/platformOverviewUrl'
+import { PlatformOverviewProvider, usePlatformOverview } from '@/components/PlatformOverviewProvider'
+import GmbDailyChart from '@/components/GmbDailyChart'
+import GmbSearchTermsTable from '@/components/GmbSearchTermsTable'
+import GmbReviewsBlock from '@/components/GmbReviewsBlock'
+import GmbByLocationTable from '@/components/GmbByLocationTable'
 
-const kpis = [
-  { label: 'Buscas Diretas', value: '2.840', delta: +18.3, icon: Search, desc: 'Pesquisaram pelo nome' },
-  { label: 'Buscas por Descoberta', value: '5.120', delta: +24.1, icon: Globe, desc: 'Pesquisaram por categoria' },
-  { label: 'Visualizações', value: '12.450', delta: +15.7, icon: Eye, desc: 'Total Maps + Pesquisa' },
-  { label: 'Cliques no Site', value: '834', delta: +9.2, icon: Globe, desc: 'Visitas ao website' },
-  { label: 'Ligações', value: '127', delta: -3.4, icon: Phone, desc: 'Chamadas recebidas' },
-  { label: 'Rotas Solicitadas', value: '312', delta: +11.5, icon: Navigation, desc: 'Como chegar' },
-  { label: 'Avaliação Média', value: '4.8★', delta: +0.2, icon: Star, desc: 'Google Reviews' },
-  { label: 'Total Avaliações', value: '148', delta: +12, icon: MessageSquare, desc: 'Reviews recebidos' },
-]
-
-const kpisPrevious = [
-  { label: 'Buscas Diretas', value: '2.410', delta: +11.2, icon: Search, desc: 'Pesquisaram pelo nome' },
-  { label: 'Buscas por Descoberta', value: '4.380', delta: +14.5, icon: Globe, desc: 'Pesquisaram por categoria' },
-  { label: 'Visualizações', value: '10.900', delta: +8.4, icon: Eye, desc: 'Total Maps + Pesquisa' },
-  { label: 'Cliques no Site', value: '756', delta: +4.1, icon: Globe, desc: 'Visitas ao website' },
-  { label: 'Ligações', value: '118', delta: -1.2, icon: Phone, desc: 'Chamadas recebidas' },
-  { label: 'Rotas Solicitadas', value: '278', delta: +6.0, icon: Navigation, desc: 'Como chegar' },
-  { label: 'Avaliação Média', value: '4.7★', delta: +0.1, icon: Star, desc: 'Google Reviews' },
-  { label: 'Total Avaliações', value: '132', delta: +8, icon: MessageSquare, desc: 'Reviews recebidos' },
-]
-
-const weeklyData = [
-  { sem: 'Sem 1', buscas: 1820, visualizacoes: 4200, acoes: 312 },
-  { sem: 'Sem 2', buscas: 2100, visualizacoes: 4800, acoes: 356 },
-  { sem: 'Sem 3', buscas: 1950, visualizacoes: 4500, acoes: 289 },
-  { sem: 'Sem 4', buscas: 2090, visualizacoes: 4950, acoes: 316 },
-]
-
-const searchTerms = [
-  { termo: 'consultoria financeira são paulo', buscas: 1240, tipo: 'Descoberta' },
-  { termo: 'p12 digital', buscas: 980, tipo: 'Direta' },
-  { termo: 'planejamento financeiro sp', buscas: 760, tipo: 'Descoberta' },
-  { termo: 'p12 consultoria', buscas: 540, tipo: 'Direta' },
-  { termo: 'gestão patrimonial perto de mim', buscas: 380, tipo: 'Descoberta' },
-]
-
-const reviews = [
-  { nome: 'Maria S.', nota: 5, texto: 'Excelente atendimento! Consegui organizar minhas finanças e aumentar meu patrimônio em 30% em um ano.', data: '2 dias atrás' },
-  { nome: 'João P.', nota: 5, texto: 'Equipe muito profissional. Recomendo para quem busca investimentos inteligentes.', data: '1 semana atrás' },
-  { nome: 'Ana C.', nota: 4, texto: 'Ótimo serviço, apenas o tempo de resposta poderia ser melhor.', data: '2 semanas atrás' },
-]
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="bg-surface-card border border-surface-border rounded-lg px-4 py-2 text-xs shadow-xl">
-      <p className="font-sans text-muted-foreground mb-2">{label}</p>
-      {payload.map((p) => (
-        <div key={p.name} className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color }} />
-          <span className="font-sans text-muted-foreground">{p.name}:</span>
-          <span className="font-mono text-white font-semibold">{p.value}</span>
-        </div>
-      ))}
-    </div>
-  )
+const KPI_ICONS = {
+  'Visualizações': Eye,
+  'Ligações': Phone,
+  'Cliques no site': Globe,
+  'Rotas': Navigation,
+  'Conversas': MessageSquare,
 }
+const KPI_ORDER = ['Visualizações', 'Ligações', 'Cliques no site', 'Rotas', 'Conversas']
 
 function GmbKpiCard({ index }) {
-  const period = useDashboardBlockPeriod()
-  const src = period === 'previous' ? kpisPrevious : kpis
-  const { label, value, delta, desc } = src[index] ?? kpis[index]
-  const isPos = delta > 0
-  const isNeg = delta < 0
+  const { data } = usePlatformOverview()
+  const metrics = Array.isArray(data?.metrics) ? data.metrics : []
+  const label = KPI_ORDER[index]
+  const m = metrics.find((x) => x.label === label)
+  const Icon = KPI_ICONS[label] ?? Eye
+  const value = m?.value ?? '—'
+  const delta = m?.deltaPct
+  const isPos = typeof delta === 'number' && delta > 0
+  const isNeg = typeof delta === 'number' && delta < 0
   return (
     <div className="kpi-card min-h-0 w-full shrink-0">
-      <span className="kpi-label block truncate">{label}</span>
-      <span className="kpi-value block truncate tabular-nums">{value}</span>
+      <div className="flex items-center justify-between">
+        <span className="kpi-label block truncate">{label}</span>
+        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#34A853]/15">
+          <Icon size={12} className="text-[#34A853]" />
+        </div>
+      </div>
+      <span className="kpi-value mt-2 block truncate tabular-nums">{value}</span>
       <div className="kpi-delta-row min-w-0">
-        <div
-          className={cn(
-            'inline-flex shrink-0 items-center gap-1',
-            isPos ? 'text-green-400' : isNeg ? 'text-red-400' : 'text-muted-foreground'
-          )}
-        >
-          {isPos ? <TrendingUp size={12} strokeWidth={2} /> : isNeg ? <TrendingDown size={12} strokeWidth={2} /> : null}
-          <span>
-            {isPos ? '+' : ''}
-            {delta}%
-          </span>
-        </div>
-        {desc ? (
-          <span className="kpi-delta-note min-w-0 truncate" title={desc}>
-            {desc}
-          </span>
-        ) : null}
-      </div>
-    </div>
-  )
-}
-
-function GmbWeeklyBars() {
-  return (
-    <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
-      <span className="section-title block mb-3 shrink-0">Buscas & Visualizações por Semana</span>
-      <div className="h-44 flex-1 min-h-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={weeklyData} margin={{ top: 2, right: 8, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2C2C2C" vertical={false} />
-            <XAxis dataKey="sem" tick={{ fontSize: 10, fill: '#666', fontFamily: 'Outfit' }} tickLine={false} axisLine={false} />
-            <YAxis tick={{ fontSize: 9, fill: '#666', fontFamily: 'JetBrains Mono' }} tickLine={false} axisLine={false} />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="buscas" name="Buscas" fill="#4285F4" radius={[3, 3, 0, 0]} opacity={0.8} />
-            <Bar dataKey="visualizacoes" name="Visualizações" fill="#34A853" radius={[3, 3, 0, 0]} opacity={0.8} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  )
-}
-
-function GmbWeeklyArea() {
-  return (
-    <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
-      <span className="section-title block mb-3 shrink-0">Ações dos Usuários por Semana</span>
-      <div className="h-44 flex-1 min-h-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={weeklyData} margin={{ top: 2, right: 8, left: -20, bottom: 0 }}>
-            <defs>
-              <linearGradient id="acaoGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#34A853" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#34A853" stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2C2C2C" vertical={false} />
-            <XAxis dataKey="sem" tick={{ fontSize: 10, fill: '#666', fontFamily: 'Outfit' }} tickLine={false} axisLine={false} />
-            <YAxis tick={{ fontSize: 9, fill: '#666', fontFamily: 'JetBrains Mono' }} tickLine={false} axisLine={false} />
-            <Tooltip content={<CustomTooltip />} />
-            <Area
-              type="monotone"
-              dataKey="acoes"
-              name="Ações Totais"
-              stroke="#34A853"
-              strokeWidth={2}
-              fill="url(#acaoGrad)"
-              dot={{ r: 4, fill: '#34A853', strokeWidth: 0 }}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  )
-}
-
-function GmbSearchTerms() {
-  return (
-    <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
-      <span className="section-title block mb-3 shrink-0">Termos de Busca</span>
-      <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-auto">
-        {searchTerms.map((t, i) => (
-          <div key={t.termo} className="flex items-center gap-2 py-2">
-            <span className="font-mono text-[10px] text-muted-foreground w-4 shrink-0">{i + 1}</span>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[11px] font-sans text-white truncate">{t.termo}</span>
-                <div className="flex items-center gap-2 shrink-0 ml-2">
-                  <span
-                    className={cn(
-                      'text-[9px] px-2 py-0.5 rounded font-mono',
-                      t.tipo === 'Direta' ? 'bg-brand/15 text-brand' : 'bg-[#34A853]/15 text-[#34A853]'
-                    )}
-                  >
-                    {t.tipo}
-                  </span>
-                  <span className="font-mono text-xs text-white">{formatNumber(t.buscas)}</span>
-                </div>
-              </div>
-              <div className="h-1 bg-surface-border rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full"
-                  style={{ width: `${(t.buscas / 1240) * 100}%`, background: t.tipo === 'Direta' ? '#F5C518' : '#34A853' }}
-                />
-              </div>
-            </div>
+        {typeof delta === 'number' ? (
+          <div className={cn('inline-flex shrink-0 items-center gap-1', isPos ? 'text-green-400' : isNeg ? 'text-red-400' : 'text-muted-foreground')}>
+            {isPos ? <TrendingUp size={12} strokeWidth={2} /> : isNeg ? <TrendingDown size={12} strokeWidth={2} /> : null}
+            <span>{isPos ? '+' : ''}{delta.toFixed(1)}%</span>
           </div>
-        ))}
+        ) : (
+          <span className="kpi-delta-note text-muted-foreground">no período</span>
+        )}
       </div>
     </div>
   )
 }
 
-function GmbReviews() {
-  return (
-    <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
-      <div className="flex items-center justify-between mb-4 shrink-0">
-        <span className="section-title">Avaliações Recentes</span>
-        <div className="flex items-center gap-2">
-          {[5, 4, 3, 2, 1].map((n) => (
-            <div key={n} className="flex items-center gap-1">
-              <div className="w-2 h-4 rounded-sm bg-surface-border overflow-hidden">
-                <div
-                  className="w-full rounded-sm"
-                  style={{ height: `${n === 5 ? 80 : n === 4 ? 15 : 5}%`, background: '#F5C518', marginTop: 'auto' }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-auto">
-        {reviews.map((r) => (
-          <div key={r.nome} className="flex flex-col gap-2 pb-4 border-b border-surface-border last:border-0 last:pb-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-surface-input flex items-center justify-center text-[10px] font-mono text-white">
-                  {r.nome[0]}
-                </div>
-                <span className="text-xs font-sans text-white font-medium">{r.nome}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: r.nota }, (_, i) => (
-                  <Star key={i} size={10} className="text-yellow-400" fill="currentColor" />
-                ))}
-                <span className="text-[10px] text-muted-foreground font-sans ml-2">{r.data}</span>
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground font-sans leading-relaxed line-clamp-2">{r.texto}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-const KPI_BLOCKS = kpis.map((_, i) => ({
+const KPI_BLOCKS = KPI_ORDER.map((label, i) => ({
   id: `gmb-kpi-${i}`,
   tier: 'primary',
   defaultColSpan: 1,
@@ -246,63 +69,40 @@ const KPI_BLOCKS = kpis.map((_, i) => ({
 
 const GMB_DASHBOARD_BLOCKS = [
   ...KPI_BLOCKS,
-  {
-    id: 'gmb-weekly-bars',
-    tier: 'secondary',
-    defaultColSpan: 4,
-    defaultRowSpan: 3,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 2,
-    maxRowSpan: 8,
-    render: () => <GmbWeeklyBars />,
-  },
-  {
-    id: 'gmb-weekly-area',
-    tier: 'secondary',
-    defaultColSpan: 4,
-    defaultRowSpan: 3,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 2,
-    maxRowSpan: 8,
-    render: () => <GmbWeeklyArea />,
-  },
-  {
-    id: 'gmb-terms',
-    tier: 'secondary',
-    defaultColSpan: 4,
-    defaultRowSpan: 4,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 2,
-    maxRowSpan: 10,
-    render: () => <GmbSearchTerms />,
-  },
-  {
-    id: 'gmb-reviews',
-    tier: 'secondary',
-    defaultColSpan: 4,
-    defaultRowSpan: 4,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 2,
-    maxRowSpan: 10,
-    render: () => <GmbReviews />,
-  },
+  { id: 'gmb-daily', tier: 'secondary', defaultColSpan: 8, defaultRowSpan: 3, minColSpan: 3, maxColSpan: 12, minRowSpan: 2, maxRowSpan: 8, render: () => <GmbDailyChart /> },
+  { id: 'gmb-terms', tier: 'secondary', defaultColSpan: 4, defaultRowSpan: 4, minColSpan: 2, maxColSpan: 8, minRowSpan: 2, maxRowSpan: 10, render: () => <GmbSearchTermsTable /> },
+  { id: 'gmb-reviews', tier: 'secondary', defaultColSpan: 4, defaultRowSpan: 4, minColSpan: 2, maxColSpan: 8, minRowSpan: 2, maxRowSpan: 10, render: () => <GmbReviewsBlock /> },
+  { id: 'gmb-locations', tier: 'secondary', defaultColSpan: 8, defaultRowSpan: 3, minColSpan: 2, maxColSpan: 12, minRowSpan: 2, maxRowSpan: 10, render: () => <GmbByLocationTable /> },
 ]
 
-function GoogleMeuNegocioPageHeader() {
+function LocationPicker({ selectedLocationId, onChange }) {
+  const { data } = usePlatformOverview()
+  const locations = Array.isArray(data?.locations) ? data.locations : []
+  if (locations.length <= 1) return null
+  const current = selectedLocationId ?? data?.selectedLocationId ?? locations[0]?.id ?? ''
+  return (
+    <select
+      value={current}
+      onChange={(e) => onChange(e.target.value)}
+      className="max-w-[min(100%,220px)] shrink-0 rounded-md border border-surface-border bg-surface-input py-1.5 pl-2 pr-8 text-[10px] text-foreground font-sans outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+      aria-label="Selecionar local"
+    >
+      {locations.map((l) => (
+        <option key={l.id} value={l.id}>
+          {l.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+function GmbHeader({ selectedLocationId, onLocationChange }) {
   return (
     <header className="shrink-0 border-b border-white/[0.06] py-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#34A853]">
-            Google Meu Negócio
-          </span>
-          <span className="text-white/20" aria-hidden>
-            ·
-          </span>
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#34A853]">Google Meu Negócio</span>
+          <span className="text-white/20" aria-hidden>·</span>
           <SuperAdminAccountTitle
             className="min-w-0 max-w-[min(100%,20rem)] text-left"
             size="sm"
@@ -311,11 +111,7 @@ function GoogleMeuNegocioPageHeader() {
           />
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          <div className="flex items-center gap-1.5 rounded-md border border-yellow-400/20 bg-yellow-400/5 px-2 py-1">
-            <Star size={10} className="text-yellow-400" fill="currentColor" />
-            <span className="font-mono text-[11px] font-semibold text-yellow-400">4.8</span>
-            <span className="font-sans text-[10px] text-muted-foreground">(148)</span>
-          </div>
+          <LocationPicker selectedLocationId={selectedLocationId} onChange={onLocationChange} />
           <ChannelAccountPicker provider="google_business" className="shrink-0" />
         </div>
       </div>
@@ -323,13 +119,37 @@ function GoogleMeuNegocioPageHeader() {
   )
 }
 
-export default function GoogleMeuNegocio() {
+function GmbInner({ selectedLocationId, onLocationChange }) {
   return (
     <div className="flex min-h-full min-w-0 flex-col">
-      <GoogleMeuNegocioPageHeader />
+      <GmbHeader selectedLocationId={selectedLocationId} onLocationChange={onLocationChange} />
       <div className="min-h-0 flex-1">
         <DashboardGrid definitions={GMB_DASHBOARD_BLOCKS} className="min-h-full" />
       </div>
     </div>
+  )
+}
+
+export default function GoogleMeuNegocio() {
+  const { activeOrgId } = useOrgWorkspace()
+  const { dateRange, compareDateRange, comparePrimaryKpi } = useDashboardFilters()
+  const [selectedLocationId, setSelectedLocationId] = useState(null)
+
+  const overviewUrl = useMemo(
+    () =>
+      buildPlatformOverviewUrl('/api/admin/platform/google-business-overview', {
+        orgId: activeOrgId,
+        dateRange,
+        compareDateRange,
+        compareEnabled: comparePrimaryKpi,
+        filters: { locationId: selectedLocationId },
+      }),
+    [activeOrgId, dateRange, compareDateRange, comparePrimaryKpi, selectedLocationId]
+  )
+
+  return (
+    <PlatformOverviewProvider url={overviewUrl}>
+      <GmbInner selectedLocationId={selectedLocationId} onLocationChange={setSelectedLocationId} />
+    </PlatformOverviewProvider>
   )
 }

@@ -31,4 +31,13 @@ describe('buildPlatformOverviewUrl filters', () => {
     expect(url).not.toContain('campaign_ids')
     expect(url).not.toContain('ad_id')
   })
+
+  test('inclui location_id quando filters.locationId é passado', () => {
+    const url = buildPlatformOverviewUrl('/api/x', {
+      orgId: 'org1',
+      dateRange: { start: new Date('2026-06-01'), end: new Date('2026-06-30') },
+      filters: { locationId: '123' },
+    })
+    expect(url).toContain('location_id=123')
+  })
 })
