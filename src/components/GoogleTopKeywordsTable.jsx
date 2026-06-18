@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, KeyRound } from 'lucide-react'
 import { cn, formatCurrency, formatNumber } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { BlockCard } from '@/components/ui/BlockCard'
-import { MiniPagination } from '@/components/ui/MiniPagination'
+import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
 const PAGE_SIZE = 5
 const DEFAULT_SORT = { id: 'spend', desc: true }
@@ -126,18 +126,16 @@ export function GoogleTopKeywordsTable() {
   const { loading, data } = usePlatformOverview()
   const payload = data?.topKeywords
   const items = useMemo(() => (Array.isArray(payload?.items) ? payload.items : []), [payload])
-  const [page, setPage] = useState(1)
   const [sort, setSort] = useState(DEFAULT_SORT)
 
   const sortedItems = useMemo(() => sortKeywords(items, sort), [items, sort])
 
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows: pageItems, total, rangeStart, rangeEnd } =
+    usePagedRows(sortedItems, { storageKey: 'p12_pagesize_top_keywords', defaultSize: PAGE_SIZE })
+
   useEffect(() => {
     setPage(1)
-  }, [items, sort])
-
-  const totalPages = Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const pageItems = sortedItems.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  }, [sort, setPage])
 
   const onSort = (columnId) => {
     setSort((prev) =>
@@ -180,7 +178,7 @@ export function GoogleTopKeywordsTable() {
           </thead>
           <tbody>
             {pageItems.map((kw, i) => {
-              const rank = (safePage - 1) * PAGE_SIZE + i + 1
+              const rank = rangeStart + i
               const cpc = cpcOf(kw)
               const match = MATCH_TYPE_LABELS[String(kw.matchType || '').toUpperCase()]
               return (
@@ -244,10 +242,15 @@ export function GoogleTopKeywordsTable() {
           </tbody>
         </table>
       </div>
-      <MiniPagination
-        page={safePage}
+      <TablePagination
+        page={page}
         totalPages={totalPages}
         onPage={setPage}
+        pageSize={pageSize}
+        onPageSize={setPageSize}
+        total={total}
+        rangeStart={rangeStart}
+        rangeEnd={rangeEnd}
         className="border-t border-surface-border/80 pt-1"
       />
     </BlockCard>

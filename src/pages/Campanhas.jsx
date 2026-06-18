@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Plus, Search, MoreHorizontal, Pause, Play, Pencil, TrendingUp, TrendingDown, Target, DollarSign, Eye, MousePointer } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
+import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
 const campaigns = [
   { id: 1, name: 'Campanha_Leads_SP_Jan', status: 'active', type: 'Search', objetivo: 'Geração de Leads', budget: 500, investido: 312.40, impressoes: 28450, cliques: 1172, leads: 6, ctr: 4.12, cpc: 2.67, custoLead: 52.07, delta: +12.4 },
@@ -45,6 +46,9 @@ export default function Campanhas() {
     const matchStatus = statusFilter === 'all' || c.status === statusFilter
     return matchSearch && matchStatus
   })
+
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, total, rangeStart, rangeEnd } =
+    usePagedRows(filtered, { storageKey: 'p12_pagesize_campanhas', defaultSize: 10 })
 
   function toggleSelect(id) {
     setSelected(s => {
@@ -99,7 +103,7 @@ export default function Campanhas() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(c => {
+              {pageRows.map(c => {
                 const s = STATUS_COLORS[c.status]
                 return (
                   <tr key={c.id} className={cn('border-b border-surface-border/50 last:border-0 hover:bg-surface-hover/40 transition-colors', selected.has(c.id) && 'bg-brand/5')}>
@@ -145,9 +149,21 @@ export default function Campanhas() {
             </tbody>
           </table>
         </div>
-        <div className="px-4 py-2 border-t border-surface-border flex items-center justify-between text-[10px] text-muted-foreground font-sans">
-          <span>{filtered.length} de {campaigns.length} campanhas</span>
-          {selected.size > 0 && <span className="text-brand">{selected.size} selecionadas</span>}
+        <div className="border-t border-surface-border">
+          {selected.size > 0 && (
+            <div className="px-4 pt-2 text-[10px] text-brand font-sans">{selected.size} selecionadas</div>
+          )}
+          <TablePagination
+            page={page}
+            totalPages={totalPages}
+            onPage={setPage}
+            pageSize={pageSize}
+            onPageSize={setPageSize}
+            total={total}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            className="px-4 py-2"
+          />
         </div>
       </div>
     </div>

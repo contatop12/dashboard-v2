@@ -11,7 +11,7 @@ import { ArrowDown, ArrowUp, Columns3, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
-import { MiniPagination } from '@/components/ui/MiniPagination'
+import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
 const PAGE_SIZE = 15
 const LS_VISIBILITY = 'p12_google_ads_ad_group_results_columns'
@@ -192,8 +192,6 @@ export function GoogleAdGroupResultsTable() {
     return [...DEFAULT_SORT]
   })
 
-  const [page, setPage] = useState(1)
-
   useEffect(() => {
     try {
       localStorage.setItem(LS_VISIBILITY, JSON.stringify(columnVisibility))
@@ -228,11 +226,8 @@ export function GoogleAdGroupResultsTable() {
   })
 
   const sortedRows = table.getRowModel().rows
-  const totalPages = Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const pageRows = sortedRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-  const rangeStart = sortedRows.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1
-  const rangeEnd = Math.min(safePage * PAGE_SIZE, sortedRows.length)
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, total, rangeStart, rangeEnd } =
+    usePagedRows(sortedRows, { storageKey: 'p12_pagesize_ad_groups', defaultSize: PAGE_SIZE })
 
   const toggleColumn = useCallback((columnId, visible) => {
     if (columnId === 'grupo' || columnId === 'idx') return
@@ -361,7 +356,7 @@ export function GoogleAdGroupResultsTable() {
                       )}
                     >
                       {cell.column.id === 'idx'
-                        ? (safePage - 1) * PAGE_SIZE + i + 1
+                        ? rangeStart + i
                         : flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -373,12 +368,17 @@ export function GoogleAdGroupResultsTable() {
       ) : null}
 
       {!loading && rows.length > 0 ? (
-        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-surface-border px-3 py-2 sm:px-4">
-          <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
-            {rangeStart} – {rangeEnd} / {sortedRows.length}
-          </span>
-          <MiniPagination page={safePage} totalPages={totalPages} onPage={setPage} />
-        </div>
+        <TablePagination
+          page={page}
+          totalPages={totalPages}
+          onPage={setPage}
+          pageSize={pageSize}
+          onPageSize={setPageSize}
+          total={total}
+          rangeStart={rangeStart}
+          rangeEnd={rangeEnd}
+          className="border-t border-surface-border px-3 py-2 sm:px-4"
+        />
       ) : null}
     </div>
   )

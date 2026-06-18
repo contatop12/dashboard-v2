@@ -3,6 +3,7 @@ import { Download, FileText, BarChart3, Calendar, TrendingUp, Eye, MousePointer,
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { ResponsiveContainer, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar } from 'recharts'
+import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
 const monthlyData = [
   { mes: 'Ago', investimento: 820, leads: 7, ctr: 3.2, impressoes: 38000 },
@@ -38,6 +39,9 @@ const REPORT_TEMPLATES = [
 
 export default function Relatorios() {
   const [activeTab, setActiveTab] = useState('overview')
+  const lastMes = monthlyData[monthlyData.length - 1]?.mes
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, total, rangeStart, rangeEnd } =
+    usePagedRows(monthlyData, { storageKey: 'p12_pagesize_relatorios_mensal', defaultSize: 10 })
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
@@ -120,9 +124,9 @@ export default function Relatorios() {
                   </tr>
                 </thead>
                 <tbody>
-                  {monthlyData.map((row, i) => (
-                    <tr key={row.mes} className={cn('border-b border-surface-border/50 last:border-0 hover:bg-surface-hover/40 transition-colors', i === monthlyData.length - 1 && 'bg-brand/5')}>
-                      <td className="px-4 py-3 font-sans text-white font-medium">{row.mes} {i === monthlyData.length - 1 && <span className="ml-1 text-[9px] text-brand font-mono">atual</span>}</td>
+                  {pageRows.map((row) => (
+                    <tr key={row.mes} className={cn('border-b border-surface-border/50 last:border-0 hover:bg-surface-hover/40 transition-colors', row.mes === lastMes && 'bg-brand/5')}>
+                      <td className="px-4 py-3 font-sans text-white font-medium">{row.mes} {row.mes === lastMes && <span className="ml-1 text-[9px] text-brand font-mono">atual</span>}</td>
                       <td className="px-4 py-3 text-right font-mono text-white">{formatCurrency(row.investimento)}</td>
                       <td className="px-4 py-3 text-right font-mono text-white">{row.leads}</td>
                       <td className="px-4 py-3 text-right font-mono text-white">{formatCurrency(row.investimento / row.leads)}</td>
@@ -133,6 +137,17 @@ export default function Relatorios() {
                 </tbody>
               </table>
             </div>
+            <TablePagination
+              page={page}
+              totalPages={totalPages}
+              onPage={setPage}
+              pageSize={pageSize}
+              onPageSize={setPageSize}
+              total={total}
+              rangeStart={rangeStart}
+              rangeEnd={rangeEnd}
+              className="border-t border-surface-border px-4 py-2"
+            />
           </div>
         </div>
       )}

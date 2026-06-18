@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Search } from 'lucide-react'
 import { cn, formatCurrency, formatNumber } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { BlockCard } from '@/components/ui/BlockCard'
-import { MiniPagination } from '@/components/ui/MiniPagination'
+import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
 const PAGE_SIZE = 5
 /** Altura mínima alinhada ao corpo de 5 linhas (par com Posição de destaque). */
@@ -21,15 +21,8 @@ export function GoogleSearchTermsBlock() {
   const { loading, data } = usePlatformOverview()
   const payload = data?.searchTerms
   const items = useMemo(() => (Array.isArray(payload?.items) ? payload.items : []), [payload])
-  const [page, setPage] = useState(1)
-
-  useEffect(() => {
-    setPage(1)
-  }, [items])
-
-  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const pageItems = items.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows: pageItems, total, rangeStart, rangeEnd } =
+    usePagedRows(items, { storageKey: 'p12_pagesize_search_terms', defaultSize: PAGE_SIZE })
 
   const state = loading
     ? 'loading'
@@ -72,7 +65,7 @@ export function GoogleSearchTermsBlock() {
           </thead>
           <tbody>
             {pageItems.map((t, i) => {
-              const rank = (safePage - 1) * PAGE_SIZE + i + 1
+              const rank = rangeStart + i
               return (
                 <tr key={t.term} className="border-t border-white/[0.05] hover:bg-white/[0.03]">
                   <td className="max-w-[240px] px-2 py-2 align-top">
@@ -110,10 +103,15 @@ export function GoogleSearchTermsBlock() {
           </tbody>
         </table>
       </div>
-      <MiniPagination
-        page={safePage}
+      <TablePagination
+        page={page}
         totalPages={totalPages}
         onPage={setPage}
+        pageSize={pageSize}
+        onPageSize={setPageSize}
+        total={total}
+        rangeStart={rangeStart}
+        rangeEnd={rangeEnd}
         className="mt-auto border-t border-surface-border/80 pt-1"
       />
     </BlockCard>

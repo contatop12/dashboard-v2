@@ -19,6 +19,7 @@ import { Table2, ChevronUp, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
+import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
 const TABS = [
   { id: 'age', label: 'Idade' },
@@ -271,6 +272,19 @@ export function GoogleAdsDemographicsBlock() {
     getRowId: (r) => r.segmentKey,
   })
 
+  const demoSortedRows = table.getRowModel().rows
+  const {
+    page: demoPage,
+    setPage: setDemoPage,
+    pageSize: demoPageSize,
+    setPageSize: setDemoPageSize,
+    totalPages: demoTotalPages,
+    pageRows: demoPageRows,
+    total: demoTotal,
+    rangeStart: demoRangeStart,
+    rangeEnd: demoRangeEnd,
+  } = usePagedRows(demoSortedRows, { storageKey: 'p12_pagesize_demographics', defaultSize: 10 })
+
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-surface-border bg-surface-card">
       <div className="shrink-0 border-b border-surface-border px-3 py-3 sm:px-4">
@@ -463,7 +477,7 @@ export function GoogleAdsDemographicsBlock() {
               ))}
             </thead>
             <tbody>
-              {table.getRowModel().rows.map((row) => (
+              {demoPageRows.map((row) => (
                 <tr key={row.id} className="border-b border-surface-border/40 hover:bg-surface-hover/25">
                   {row.getVisibleCells().map((cell) => (
                     <td
@@ -480,6 +494,17 @@ export function GoogleAdsDemographicsBlock() {
               ))}
             </tbody>
           </table>
+          <TablePagination
+            page={demoPage}
+            totalPages={demoTotalPages}
+            onPage={setDemoPage}
+            pageSize={demoPageSize}
+            onPageSize={setDemoPageSize}
+            total={demoTotal}
+            rangeStart={demoRangeStart}
+            rangeEnd={demoRangeEnd}
+            className="sticky bottom-0 border-t border-surface-border bg-surface-card px-3 py-2 sm:px-4"
+          />
         </div>
       ) : null}
     </div>

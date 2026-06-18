@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Trophy } from 'lucide-react'
 import { cn, formatNumber } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { BlockCard } from '@/components/ui/BlockCard'
-import { MiniPagination } from '@/components/ui/MiniPagination'
+import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
 const MIN_IMPRESSIONS = 10
 const PAGE_SIZE = 5
@@ -37,15 +37,8 @@ export function GoogleKeywordPositionBlock() {
       .filter((k) => k.impressions >= MIN_IMPRESSIONS && k.absTopPct != null)
       .sort((a, b) => b.absTopPct - a.absTopPct || b.impressions - a.impressions)
   }, [payload])
-  const [page, setPage] = useState(1)
-
-  useEffect(() => {
-    setPage(1)
-  }, [items])
-
-  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const pageItems = items.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows: pageItems, total, rangeStart, rangeEnd } =
+    usePagedRows(items, { storageKey: 'p12_pagesize_kw_position', defaultSize: PAGE_SIZE })
 
   const state = loading
     ? 'loading'
@@ -108,10 +101,15 @@ export function GoogleKeywordPositionBlock() {
           )
         })}
       </div>
-      <MiniPagination
-        page={safePage}
+      <TablePagination
+        page={page}
         totalPages={totalPages}
         onPage={setPage}
+        pageSize={pageSize}
+        onPageSize={setPageSize}
+        total={total}
+        rangeStart={rangeStart}
+        rangeEnd={rangeEnd}
         className="mt-auto border-t border-surface-border/80 pt-1"
       />
     </BlockCard>

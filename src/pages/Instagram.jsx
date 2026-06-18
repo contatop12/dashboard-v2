@@ -20,6 +20,7 @@ import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
 import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
+import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
 const kpis = [
   { label: 'Seguidores', value: '12.840', delta: +4.2, icon: Users },
@@ -296,6 +297,8 @@ function IgContentTypes() {
 }
 
 function IgTopPostsTable() {
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, total, rangeStart, rangeEnd } =
+    usePagedRows(topPosts, { storageKey: 'p12_pagesize_ig_top_posts', defaultSize: 10 })
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg overflow-hidden min-w-0 h-full flex flex-col">
       <div className="px-4 py-4 border-b border-surface-border flex items-center justify-between shrink-0">
@@ -320,11 +323,11 @@ function IgTopPostsTable() {
             </tr>
           </thead>
           <tbody>
-            {topPosts.map((p, i) => {
+            {pageRows.map((p, i) => {
               const Icon = TIPO_ICONS[p.tipo]
               const color = TIPO_COLORS[p.tipo]
               return (
-                <tr key={i} className="border-b border-surface-border/50 last:border-0 hover:bg-surface-hover/40 transition-colors">
+                <tr key={`${p.desc}-${i}`} className="border-b border-surface-border/50 last:border-0 hover:bg-surface-hover/40 transition-colors">
                   <td className="px-4 py-4 font-sans text-white">{p.desc}</td>
                   <td className="px-4 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -354,6 +357,17 @@ function IgTopPostsTable() {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        page={page}
+        totalPages={totalPages}
+        onPage={setPage}
+        pageSize={pageSize}
+        onPageSize={setPageSize}
+        total={total}
+        rangeStart={rangeStart}
+        rangeEnd={rangeEnd}
+        className="shrink-0 border-t border-surface-border px-4 py-2"
+      />
     </div>
   )
 }

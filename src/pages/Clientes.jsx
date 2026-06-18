@@ -4,6 +4,7 @@ import { Users, Plus, X, Pencil, Building2, Trash2 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 import OrgAccountAssignments from '@/components/OrgAccountAssignments'
+import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
 export default function Clientes() {
   const { user } = useAuth()
@@ -27,6 +28,9 @@ export default function Clientes() {
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState('')
   const [deleting, setDeleting] = useState(false)
+
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, total, rangeStart, rangeEnd } =
+    usePagedRows(clients, { storageKey: 'p12_pagesize_clientes', defaultSize: 25 })
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -310,7 +314,7 @@ export default function Clientes() {
                 </tr>
               </thead>
               <tbody>
-                {clients.map((row) => (
+                {pageRows.map((row) => (
                   <tr key={row.user_id} className="border-b border-surface-border/60 last:border-0 hover:bg-surface-hover/30">
                     <td className="px-5 py-3.5 text-white">{row.org_name || '—'}</td>
                     <td className="px-5 py-3.5 text-muted-foreground">{row.name || '—'}</td>
@@ -350,6 +354,17 @@ export default function Clientes() {
                 ))}
               </tbody>
             </table>
+            <TablePagination
+              page={page}
+              totalPages={totalPages}
+              onPage={setPage}
+              pageSize={pageSize}
+              onPageSize={setPageSize}
+              total={total}
+              rangeStart={rangeStart}
+              rangeEnd={rangeEnd}
+              className="border-t border-surface-border px-5 py-2.5"
+            />
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@ import { Search, TrendingUp, TrendingDown, Plus, ArrowUpDown, ArrowUp, ArrowDown
 import { cn } from '@/lib/utils'
 import { formatNumber, formatCurrency, formatPercent } from '@/lib/utils'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
+import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
 const keywords = [
   { id: 1, keyword: 'consultoria financeira', matchType: 'Exata', status: 'active', bid: 3.20, cpc: 2.45, impressoes: 8420, cliques: 312, ctr: 3.71, conversoes: 4, custoConv: 190.80, posicao: 1.2, qualidade: 8, delta: +5.2 },
@@ -49,6 +50,9 @@ export default function PalavrasChave() {
     const av = a[sortKey] ?? -1, bv = b[sortKey] ?? -1
     return (av > bv ? 1 : -1) * mult
   })
+
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, total, rangeStart, rangeEnd } =
+    usePagedRows(filtered, { storageKey: 'p12_pagesize_palavras_chave', defaultSize: 10 })
 
   function handleSort(key) {
     if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
@@ -131,7 +135,7 @@ export default function PalavrasChave() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(kw => (
+              {pageRows.map(kw => (
                 <tr key={kw.id} className="border-b border-surface-border/50 last:border-0 hover:bg-surface-hover/40 transition-colors">
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-2">
@@ -168,9 +172,17 @@ export default function PalavrasChave() {
             </tbody>
           </table>
         </div>
-        <div className="px-4 py-2 border-t border-surface-border text-[10px] text-muted-foreground font-sans">
-          {filtered.length} de {keywords.length} palavras-chave
-        </div>
+        <TablePagination
+          page={page}
+          totalPages={totalPages}
+          onPage={setPage}
+          pageSize={pageSize}
+          onPageSize={setPageSize}
+          total={total}
+          rangeStart={rangeStart}
+          rangeEnd={rangeEnd}
+          className="border-t border-surface-border px-4 py-2"
+        />
       </div>
     </div>
   )

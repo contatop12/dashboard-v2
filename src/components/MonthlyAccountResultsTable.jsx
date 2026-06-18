@@ -13,7 +13,7 @@ import { ArrowDown, ArrowUp, Columns3, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
-import { MiniPagination } from '@/components/ui/MiniPagination'
+import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
 const MONTHLY_PAGE_SIZE = 3
 
@@ -434,12 +434,6 @@ export function MonthlyAccountResultsTable({ platform }) {
     return aggregateGoogleByMonth(daily)
   }, [daily, platform, monthlyPayload?.items])
 
-  const [page, setPage] = useState(1)
-
-  useEffect(() => {
-    setPage(1)
-  }, [rows])
-
   const maxes = useMemo(() => computeColumnMaxes(rows), [rows])
   const footer = useMemo(() => buildFooterTotals(rows, platform), [rows, platform])
 
@@ -514,12 +508,8 @@ export function MonthlyAccountResultsTable({ platform }) {
   }, [])
 
   const sortedRows = table.getRowModel().rows
-  const totalPages = Math.max(1, Math.ceil(sortedRows.length / MONTHLY_PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const pageRows = sortedRows.slice(
-    (safePage - 1) * MONTHLY_PAGE_SIZE,
-    safePage * MONTHLY_PAGE_SIZE
-  )
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, total, rangeStart, rangeEnd } =
+    usePagedRows(sortedRows, { storageKey: `p12_pagesize_monthly_${platform}`, defaultSize: MONTHLY_PAGE_SIZE })
 
   const renderFooterCell = (colId) => {
     if (colId === 'mes') {
@@ -769,10 +759,15 @@ export function MonthlyAccountResultsTable({ platform }) {
             </tfoot>
           </table>
           </div>
-          <MiniPagination
-            page={safePage}
+          <TablePagination
+            page={page}
             totalPages={totalPages}
             onPage={setPage}
+            pageSize={pageSize}
+            onPageSize={setPageSize}
+            total={total}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
             className="shrink-0 border-t border-surface-border/80 px-3 py-2 sm:px-4"
           />
         </div>
