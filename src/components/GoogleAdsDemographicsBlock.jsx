@@ -57,6 +57,27 @@ function metricDef(id) {
   return CHART_METRICS.find((m) => m.id === id) ?? CHART_METRICS[0]
 }
 
+function interactionSourceNote(rows) {
+  if (!rows.length) return null
+  const sources = new Set(rows.map((r) => r.interactionSource ?? 'clicks'))
+  if (sources.size === 1 && sources.has('interactions')) {
+    return {
+      label: 'Interações: metrics.interactions (API Google Ads)',
+      detail: 'Taxa de interação, CPC médio e taxa de conv. usam interações reportadas pela API.',
+    }
+  }
+  if (sources.size === 1 && sources.has('clicks')) {
+    return {
+      label: 'Interações: fallback via cliques',
+      detail: 'A API não retornou interactions neste período; métricas derivadas usam cliques.',
+    }
+  }
+  return {
+    label: 'Interações: misto (API + fallback cliques)',
+    detail: 'Alguns segmentos usam metrics.interactions; outros usam cliques como estimativa.',
+  }
+}
+
 function formatChartTooltip(metricId, value) {
   if (value == null || Number.isNaN(Number(value))) return '—'
   const n = Number(value)
@@ -212,6 +233,7 @@ export function GoogleAdsDemographicsBlock() {
   }, [demo, tab])
 
   const tabError = typeof demo?.[tab]?.error === 'string' ? demo[tab].error : ''
+  const interactionNote = useMemo(() => interactionSourceNote(rows), [rows])
 
   useEffect(() => {
     if (primaryMetric === secondaryMetric) {
@@ -392,6 +414,18 @@ export function GoogleAdsDemographicsBlock() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </div>
+      ) : null}
+
+      {!loading && rows.length > 0 && interactionNote ? (
+        <div
+          className="shrink-0 border-t border-surface-border/60 px-3 py-2 sm:px-4"
+          title={interactionNote.detail}
+        >
+          <p className="text-[9px] font-sans text-muted-foreground/90">
+            <span className="font-medium text-muted-foreground">{interactionNote.label}</span>
+            <span className="hidden sm:inline"> · {interactionNote.detail}</span>
+          </p>
         </div>
       ) : null}
 

@@ -901,7 +901,7 @@ async function fetchGoogleMonthlyResults(
   headers: Record<string, string>,
   until: string,
   filterClause = '',
-  months = 6
+  months = 12
 ): Promise<MonthlyResultsPayload> {
   const { since, until: untilCap } = lastNCalendarMonthsWindow(until, months)
   const query = `
