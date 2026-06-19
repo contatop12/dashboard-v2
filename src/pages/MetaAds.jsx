@@ -17,7 +17,6 @@ import WorkerSecretsAccountPicker, {
   readWorkerMetaQueryFromStorage,
 } from '@/components/WorkerSecretsAccountPicker'
 import MetaMetricsPanel from '@/components/MetaMetricsPanel'
-import MetaAnalysisPanel from '@/components/MetaAnalysisPanel'
 import { MonthlyAccountResultsTable } from '@/components/MonthlyAccountResultsTable'
 import {
   readMetaCreativesSort,
@@ -234,29 +233,18 @@ function MetaCreativesCarouselBlock() {
   )
 }
 
-function buildMetaDefinitions(activeChart, setActiveChart) {
+function buildMetaDefinitions() {
   return [
     {
       id: 'meta-metrics',
       tier: 'primary',
       defaultColSpan: 8,
-      defaultRowSpan: 5,
-      minColSpan: 4,
-      maxColSpan: 8,
-      minRowSpan: 3,
-      maxRowSpan: 8,
-      render: () => <MetaMetricsPanel />,
-    },
-    {
-      id: 'meta-analysis',
-      tier: 'secondary',
-      defaultColSpan: 8,
       defaultRowSpan: 8,
       minColSpan: 4,
       maxColSpan: 8,
-      minRowSpan: 6,
+      minRowSpan: 5,
       maxRowSpan: 12,
-      render: () => <MetaAnalysisPanel activeChart={activeChart} setActiveChart={setActiveChart} />,
+      render: () => <MetaMetricsPanel />,
     },
     {
       id: 'meta-creatives',
@@ -350,13 +338,12 @@ function MetaAdsInner({ workerPlatformQuery, onWorkerPlatformQueryChange, defini
 }
 
 export default function MetaAds() {
-  const [activeChart, setActiveChart] = useState('gasto')
   const [workerPlatformQuery, setWorkerPlatformQuery] = useState(() =>
     typeof window !== 'undefined' ? readWorkerMetaQueryFromStorage() : ''
   )
   const { activeOrgId } = useOrgWorkspace()
   const { dateRange, compareDateRange, comparePrimaryKpi, dimensionFilters } = useDashboardFilters()
-  const definitions = useMemo(() => buildMetaDefinitions(activeChart, setActiveChart), [activeChart])
+  const definitions = useMemo(() => buildMetaDefinitions(), [])
 
   // Traduz seleção do FilterBar em params do overview (campanha explícita ganha de objetivo).
   const apiFilters = useMemo(() => {

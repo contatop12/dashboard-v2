@@ -1,9 +1,20 @@
 import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronUp, TrendingDown, TrendingUp } from 'lucide-react'
+import { format, parse } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import {
+  ChevronDown,
+  ChevronUp,
+  Percent,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react'
 import { cn, formatNumber } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
 import { Switch } from '@/components/ui/Switch'
+import MetaAnalysisPanel from '@/components/MetaAnalysisPanel'
 import {
   META_CONVERSION_OPTIONS,
   META_METRIC_DEFS,
@@ -19,38 +30,94 @@ import {
 } from '@/lib/metaMetricsPreferences'
 import { buildMetaMetricsView } from '@/lib/metaMetricsCompute'
 
-function MetricTile({ label, data, large = false }) {
-  const hasDelta = data?.deltaPct !== null && data?.deltaPct !== undefined && !Number.isNaN(Number(data?.deltaPct))
-  const n = Number(data?.deltaPct)
-  const isPos = hasDelta && n > 0
-  const isNeg = hasDelta && n < 0
+const META_HERO_STYLES = {
+  invest: { tone: 'google-blue', icon: Wallet, higherIsBetter: true },
+  conversions: { tone: 'google-green', icon: Target, higherIsBetter: true },
+  costPerResult: { tone: 'google-amber', icon: Wallet, higherIsBetter: false },
+  conversionRate: { tone: 'google-purple', icon: Percent, higherIsBetter: true },
+  conversionValue: { tone: 'google-blue', icon: Wallet, higherIsBetter: true },
+  roas: { tone: 'google-green', icon: Target, higherIsBetter: true },
+}
 
+function formatRangeLabel(apiRange, fallbackStart, fallbackEnd) {
+  if (apiRange?.since && apiRange?.until) {
+    try {
+      const s = parse(apiRange.since, 'yyyy-MM-dd', new Date())
+      const u = parse(apiRange.until, 'yyyy-MM-dd', new Date())
+      return `${format(s, 'd MMM', { locale: ptBR })} – ${format(u, 'd MMM yyyy', { locale: ptBR })}`
+    } catch {
+      /* fall through */
+    }
+  }
+  if (fallbackStart && fallbackEnd) {
+    return `${format(fallbackStart, 'd MMM', { locale: ptBR })} – ${format(fallbackEnd, 'd MMM yyyy', { locale: ptBR })}`
+  }
+  return null
+}
+
+function DeltaBadge({ deltaPct, higherIsBetter = true }) {
+  const hasDelta = deltaPct !== null && deltaPct !== undefined && !Number.isNaN(Number(deltaPct))
+  if (!hasDelta) return null
+  const n = Number(deltaPct)
+  const isUp = n > 0
+  const isDown = n < 0
+  const isGood = higherIsBetter ? isUp : isDown
+  const isBad = higherIsBetter ? isDown : isUp
   return (
-    <div
+    <span
       className={cn(
-        'flex min-w-0 flex-col gap-1 rounded-lg border border-white/[0.06] bg-surface-card/90 px-3 py-3',
-        large && 'min-h-[5.5rem] justify-center'
+        'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-mono text-[10px] font-medium',
+        isGood && 'bg-emerald-500/15 text-emerald-400',
+        isBad && 'bg-red-500/15 text-red-400',
+        !isGood && !isBad && 'bg-white/5 text-muted-foreground'
       )}
     >
-      <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</span>
-      <span className={cn('font-mono font-semibold tabular-nums text-foreground', large ? 'text-xl' : 'text-base')}>
-        {data?.value ?? '—'}
-      </span>
-      {data?.hint ? (
-        <span className="text-[10px] text-muted-foreground/80">{data.hint}</span>
-      ) : null}
-      {hasDelta ? (
-        <span
-          className={cn(
-            'inline-flex items-center gap-0.5 font-mono text-[10px]',
-            isPos ? 'text-green-400' : isNeg ? 'text-red-400' : 'text-muted-foreground'
-          )}
-        >
-          {isPos ? <TrendingUp size={10} /> : isNeg ? <TrendingDown size={10} /> : null}
-          {n >= 0 ? '+' : ''}
-          {n.toFixed(1)}%
-        </span>
-      ) : null}
+      {isUp ? <TrendingUp size={10} /> : isDown ? <TrendingDown size={10} /> : null}
+      {n >= 0 ? '+' : ''}
+      {n.toFixed(1)}%
+    </span>
+  )
+}
+
+function HeroMetric({ metricKey, label, data, loading, showDelta }) {
+  const style = META_HERO_STYLES[metricKey] ?? META_HERO_STYLES.invest
+  const Icon = style.icon
+  const value = loading ? '…' : (data?.value ?? '—')
+  const deltaPct = showDelta ? data?.deltaPct : null
+
+  return (
+    <div className={cn('google-hero-metric', `google-hero-metric--${style.tone}`)}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="google-hero-metric__icon" aria-hidden>
+            <Icon size={14} strokeWidth={2} />
+          </span>
+          <span className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            {label}
+          </span>
+        </div>
+        <DeltaBadge deltaPct={deltaPct} higherIsBetter={style.higherIsBetter} />
+      </div>
+      <p className="google-hero-metric__value">{value}</p>
+      {data?.hint ? <p className="mt-1 text-[10px] text-muted-foreground/80">{data.hint}</p> : null}
+    </div>
+  )
+}
+
+function SecondaryMetric({ label, data, loading, showDelta, higherIsBetter = true }) {
+  const value = loading ? '…' : (data?.value ?? '—')
+  const deltaPct = showDelta ? data?.deltaPct : null
+
+  return (
+    <div className="google-secondary-metric">
+      <div className="flex items-center gap-1">
+        <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</span>
+      </div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-mono text-sm font-semibold tabular-nums text-foreground">{value}</span>
+        <DeltaBadge deltaPct={deltaPct} higherIsBetter={higherIsBetter} />
+      </div>
+      {data?.hint ? <p className="mt-1 text-[10px] text-muted-foreground/75">{data.hint}</p> : null}
     </div>
   )
 }
@@ -161,7 +228,7 @@ function CustomizePanel({ visibility, onChange, onReset }) {
 
 export default function MetaMetricsPanel() {
   const { loading, data } = usePlatformOverview()
-  const { comparePrimaryKpi } = useDashboardFilters()
+  const { comparePrimaryKpi, dateRange } = useDashboardFilters()
   const [conversionId, setConversionId] = useState(readMetaConversionType)
   const [visibility, setVisibility] = useState(readMetaMetricsVisibility)
   const [customizeOpen, setCustomizeOpen] = useState(false)
@@ -178,6 +245,11 @@ export default function MetaMetricsPanel() {
   )
 
   const qualityText = data?.qualityRanking ?? 'Sem ranking no período'
+  const showDeltas = comparePrimaryKpi
+  const rangeLabel = useMemo(
+    () => formatRangeLabel(data?.primaryRange, dateRange.start, dateRange.end),
+    [data?.primaryRange, dateRange]
+  )
 
   const primaryKeys = Object.keys(META_METRIC_DEFS).filter(
     (k) => META_METRIC_DEFS[k].tier === 'primary' && visibility[k] && view.primary[k]
@@ -201,16 +273,36 @@ export default function MetaMetricsPanel() {
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-white/[0.06] bg-surface-card p-6">
+      <div className="google-metrics-panel">
         <p className="text-xs text-muted-foreground">Carregando métricas…</p>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-white/[0.06] bg-[#121212] p-4 sm:p-5">
-      {/* Conversão + personalizar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="google-metrics-panel">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-400/90">Visão geral</p>
+          <p className="mt-0.5 text-xs text-muted-foreground font-sans">
+            Performance da conta Meta no período selecionado
+          </p>
+          {rangeLabel ? (
+            <p className="mt-1 font-mono text-[10px] tabular-nums text-foreground/75">{rangeLabel}</p>
+          ) : null}
+        </div>
+        {!comparePrimaryKpi ? (
+          <span className="text-[10px] text-muted-foreground/80 font-sans">
+            Ative &quot;Comparar KPIs&quot; para variação vs período anterior
+          </span>
+        ) : (
+          <span className="rounded-md bg-brand/10 px-2 py-0.5 text-[10px] font-medium text-brand">
+            Variação vs comparação
+          </span>
+        )}
+      </div>
+
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Conversão
@@ -218,7 +310,7 @@ export default function MetaMetricsPanel() {
           <select
             value={conversionId}
             onChange={(e) => onConversionChange(e.target.value)}
-            className="w-full max-w-md rounded-lg border border-surface-border bg-surface-input px-3 py-2.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+            className="w-full max-w-md rounded-lg border border-surface-border bg-surface-input px-3 py-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
           >
             {META_CONVERSION_OPTIONS.map((o) => (
               <option key={o.id} value={o.id}>
@@ -238,66 +330,65 @@ export default function MetaMetricsPanel() {
       </div>
 
       {customizeOpen ? (
-        <CustomizePanel
-          visibility={visibility}
-          onChange={onVisibilityChange}
-          onReset={() => onVisibilityChange(resetMetaMetricsVisibility())}
-        />
+        <div className="mb-4">
+          <CustomizePanel
+            visibility={visibility}
+            onChange={onVisibilityChange}
+            onReset={() => onVisibilityChange(resetMetaMetricsVisibility())}
+          />
+        </div>
       ) : null}
 
-      {/* Primárias */}
       {primaryKeys.length > 0 ? (
-        <section>
-          <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
-            Primárias
-          </p>
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-            {primaryKeys.map((key) => (
-              <MetricTile
-                key={key}
-                label={META_METRIC_DEFS[key]?.label ?? key}
-                data={view.primary[key]}
-                large
-              />
-            ))}
-          </div>
-        </section>
+        <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+          {primaryKeys.map((key) => (
+            <HeroMetric
+              key={key}
+              metricKey={key}
+              label={view.primary[key]?.label ?? META_METRIC_DEFS[key]?.label ?? key}
+              data={view.primary[key]}
+              loading={loading}
+              showDelta={showDeltas}
+            />
+          ))}
+        </div>
       ) : null}
 
-      {/* Secundárias */}
       {secondaryKeys.length > 0 ? (
-        <section>
-          <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
-            Secundárias
-          </p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
-            {secondaryKeys.map((key) => {
-              const def = META_METRIC_DEFS[key] ?? META_ADDABLE_METRICS.find((m) => m.key === key)
-              return (
-                <MetricTile
-                  key={key}
-                  label={def?.label ?? key}
-                  data={view.secondary[key]}
-                />
-              )
-            })}
-          </div>
-        </section>
+        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {secondaryKeys.map((key) => {
+            const def = META_METRIC_DEFS[key] ?? META_ADDABLE_METRICS.find((m) => m.key === key)
+            const lowerIsBetter = key === 'cpcLink' || key === 'cpcAll' || key === 'cpm' || key === 'frequency'
+            return (
+              <SecondaryMetric
+                key={key}
+                label={def?.label ?? key}
+                data={view.secondary[key]}
+                loading={loading}
+                showDelta={showDeltas}
+                higherIsBetter={!lowerIsBetter}
+              />
+            )
+          })}
+        </div>
       ) : null}
 
-      {/* Painéis */}
       {visibility.videoRetention && view.panels.videoRetention ? (
-        <VideoRetentionPanel data={view.panels.videoRetention} />
+        <div className="mb-4">
+          <VideoRetentionPanel data={view.panels.videoRetention} />
+        </div>
       ) : null}
 
       {visibility.qualityRanking ? (
-        <div className="rounded-lg border border-white/[0.06] bg-surface-card/90 px-4 py-3">
+        <div className="mb-4 rounded-lg border border-white/[0.06] bg-surface-card/90 px-4 py-3">
           <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Índice de qualidade (Meta)
           </p>
           <p className="mt-1 font-sans text-sm text-muted-foreground">{qualityText}</p>
         </div>
       ) : null}
+
+      <MetaAnalysisPanel embedded />
     </div>
   )
 }

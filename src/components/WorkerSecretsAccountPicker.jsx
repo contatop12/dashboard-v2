@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 const STORAGE = {
   meta_ads: 'p12_worker_meta_ad_account',
   google_ads: 'p12_worker_google_ads_customer',
+  google_business: 'p12_worker_gmb_account',
 }
 
 export function normalizeWorkerMetaActId(raw) {
@@ -38,6 +39,15 @@ export function readWorkerGoogleAdsQueryFromStorage() {
   }
 }
 
+export function readWorkerGmbQueryFromStorage() {
+  try {
+    const v = localStorage.getItem(STORAGE.google_business)?.trim().replace(/^accounts\//, '')
+    return v ? `gmb_account_id=${encodeURIComponent(v)}` : ''
+  } catch {
+    return ''
+  }
+}
+
 /**
  * Super admin, sem organização ativa (modo secrets): lista contas da API e persiste escolha em localStorage.
  * O pai deve inicializar `workerPlatformQuery` com `readWorker*FromStorage()` e passar `setWorkerPlatformQuery` aqui.
@@ -54,7 +64,9 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
   const listEndpoint =
     provider === 'meta_ads'
       ? '/api/admin/platform/meta-accounts'
-      : '/api/admin/platform/google-ads-accounts'
+      : provider === 'google_business'
+        ? '/api/admin/platform/google-business-accounts'
+        : '/api/admin/platform/google-ads-accounts'
   const storageKey = STORAGE[provider]
 
   useEffect(() => {
@@ -86,6 +98,23 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
           /* ignore */
         }
         onWorkerQueryChange(`ad_account_id=${encodeURIComponent(id)}`)
+      } else if (provider === 'google_business') {
+        const id = String(rawValue).trim().replace(/^accounts\//, '')
+        if (!id) {
+          try {
+            localStorage.removeItem(storageKey)
+          } catch {
+            /* ignore */
+          }
+          onWorkerQueryChange('')
+        } else {
+          try {
+            localStorage.setItem(storageKey, id)
+          } catch {
+            /* ignore */
+          }
+          onWorkerQueryChange(`gmb_account_id=${encodeURIComponent(id)}`)
+        }
       } else {
         const digits = String(rawValue).replace(/\D/g, '')
         if (!digits) {
@@ -165,9 +194,9 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
 
     const normSelected = (raw) => {
       if (!raw) return ''
-      return provider === 'meta_ads'
-        ? normalizeWorkerMetaActId(raw)
-        : String(raw).replace(/\D/g, '')
+      if (provider === 'meta_ads') return normalizeWorkerMetaActId(raw)
+      if (provider === 'google_business') return String(raw).trim().replace(/^accounts\//, '')
+      return String(raw).replace(/\D/g, '')
     }
 
     const current = normSelected(selected)
@@ -176,21 +205,28 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
           const id =
             provider === 'meta_ads'
               ? normalizeWorkerMetaActId(a.id)
-              : String(a.id).replace(/\D/g, '')
+              : provider === 'google_business'
+                ? String(a.id).trim().replace(/^accounts\//, '')
+                : String(a.id).replace(/\D/g, '')
           return id === current
         })
       : null
 
-    const isValidClient = currentRow && !currentRow.isManager
+    const isValidClient = provider === 'google_business' ? !!currentRow : currentRow && !currentRow.isManager
     if (isValidClient) return
 
-    const firstClient = accounts.find((a) => !a.isManager)
+    const firstClient =
+      provider === 'google_business'
+        ? accounts[0]
+        : accounts.find((a) => !a.isManager)
     if (!firstClient) return
 
     const val =
       provider === 'meta_ads'
         ? normalizeWorkerMetaActId(firstClient.id)
-        : String(firstClient.id).replace(/\D/g, '')
+        : provider === 'google_business'
+          ? String(firstClient.id).trim().replace(/^accounts\//, '')
+          : String(firstClient.id).replace(/\D/g, '')
     setSelected(val)
     emitQuery(val)
   }, [accounts, loading, selected, provider, emitQuery, user?.role, activeOrgId])
@@ -205,21 +241,19 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
     })
   }, [accounts, search])
 
+  const normalizeAccountId = (raw) => {
+    if (provider === 'meta_ads') return normalizeWorkerMetaActId(raw)
+    if (provider === 'google_business') return String(raw).trim().replace(/^accounts\//, '')
+    return String(raw).replace(/\D/g, '')
+  }
+
   const savedInList =
     selected &&
-    filtered.some((a) =>
-      provider === 'meta_ads'
-        ? normalizeWorkerMetaActId(a.id) === normalizeWorkerMetaActId(selected)
-        : String(a.id).replace(/\D/g, '') === String(selected).replace(/\D/g, '')
-    )
+    filtered.some((a) => normalizeAccountId(a.id) === normalizeAccountId(selected))
 
   const selectValue = (() => {
     if (!selected) return ''
-    if (savedInList) {
-      return provider === 'meta_ads'
-        ? normalizeWorkerMetaActId(selected)
-        : String(selected).replace(/\D/g, '')
-    }
+    if (savedInList) return normalizeAccountId(selected)
     return selected
   })()
 
@@ -232,7 +266,11 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
   if (user?.role !== 'super_admin' || activeOrgId) return null
 
   const label =
-    provider === 'meta_ads' ? 'Conta de anúncios (secrets)' : 'Cliente Google Ads (secrets)'
+    provider === 'meta_ads'
+      ? 'Conta de anúncios (secrets)'
+      : provider === 'google_business'
+        ? 'Conta Google Meu Negócio (secrets)'
+        : 'Cliente Google Ads (secrets)'
 
   const selectEl = (
     <div className="relative min-w-0 flex-1">
@@ -249,23 +287,22 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
         <option value="">
           {provider === 'meta_ads'
             ? 'Padrão (.env ou primeira conta)'
-            : 'Selecione a conta Google…'}
+            : provider === 'google_business'
+              ? 'Selecione a conta GBP…'
+              : 'Selecione a conta Google…'}
         </option>
         {selected && !savedInList && (
-          <option
-            value={
-              provider === 'meta_ads'
-                ? normalizeWorkerMetaActId(selected)
-                : String(selected).replace(/\D/g, '')
-            }
-          >
-            {provider === 'meta_ads' ? normalizeWorkerMetaActId(selected) : `Salvo: ${selected}`}
+          <option value={normalizeAccountId(selected)}>
+            {provider === 'meta_ads'
+              ? normalizeWorkerMetaActId(selected)
+              : provider === 'google_business'
+                ? `Salvo: ${normalizeAccountId(selected)}`
+                : `Salvo: ${selected}`}
           </option>
         )}
         {filtered.map((a) => {
-          const val =
-            provider === 'meta_ads' ? normalizeWorkerMetaActId(a.id) : String(a.id).replace(/\D/g, '')
-          const suffix = a.isManager ? ' — MCC' : ''
+          const val = normalizeAccountId(a.id)
+          const suffix = provider === 'google_ads' && a.isManager ? ' — MCC' : ''
           return (
             <option key={val} value={val}>
               {a.name} ({val}){suffix}

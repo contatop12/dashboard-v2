@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { format, parse } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
@@ -181,9 +181,11 @@ function MetaPlacements() {
   )
 }
 
-export default function MetaAnalysisPanel({ activeChart, setActiveChart }) {
+export default function MetaAnalysisPanel({ embedded = false }) {
+  const [activeChart, setActiveChart] = useState('gasto')
+
   return (
-    <div className="meta-analysis-panel">
+    <div className={cn('meta-analysis-panel', embedded && 'meta-analysis-panel--embedded')}>
       <div className="meta-analysis-top">
         <MetaDailyChart activeChart={activeChart} setActiveChart={setActiveChart} />
         <MetaPlacements />

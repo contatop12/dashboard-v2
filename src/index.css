@@ -160,9 +160,30 @@
     min-height: 15rem;
   }
 
+  .meta-analysis-panel--embedded {
+    min-height: auto;
+    height: auto;
+    overflow: visible;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    border-top: 1px solid rgb(255 255 255 / 0.06);
+    margin-top: 0.5rem;
+    padding-top: 0.25rem;
+  }
+
+  .meta-analysis-panel--embedded .meta-analysis-top {
+    min-height: 14rem;
+  }
+
+  .meta-analysis-panel--embedded .meta-analysis-bottom {
+    min-height: 12rem;
+  }
+
   .meta-analysis-cell {
     padding: 1rem 1.25rem;
   }
+
 
   .google-analysis-panel .meta-analysis-top {
     min-height: 18rem;

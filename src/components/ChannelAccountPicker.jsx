@@ -6,7 +6,7 @@ import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 /**
  * Troca a conta OAuth usada para métricas (por organização), persistido em D1.
  */
-export default function ChannelAccountPicker({ provider, className }) {
+export default function ChannelAccountPicker({ provider, className, alwaysShowSelect = false }) {
   const { activeOrgId } = useOrgWorkspace()
   const [connections, setConnections] = useState([])
   const [effectiveId, setEffectiveId] = useState('')
@@ -66,7 +66,7 @@ export default function ChannelAccountPicker({ provider, className }) {
     )
   }
 
-  if (connections.length === 1) {
+  if (connections.length === 1 && !alwaysShowSelect) {
     const one = connections[0]
     const label = one.external_name?.trim() || one.external_id
     return (

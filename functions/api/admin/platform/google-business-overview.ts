@@ -232,8 +232,10 @@ export async function onRequestGet(context: {
     })
   }
 
+  const preferredGmbAccountId = url.searchParams.get('gmb_account_id')?.trim() || null
+
   try {
-    const body = await buildBody(access, 'worker_env', null, null, locationId, range)
+    const body = await buildBody(access, 'worker_env', preferredGmbAccountId, null, locationId, range)
     return json(body)
   } catch (e) {
     return json({

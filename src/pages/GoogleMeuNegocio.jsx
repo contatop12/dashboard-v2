@@ -4,6 +4,10 @@ import { cn } from '@/lib/utils'
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
+import WorkerSecretsAccountPicker, {
+  readWorkerGmbQueryFromStorage,
+} from '@/components/WorkerSecretsAccountPicker'
+import { useAuth } from '@/context/AuthContext'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
 import { buildPlatformOverviewUrl } from '@/lib/platformOverviewUrl'
@@ -96,33 +100,57 @@ function LocationPicker({ selectedLocationId, onChange }) {
   )
 }
 
-function GmbHeader({ selectedLocationId, onLocationChange }) {
+function GmbPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange, selectedLocationId, onLocationChange }) {
+  const { user } = useAuth()
+  const { activeOrgId } = useOrgWorkspace()
+  const secretsMode = user?.role === 'super_admin' && !activeOrgId
+
   return (
     <header className="shrink-0 border-b border-white/[0.06] py-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#34A853]">Google Meu Negócio</span>
-          <span className="text-white/20" aria-hidden>·</span>
-          <SuperAdminAccountTitle
-            className="min-w-0 max-w-[min(100%,20rem)] text-left"
-            size="sm"
-            endpoint="/api/admin/platform/google-business-overview"
-            emptyLabel="Perfil Google Business"
-          />
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#34A853]">
+            Google Meu Negócio
+          </span>
+          {!secretsMode ? (
+            <>
+              <span className="text-white/20" aria-hidden>
+                ·
+              </span>
+              <SuperAdminAccountTitle
+                className="min-w-0 max-w-[min(100%,20rem)] text-left"
+                size="sm"
+                endpoint="/api/admin/platform/google-business-overview"
+                emptyLabel="Perfil Google Business"
+                workerPlatformQuery={workerPlatformQuery}
+                syncOverviewDates
+              />
+            </>
+          ) : null}
         </div>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="flex min-w-[12rem] flex-1 flex-wrap items-center justify-end gap-2">
+          <WorkerSecretsAccountPicker
+            compact
+            provider="google_business"
+            onWorkerQueryChange={onWorkerPlatformQueryChange}
+          />
           <LocationPicker selectedLocationId={selectedLocationId} onChange={onLocationChange} />
-          <ChannelAccountPicker provider="google_business" className="shrink-0" />
+          <ChannelAccountPicker provider="google_business" className="shrink-0" alwaysShowSelect />
         </div>
       </div>
     </header>
   )
 }
 
-function GmbInner({ selectedLocationId, onLocationChange }) {
+function GmbInner({ workerPlatformQuery, onWorkerPlatformQueryChange, selectedLocationId, onLocationChange }) {
   return (
     <div className="flex min-h-full min-w-0 flex-col">
-      <GmbHeader selectedLocationId={selectedLocationId} onLocationChange={onLocationChange} />
+      <GmbPageHeader
+        workerPlatformQuery={workerPlatformQuery}
+        onWorkerPlatformQueryChange={onWorkerPlatformQueryChange}
+        selectedLocationId={selectedLocationId}
+        onLocationChange={onLocationChange}
+      />
       <div className="min-h-0 flex-1">
         <DashboardGrid definitions={GMB_DASHBOARD_BLOCKS} className="min-h-full" />
       </div>
@@ -134,22 +162,31 @@ export default function GoogleMeuNegocio() {
   const { activeOrgId } = useOrgWorkspace()
   const { dateRange, compareDateRange, comparePrimaryKpi } = useDashboardFilters()
   const [selectedLocationId, setSelectedLocationId] = useState(null)
+  const [workerPlatformQuery, setWorkerPlatformQuery] = useState(() =>
+    typeof window !== 'undefined' ? readWorkerGmbQueryFromStorage() : ''
+  )
 
   const overviewUrl = useMemo(
     () =>
       buildPlatformOverviewUrl('/api/admin/platform/google-business-overview', {
         orgId: activeOrgId,
+        workerQuery: workerPlatformQuery,
         dateRange,
         compareDateRange,
         compareEnabled: comparePrimaryKpi,
         filters: { locationId: selectedLocationId },
       }),
-    [activeOrgId, dateRange, compareDateRange, comparePrimaryKpi, selectedLocationId]
+    [activeOrgId, workerPlatformQuery, dateRange, compareDateRange, comparePrimaryKpi, selectedLocationId]
   )
 
   return (
     <PlatformOverviewProvider url={overviewUrl}>
-      <GmbInner selectedLocationId={selectedLocationId} onLocationChange={setSelectedLocationId} />
+      <GmbInner
+        workerPlatformQuery={workerPlatformQuery}
+        onWorkerPlatformQueryChange={setWorkerPlatformQuery}
+        selectedLocationId={selectedLocationId}
+        onLocationChange={setSelectedLocationId}
+      />
     </PlatformOverviewProvider>
   )
 }
