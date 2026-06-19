@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useId } from 'react'
 import { format, parse } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
@@ -10,9 +10,11 @@ import {
   TrendingUp,
   Wallet,
 } from 'lucide-react'
-import { cn, formatNumber } from '@/lib/utils'
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
+import { cn, formatCurrency, formatNumber } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
+import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 import { Switch } from '@/components/ui/Switch'
 import MetaAnalysisPanel from '@/components/MetaAnalysisPanel'
 import {
@@ -30,13 +32,30 @@ import {
 } from '@/lib/metaMetricsPreferences'
 import { buildMetaMetricsView } from '@/lib/metaMetricsCompute'
 
+const META_HERO_KEYS = ['invest', 'conversions', 'costPerResult', 'conversionRate']
+const META_SECONDARY_KEYS = [
+  { key: 'impressions', label: 'Impressões', higherIsBetter: true },
+  { key: 'linkClicks', label: 'Cliques', higherIsBetter: true },
+  { key: 'cpcLink', label: 'CPC Médio', higherIsBetter: false },
+  { key: 'ctrLink', label: 'CTR', higherIsBetter: true },
+]
+
 const META_HERO_STYLES = {
   invest: { tone: 'google-blue', icon: Wallet, higherIsBetter: true },
   conversions: { tone: 'google-green', icon: Target, higherIsBetter: true },
   costPerResult: { tone: 'google-amber', icon: Wallet, higherIsBetter: false },
   conversionRate: { tone: 'google-purple', icon: Percent, higherIsBetter: true },
-  conversionValue: { tone: 'google-blue', icon: Wallet, higherIsBetter: true },
-  roas: { tone: 'google-green', icon: Target, higherIsBetter: true },
+}
+
+const COMPACT_NUMBER = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 })
+
+function formatDayLabel(dateStr) {
+  if (!dateStr) return '—'
+  try {
+    return format(parse(dateStr, 'yyyy-MM-dd', new Date()), 'dd/MM', { locale: ptBR })
+  } catch {
+    return dateStr
+  }
 }
 
 function formatRangeLabel(apiRange, fallbackStart, fallbackEnd) {
@@ -53,6 +72,125 @@ function formatRangeLabel(apiRange, fallbackStart, fallbackEnd) {
     return `${format(fallbackStart, 'd MMM', { locale: ptBR })} – ${format(fallbackEnd, 'd MMM yyyy', { locale: ptBR })}`
   }
   return null
+}
+
+function summarizeDailySeries(daily, valueKey) {
+  if (!Array.isArray(daily) || daily.length === 0) return null
+  const rows = daily.map((d) => ({
+    date: d.date,
+    value: Number(d[valueKey]) || 0,
+  }))
+  const total = rows.reduce((s, r) => s + r.value, 0)
+  const avg = total / rows.length
+  let peak = rows[0]
+  let low = rows[0]
+  for (const r of rows) {
+    if (r.value > peak.value) peak = r
+    if (r.value < low.value) low = r
+  }
+  return { avg, peak, low, count: rows.length }
+}
+
+function DailyTrendTooltip({ active, payload, label, formatValue }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="rounded-lg border border-surface-border bg-surface-card px-3 py-2 text-xs shadow-xl">
+      <p className="mb-1 font-sans text-muted-foreground">Dia {label}</p>
+      <p className="font-mono font-semibold tabular-nums text-white">
+        {formatValue(Number(payload[0]?.value) || 0)}
+      </p>
+    </div>
+  )
+}
+
+function DailyTrendCard({ title, subtitle, daily, valueKey, formatValue, formatAxis, color }) {
+  const gid = useId().replace(/:/g, '')
+  const summary = useMemo(() => summarizeDailySeries(daily, valueKey), [daily, valueKey])
+  const chartData = useMemo(() => {
+    if (!Array.isArray(daily)) return []
+    return daily.map((d) => ({
+      dia: formatDayLabel(d.date),
+      valor: Number(d[valueKey]) || 0,
+    }))
+  }, [daily, valueKey])
+
+  if (!summary) {
+    return (
+      <div className="google-trend-card items-start justify-between">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</span>
+          <span className="text-[10px] text-muted-foreground/80 font-sans">{subtitle}</span>
+        </div>
+        <span className="text-[10px] text-muted-foreground font-sans">Sem dados no período.</span>
+      </div>
+    )
+  }
+
+  const { avg, peak, low, count } = summary
+
+  return (
+    <div className="google-trend-card">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</span>
+          <p className="font-mono text-xl font-bold tabular-nums text-foreground">{formatValue(avg)}</p>
+          <span className="text-[10px] text-muted-foreground/85 font-sans">
+            {subtitle} · {count} dias
+          </span>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-0.5 text-[10px] font-sans text-muted-foreground">
+          <span>
+            Pico{' '}
+            <strong className="font-mono font-medium text-foreground/90">{formatValue(peak.value)}</strong>
+            {peak.date ? ` (${formatDayLabel(peak.date)})` : ''}
+          </span>
+          <span>
+            Mín.{' '}
+            <strong className="font-mono font-medium text-foreground/90">{formatValue(low.value)}</strong>
+            {low.date ? ` (${formatDayLabel(low.date)})` : ''}
+          </span>
+        </div>
+      </div>
+      <div className="mt-2 h-28 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id={`meta-trend-${gid}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+                <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+            <XAxis
+              dataKey="dia"
+              tick={{ fontSize: 9, fill: '#666', fontFamily: 'Outfit' }}
+              tickLine={false}
+              axisLine={false}
+              interval="preserveStartEnd"
+              minTickGap={28}
+            />
+            <YAxis
+              tick={{ fontSize: 9, fill: '#666', fontFamily: 'JetBrains Mono' }}
+              tickLine={false}
+              axisLine={false}
+              width={42}
+              tickFormatter={formatAxis}
+            />
+            <Tooltip content={<DailyTrendTooltip formatValue={formatValue} />} />
+            <Area
+              type="monotone"
+              dataKey="valor"
+              stroke={color}
+              strokeWidth={2}
+              fill={`url(#meta-trend-${gid})`}
+              dot={false}
+              activeDot={{ r: 3, fill: color, strokeWidth: 0 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  )
 }
 
 function DeltaBadge({ deltaPct, higherIsBetter = true }) {
@@ -122,57 +260,14 @@ function SecondaryMetric({ label, data, loading, showDelta, higherIsBetter = tru
   )
 }
 
-function VideoRetentionPanel({ data }) {
-  const items = [
-    { pct: '25%', value: data?.p25 ?? 0 },
-    { pct: '50%', value: data?.p50 ?? 0 },
-    { pct: '75%', value: data?.p75 ?? 0 },
-    { pct: '100%', value: data?.p100 ?? 0 },
-  ]
-  const max = Math.max(...items.map((i) => i.value), 1)
-
-  return (
-    <div className="rounded-lg border border-white/[0.06] bg-surface-card/90 p-4">
-      <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          Retenção de vídeo
-        </span>
-      </div>
-      <p className="mb-4 text-[10px] text-muted-foreground">
-        Reproduções que atingiram 25%, 50%, 75% e 100% do vídeo
-      </p>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {items.map((item) => (
-          <div key={item.pct} className="flex flex-col gap-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="font-mono text-lg font-semibold text-foreground">{formatNumber(item.value)}</span>
-              <span className="text-[10px] font-semibold text-brand">{item.pct}</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-surface-hover">
-              <div
-                className="h-full rounded-full bg-brand transition-all"
-                style={{ width: `${Math.max(4, (item.value / max) * 100)}%` }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 function CustomizePanel({ visibility, onChange, onReset }) {
   const tiers = ['primary', 'secondary', 'panel']
 
   return (
     <div className="rounded-lg border border-white/[0.08] bg-[#141414] p-4">
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-medium text-foreground">Exibir / ocultar métricas</span>
-        <button
-          type="button"
-          onClick={onReset}
-          className="text-[10px] text-brand hover:text-brand/80"
-        >
+        <span className="text-xs font-medium text-foreground">Exibir / ocultar métricas extras</span>
+        <button type="button" onClick={onReset} className="text-[10px] text-brand hover:text-brand/80">
           Restaurar padrão
         </button>
       </div>
@@ -227,39 +322,35 @@ function CustomizePanel({ visibility, onChange, onReset }) {
 }
 
 export default function MetaMetricsPanel() {
+  const period = useDashboardBlockPeriod()
+  const { comparePrimaryKpi, compareDateRange, dateRange } = useDashboardFilters()
   const { loading, data } = usePlatformOverview()
-  const { comparePrimaryKpi, dateRange } = useDashboardFilters()
+  const isPrevious = period === 'previous'
   const [conversionId, setConversionId] = useState(readMetaConversionType)
   const [visibility, setVisibility] = useState(readMetaMetricsVisibility)
   const [customizeOpen, setCustomizeOpen] = useState(false)
 
-  const view = useMemo(
-    () =>
-      buildMetaMetricsView(
-        data?.metaMetricsRaw,
-        data?.metaMetricsCompareRaw,
-        conversionId,
-        comparePrimaryKpi
-      ),
-    [data?.metaMetricsRaw, data?.metaMetricsCompareRaw, conversionId, comparePrimaryKpi]
+  const view = useMemo(() => {
+    const raw = isPrevious ? data?.metaMetricsCompareRaw : data?.metaMetricsRaw
+    const compareRaw = isPrevious ? null : data?.metaMetricsCompareRaw
+    return buildMetaMetricsView(raw, compareRaw, conversionId, comparePrimaryKpi && !isPrevious)
+  }, [data?.metaMetricsRaw, data?.metaMetricsCompareRaw, conversionId, comparePrimaryKpi, isPrevious])
+
+  const daily = useMemo(
+    () => (isPrevious ? data?.compareDaily : data?.daily) ?? [],
+    [isPrevious, data?.compareDaily, data?.daily]
   )
+
+  const showDeltas = comparePrimaryKpi && !isPrevious
+  const rangeLabel = useMemo(() => {
+    if (isPrevious) {
+      return formatRangeLabel(data?.compareRange, compareDateRange.start, compareDateRange.end)
+    }
+    return formatRangeLabel(data?.primaryRange, dateRange.start, dateRange.end)
+  }, [isPrevious, data?.compareRange, data?.primaryRange, compareDateRange, dateRange])
 
   const qualityText = data?.qualityRanking ?? 'Sem ranking no período'
-  const showDeltas = comparePrimaryKpi
-  const rangeLabel = useMemo(
-    () => formatRangeLabel(data?.primaryRange, dateRange.start, dateRange.end),
-    [data?.primaryRange, dateRange]
-  )
-
-  const primaryKeys = Object.keys(META_METRIC_DEFS).filter(
-    (k) => META_METRIC_DEFS[k].tier === 'primary' && visibility[k] && view.primary[k]
-  )
-  const secondaryKeys = [
-    ...Object.keys(META_METRIC_DEFS).filter(
-      (k) => META_METRIC_DEFS[k].tier === 'secondary' && visibility[k] && view.secondary[k]
-    ),
-    ...META_ADDABLE_METRICS.map((m) => m.key).filter((k) => visibility[k] && view.secondary[k]),
-  ]
+  const hasComparePayload = data?.metaMetricsRaw != null
 
   const onConversionChange = (id) => {
     setConversionId(id)
@@ -271,33 +362,52 @@ export default function MetaMetricsPanel() {
     writeMetaMetricsVisibility(next)
   }
 
-  if (loading) {
+  if (isPrevious && !loading && !hasComparePayload) {
     return (
-      <div className="google-metrics-panel">
+      <div className="google-metrics-panel google-metrics-panel--compare rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center">
+        <p className="text-xs font-medium text-foreground">Sem dados para o período de comparação</p>
+        <p className="mt-1 text-[11px] text-muted-foreground font-sans">
+          Ajuste as datas em &quot;vs …&quot; no topo ou confira se a conta tinha entrega nesse intervalo.
+        </p>
+      </div>
+    )
+  }
+
+  if (loading && !data?.metaMetricsRaw) {
+    return (
+      <div className={cn('google-metrics-panel', isPrevious && 'google-metrics-panel--compare')}>
         <p className="text-xs text-muted-foreground">Carregando métricas…</p>
       </div>
     )
   }
 
   return (
-    <div className="google-metrics-panel">
+    <div className={cn('google-metrics-panel', isPrevious && 'google-metrics-panel--compare')}>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-400/90">Visão geral</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-400/90">
+            {isPrevious ? 'Período de comparação' : 'Visão geral'}
+          </p>
           <p className="mt-0.5 text-xs text-muted-foreground font-sans">
-            Performance da conta Meta no período selecionado
+            {isPrevious
+              ? 'Valores absolutos do intervalo selecionado para comparar com o período principal'
+              : 'Performance da conta Meta no período selecionado'}
           </p>
           {rangeLabel ? (
             <p className="mt-1 font-mono text-[10px] tabular-nums text-foreground/75">{rangeLabel}</p>
           ) : null}
         </div>
-        {!comparePrimaryKpi ? (
+        {!isPrevious && !comparePrimaryKpi ? (
           <span className="text-[10px] text-muted-foreground/80 font-sans">
             Ative &quot;Comparar KPIs&quot; para variação vs período anterior
           </span>
-        ) : (
+        ) : !isPrevious ? (
           <span className="rounded-md bg-brand/10 px-2 py-0.5 text-[10px] font-medium text-brand">
             Variação vs comparação
+          </span>
+        ) : (
+          <span className="rounded-md bg-white/[0.06] px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            Referência (sem variação)
           </span>
         )}
       </div>
@@ -305,7 +415,7 @@ export default function MetaMetricsPanel() {
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Conversão
+            Tipo de resultado
           </span>
           <select
             value={conversionId}
@@ -339,47 +449,86 @@ export default function MetaMetricsPanel() {
         </div>
       ) : null}
 
-      {primaryKeys.length > 0 ? (
-        <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-          {primaryKeys.map((key) => (
-            <HeroMetric
-              key={key}
-              metricKey={key}
-              label={view.primary[key]?.label ?? META_METRIC_DEFS[key]?.label ?? key}
-              data={view.primary[key]}
-              loading={loading}
-              showDelta={showDeltas}
-            />
-          ))}
+      <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {META_HERO_KEYS.map((key) => (
+          <HeroMetric
+            key={key}
+            metricKey={key}
+            label={view.primary[key]?.label ?? META_METRIC_DEFS[key]?.label ?? key}
+            data={view.primary[key]}
+            loading={loading}
+            showDelta={showDeltas}
+          />
+        ))}
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {META_SECONDARY_KEYS.map(({ key, label, higherIsBetter }) => (
+          <SecondaryMetric
+            key={key}
+            label={label}
+            data={view.secondary[key]}
+            loading={loading}
+            showDelta={showDeltas}
+            higherIsBetter={higherIsBetter}
+          />
+        ))}
+      </div>
+
+      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <DailyTrendCard
+          title="Investimento diário"
+          subtitle="Gasto médio por dia no período"
+          daily={daily}
+          valueKey="spend"
+          color={isPrevious ? '#8AB4F8' : '#1877F2'}
+          formatValue={(v) => formatCurrency(v)}
+          formatAxis={(v) => `R$${COMPACT_NUMBER.format(Number(v) || 0)}`}
+        />
+        <DailyTrendCard
+          title="Cliques diários"
+          subtitle="Volume médio de cliques por dia"
+          daily={daily}
+          valueKey="clicks"
+          color={isPrevious ? '#81C995' : '#34A853'}
+          formatValue={(v) => formatNumber(Math.round(v))}
+          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
+        />
+        <DailyTrendCard
+          title="Alcance diário"
+          subtitle="Alcance médio por dia no período"
+          daily={daily}
+          valueKey="reach"
+          color={isPrevious ? '#FDD663' : '#F5C518'}
+          formatValue={(v) => formatNumber(Math.round(v))}
+          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
+        />
+      </div>
+
+      {visibility.videoRetention && view.panels.videoRetention && !isPrevious ? (
+        <div className="mb-4 rounded-lg border border-white/[0.06] bg-surface-card/90 p-4">
+          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Retenção de vídeo
+          </p>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {[
+              { pct: '25%', value: view.panels.videoRetention.p25 ?? 0 },
+              { pct: '50%', value: view.panels.videoRetention.p50 ?? 0 },
+              { pct: '75%', value: view.panels.videoRetention.p75 ?? 0 },
+              { pct: '100%', value: view.panels.videoRetention.p100 ?? 0 },
+            ].map((item) => (
+              <div key={item.pct} className="flex flex-col gap-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-mono text-lg font-semibold text-foreground">{formatNumber(item.value)}</span>
+                  <span className="text-[10px] font-semibold text-brand">{item.pct}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
 
-      {secondaryKeys.length > 0 ? (
-        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {secondaryKeys.map((key) => {
-            const def = META_METRIC_DEFS[key] ?? META_ADDABLE_METRICS.find((m) => m.key === key)
-            const lowerIsBetter = key === 'cpcLink' || key === 'cpcAll' || key === 'cpm' || key === 'frequency'
-            return (
-              <SecondaryMetric
-                key={key}
-                label={def?.label ?? key}
-                data={view.secondary[key]}
-                loading={loading}
-                showDelta={showDeltas}
-                higherIsBetter={!lowerIsBetter}
-              />
-            )
-          })}
-        </div>
-      ) : null}
-
-      {visibility.videoRetention && view.panels.videoRetention ? (
-        <div className="mb-4">
-          <VideoRetentionPanel data={view.panels.videoRetention} />
-        </div>
-      ) : null}
-
-      {visibility.qualityRanking ? (
+      {visibility.qualityRanking && !isPrevious ? (
         <div className="mb-4 rounded-lg border border-white/[0.06] bg-surface-card/90 px-4 py-3">
           <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Índice de qualidade (Meta)
@@ -388,7 +537,11 @@ export default function MetaMetricsPanel() {
         </div>
       ) : null}
 
-      <MetaAnalysisPanel embedded />
+      {!isPrevious ? (
+        <div className="mb-4">
+          <MetaAnalysisPanel />
+        </div>
+      ) : null}
     </div>
   )
 }

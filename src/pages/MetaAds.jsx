@@ -17,6 +17,8 @@ import WorkerSecretsAccountPicker, {
   readWorkerMetaQueryFromStorage,
 } from '@/components/WorkerSecretsAccountPicker'
 import MetaMetricsPanel from '@/components/MetaMetricsPanel'
+import { MetaPlacementsBlock } from '@/components/MetaAnalysisPanel'
+import { MetaAdsetResultsTable } from '@/components/MetaAdsetResultsTable'
 import { MonthlyAccountResultsTable } from '@/components/MonthlyAccountResultsTable'
 import {
   readMetaCreativesSort,
@@ -92,6 +94,8 @@ function MetaCampaignsBlock() {
       <CampaignTree
         tree={visibleTree}
         onToggleStatus={(node) => setPendingToggle(node)}
+        resultsLabel="Resultados"
+        platform="meta"
       />
       <ConfirmDialog
         open={!!pendingToggle}
@@ -233,54 +237,74 @@ function MetaCreativesCarouselBlock() {
   )
 }
 
-function buildMetaDefinitions() {
-  return [
-    {
-      id: 'meta-metrics',
-      tier: 'primary',
-      defaultColSpan: 8,
-      defaultRowSpan: 8,
-      minColSpan: 4,
-      maxColSpan: 8,
-      minRowSpan: 5,
-      maxRowSpan: 12,
-      render: () => <MetaMetricsPanel />,
-    },
-    {
-      id: 'meta-creatives',
-      tier: 'secondary',
-      defaultColSpan: 8,
-      defaultRowSpan: 2,
-      minColSpan: 2,
-      maxColSpan: 8,
-      minRowSpan: 2,
-      maxRowSpan: 8,
-      render: () => <MetaCreativesCarouselBlock />,
-    },
-    {
-      id: 'meta-campaigns',
-      tier: 'secondary',
-      defaultColSpan: 8,
-      defaultRowSpan: 3,
-      minColSpan: 2,
-      maxColSpan: 8,
-      minRowSpan: 2,
-      maxRowSpan: 10,
-      render: () => <MetaCampaignsBlock />,
-    },
-    {
-      id: 'meta-monthly-results',
-      tier: 'secondary',
-      defaultColSpan: 8,
-      defaultRowSpan: 4,
-      minColSpan: 2,
-      maxColSpan: 8,
-      minRowSpan: 3,
-      maxRowSpan: 12,
-      render: () => <MonthlyAccountResultsTable platform="meta" />,
-    },
-  ]
-}
+const META_DASHBOARD_BLOCKS = [
+  {
+    id: 'meta-metrics',
+    tier: 'primary',
+    defaultColSpan: 8,
+    defaultRowSpan: 4,
+    minColSpan: 4,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 6,
+    render: () => <MetaMetricsPanel />,
+  },
+  {
+    id: 'meta-campaigns-tree',
+    tier: 'secondary',
+    defaultColSpan: 8,
+    defaultRowSpan: 5,
+    minColSpan: 4,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 12,
+    render: () => <MetaCampaignsBlock />,
+  },
+  {
+    id: 'meta-adset-results',
+    tier: 'secondary',
+    defaultColSpan: 8,
+    defaultRowSpan: 4,
+    minColSpan: 4,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 10,
+    render: () => <MetaAdsetResultsTable />,
+  },
+  {
+    id: 'meta-creatives',
+    tier: 'secondary',
+    defaultColSpan: 8,
+    defaultRowSpan: 3,
+    minColSpan: 2,
+    maxColSpan: 8,
+    minRowSpan: 2,
+    maxRowSpan: 8,
+    render: () => <MetaCreativesCarouselBlock />,
+  },
+  {
+    id: 'meta-placements',
+    tier: 'secondary',
+    defaultColSpan: 4,
+    defaultRowSpan: 4,
+    minColSpan: 2,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 10,
+    render: () => <MetaPlacementsBlock />,
+  },
+  {
+    id: 'meta-monthly-results',
+    tier: 'secondary',
+    defaultColSpan: 8,
+    defaultRowSpan: 4,
+    minColSpan: 2,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 12,
+    render: () => <MonthlyAccountResultsTable platform="meta" />,
+  },
+]
 
 function MetaAdsPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange }) {
   const { user } = useAuth()
@@ -323,7 +347,9 @@ function MetaAdsPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange })
   )
 }
 
-function MetaAdsInner({ workerPlatformQuery, onWorkerPlatformQueryChange, definitions }) {
+function MetaAdsInner({ workerPlatformQuery, onWorkerPlatformQueryChange }) {
+  const definitions = useMemo(() => META_DASHBOARD_BLOCKS, [])
+
   return (
     <div className="flex min-h-full min-w-0 flex-col">
       <MetaAdsPageHeader
@@ -343,7 +369,6 @@ export default function MetaAds() {
   )
   const { activeOrgId } = useOrgWorkspace()
   const { dateRange, compareDateRange, comparePrimaryKpi, dimensionFilters } = useDashboardFilters()
-  const definitions = useMemo(() => buildMetaDefinitions(), [])
 
   // Traduz seleção do FilterBar em params do overview (campanha explícita ganha de objetivo).
   const apiFilters = useMemo(() => {
@@ -373,7 +398,6 @@ export default function MetaAds() {
       <MetaAdsInner
         workerPlatformQuery={workerPlatformQuery}
         onWorkerPlatformQueryChange={setWorkerPlatformQuery}
-        definitions={definitions}
       />
     </PlatformOverviewProvider>
   )
