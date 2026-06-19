@@ -1,8 +1,13 @@
 import { useRef } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import CreativeMediaPreview from '@/components/CreativeMediaPreview'
+import { normalizeCreativeMedia } from '@/lib/creativeMedia'
 
 function CreativeCard({ card }) {
+  const media = normalizeCreativeMedia(card)
+  const hasMedia = media.previewUrl || media.thumbnailUrl || media.imageUrl
+
   return (
     <div
       className="flex flex-col shrink-0 w-52 rounded-xl overflow-hidden bg-surface-input border border-surface-border hover:border-brand/40 transition-all duration-200 group"
@@ -10,14 +15,14 @@ function CreativeCard({ card }) {
     >
       {/* Thumbnail */}
       <div className="relative w-full" style={{ aspectRatio: '4/5', background: card.gradient }}>
-        {card.image ? (
-          <img
-            src={card.image}
+        {hasMedia ? (
+          <CreativeMediaPreview
+            mediaType={media.mediaType}
+            imageUrl={media.imageUrl}
+            thumbnailUrl={media.thumbnailUrl}
+            previewUrl={media.previewUrl}
             alt={card.name}
-            referrerPolicy="no-referrer"
             sizes="(max-width: 768px) 45vw, 208px"
-            decoding="async"
-            className="h-full w-full object-cover"
           />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 opacity-40">

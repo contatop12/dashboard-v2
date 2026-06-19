@@ -15,7 +15,7 @@ import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
-const MONTHLY_PAGE_SIZE = 3
+const MONTHLY_PAGE_SIZE = 12
 
 const BAR_COLORS = {
   impressoes: '#4A9BFF',
@@ -119,6 +119,65 @@ function aggregateGoogleByMonth(daily) {
       valorPorConversao: r.conversions > 0 ? r.conversionsValue / r.conversions : null,
     }))
     .sort((a, b) => b.monthKey.localeCompare(a.monthKey))
+}
+
+function aggregateInstagramByMonth(daily) {
+  if (!Array.isArray(daily)) return []
+  const map = new Map()
+  for (const d of daily) {
+    const date = String(d.date ?? '').trim()
+    if (!date || date.length < 7) continue
+    const ym = date.slice(0, 7)
+    const cur = map.get(ym) ?? {
+      monthKey: ym,
+      impressions: 0,
+      clicks: 0,
+      spend: 0,
+      conversions: 0,
+      conversionsValue: 0,
+    }
+    cur.impressions += Math.round(Number(d.impressions) || 0)
+    cur.clicks += Math.round(Number(d.interactions) || 0)
+    cur.conversions += Math.round(Number(d.accountsEngaged) || 0)
+    cur.conversionsValue += Math.round(Number(d.reach) || 0)
+    map.set(ym, cur)
+  }
+  return [...map.values()]
+    .map((r) => ({
+      ...r,
+      monthLabel: monthLabelPt(r.monthKey),
+      cpc: null,
+      ctr: r.impressions > 0 ? (r.clicks / r.impressions) * 100 : null,
+      custoPorConversao: null,
+      taxaConversao: r.impressions > 0 ? (r.conversions / r.impressions) * 100 : null,
+      valorPorConversao: r.conversions > 0 ? r.clicks / r.conversions : null,
+    }))
+    .sort((a, b) => b.monthKey.localeCompare(a.monthKey))
+}
+
+function enrichInstagramMonthlyRows(items) {
+  if (!Array.isArray(items)) return []
+  return items
+    .map((r) => ({
+      monthKey: String(r.monthKey ?? ''),
+      monthLabel: monthLabelPt(String(r.monthKey ?? '')),
+      impressions: Math.round(Number(r.impressions) || 0),
+      clicks: Math.round(Number(r.clicks) || 0),
+      spend: 0,
+      conversions: Math.round(Number(r.conversions) || 0),
+      conversionsValue: Math.round(Number(r.conversionsValue) || 0),
+      cpc: null,
+      ctr: null,
+      custoPorConversao: null,
+      taxaConversao: null,
+      valorPorConversao: null,
+    }))
+    .map((r) => ({
+      ...r,
+      ctr: r.impressions > 0 ? (r.clicks / r.impressions) * 100 : null,
+      taxaConversao: r.impressions > 0 ? (r.conversions / r.impressions) * 100 : null,
+      valorPorConversao: r.conversions > 0 ? r.clicks / r.conversions : null,
+    }))
 }
 
 function aggregateMetaByMonth(daily) {
@@ -237,9 +296,17 @@ function nullableNumberSort(rowA, rowB, columnId) {
 const columnHelper = createColumnHelper()
 
 function buildColumns(platform) {
-  const convHeader = platform === 'meta' ? 'Leads' : 'Conversões'
-  const custoHeader = platform === 'meta' ? 'Custo / lead' : 'Custo / conv.'
-  const taxaHeader = platform === 'meta' ? 'Taxa leads' : 'Taxa conv.'
+  const convHeader =
+    platform === 'meta' ? 'Leads' : platform === 'instagram' ? 'Contas engajadas' : 'Conversões'
+  const custoHeader =
+    platform === 'meta' ? 'Custo / lead' : platform === 'instagram' ? '—' : 'Custo / conv.'
+  const taxaHeader =
+    platform === 'meta'
+      ? 'Taxa leads'
+      : platform === 'instagram'
+        ? 'Taxa engajamento'
+        : 'Taxa conv.'
+  const clicksHeader = platform === 'instagram' ? 'Interações' : 'Cliques'
 
   return [
     columnHelper.accessor('monthKey', {
@@ -269,7 +336,7 @@ function buildColumns(platform) {
     }),
     columnHelper.accessor('clicks', {
       id: 'cliques',
-      header: 'Cliques',
+      header: clicksHeader,
       cell: (info) => {
         const v = Number(info.getValue()) || 0
         return (
@@ -420,18 +487,21 @@ const DEFAULT_SORT = [{ id: 'mes', desc: true }]
 export function MonthlyAccountResultsTable({ platform }) {
   const { loading, data } = usePlatformOverview()
   const daily = data?.daily
-  const monthlyPayload = platform === 'google' ? data?.monthlyResults : null
+  const monthlyPayload = data?.monthlyResults
   const monthlyErr =
-    platform === 'google' && typeof monthlyPayload?.error === 'string' && monthlyPayload.error.trim()
+    typeof monthlyPayload?.error === 'string' && monthlyPayload.error.trim()
       ? monthlyPayload.error.trim()
       : null
 
   const rows = useMemo(() => {
-    if (platform === 'google' && Array.isArray(monthlyPayload?.items)) {
+    if (Array.isArray(monthlyPayload?.items) && monthlyPayload.items.length > 0) {
+      if (platform === 'instagram') return enrichInstagramMonthlyRows(monthlyPayload.items)
       return enrichGoogleMonthlyRows(monthlyPayload.items)
     }
     if (platform === 'meta') return aggregateMetaByMonth(daily)
-    return aggregateGoogleByMonth(daily)
+    if (platform === 'instagram') return aggregateInstagramByMonth(daily)
+    if (platform === 'google') return aggregateGoogleByMonth(daily)
+    return []
   }, [daily, platform, monthlyPayload?.items])
 
   const maxes = useMemo(() => computeColumnMaxes(rows), [rows])
@@ -459,7 +529,22 @@ export function MonthlyAccountResultsTable({ platform }) {
     if (saved && typeof saved === 'object') {
       const next = { ...DEFAULT_VISIBILITY, ...saved, mes: true }
       if (platform === 'meta') next.valorPorConversao = false
+      if (platform === 'instagram') {
+        next.cpc = false
+        next.custo = false
+        next.custoPorConversao = false
+        next.valorPorConversao = false
+      }
       return next
+    }
+    if (platform === 'instagram') {
+      return {
+        ...DEFAULT_VISIBILITY,
+        cpc: false,
+        custo: false,
+        custoPorConversao: false,
+        valorPorConversao: false,
+      }
     }
     return { ...DEFAULT_VISIBILITY, valorPorConversao: platform === 'google' ? false : false }
   })
@@ -613,9 +698,9 @@ export function MonthlyAccountResultsTable({ platform }) {
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-surface-border px-3 py-3 sm:px-4">
         <div className="min-w-0">
           <span className="section-title">Resultados mensais da conta</span>
-          {platform === 'google' ? (
-            <p className="mt-0.5 text-[10px] text-muted-foreground font-sans">Últimos 12 meses · independente do filtro de datas</p>
-          ) : null}
+          <p className="mt-0.5 text-[10px] text-muted-foreground font-sans">
+            Últimos 12 meses · independente do filtro de datas
+          </p>
         </div>
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
@@ -670,7 +755,7 @@ export function MonthlyAccountResultsTable({ platform }) {
 
       {!loading && rows.length === 0 ? (
         <p className="px-3 py-8 text-center text-[11px] text-muted-foreground sm:px-4">
-          {platform === 'google'
+          {platform === 'google' || platform === 'meta' || platform === 'instagram'
             ? 'Sem dados mensais nos últimos 12 meses.'
             : 'Sem dados diários no período para montar os meses.'}
         </p>

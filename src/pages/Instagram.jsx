@@ -1,438 +1,106 @@
-import { Heart, MessageCircle, Share2, Users, TrendingUp, TrendingDown, Eye, Bookmark, UserPlus, Film, Image, Grid } from 'lucide-react'
-import CreativesCarousel from '@/components/CreativesCarousel'
-import { cn } from '@/lib/utils'
+import { useMemo, useState } from 'react'
+import { useAuth } from '@/context/AuthContext'
+import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
+import { useDashboardFilters } from '@/context/DashboardFiltersContext'
+import { buildPlatformOverviewUrl } from '@/lib/platformOverviewUrl'
+import { PlatformOverviewProvider, usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { formatNumber, formatPercent } from '@/lib/utils'
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts'
+import CreativesCarousel from '@/components/CreativesCarousel'
 import DashboardGrid from '@/components/DashboardGrid'
 import SuperAdminAccountTitle from '@/components/SuperAdminAccountTitle'
 import ChannelAccountPicker from '@/components/ChannelAccountPicker'
-import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
-import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
+import WorkerSecretsAccountPicker, {
+  readWorkerInstagramQueryFromStorage,
+} from '@/components/WorkerSecretsAccountPicker'
+import InstagramMetricsPanel from '@/components/InstagramMetricsPanel'
+import InstagramTopPostsTable from '@/components/InstagramTopPostsTable'
+import { MonthlyAccountResultsTable } from '@/components/MonthlyAccountResultsTable'
 
-const kpis = [
-  { label: 'Seguidores', value: '12.840', delta: +4.2, icon: Users },
-  { label: 'Alcance', value: '45.200', delta: +22.1, icon: Eye },
-  { label: 'Impressões', value: '78.500', delta: +18.4, icon: Eye },
-  { label: 'Engajamento', value: '3.8%', delta: +0.5, icon: Heart },
-  { label: 'Curtidas', value: '4.280', delta: +12.3, icon: Heart },
-  { label: 'Comentários', value: '312', delta: +8.9, icon: MessageCircle },
-  { label: 'Salvamentos', value: '890', delta: +31.2, icon: Bookmark },
-  { label: 'Novos Seguidores', value: '+348', delta: +15.6, icon: UserPlus },
-]
+function InstagramPostsCarouselBlock() {
+  const { data } = usePlatformOverview()
+  const posts = Array.isArray(data?.posts) ? data.posts : []
 
-const kpisPrevious = [
-  { label: 'Seguidores', value: '12.180', delta: +2.1, icon: Users },
-  { label: 'Alcance', value: '38.900', delta: +12.4, icon: Eye },
-  { label: 'Impressões', value: '69.200', delta: +9.8, icon: Eye },
-  { label: 'Engajamento', value: '3.5%', delta: -0.2, icon: Heart },
-  { label: 'Curtidas', value: '3.810', delta: +6.2, icon: Heart },
-  { label: 'Comentários', value: '278', delta: +3.4, icon: MessageCircle },
-  { label: 'Salvamentos', value: '720', delta: +18.0, icon: Bookmark },
-  { label: 'Novos Seguidores', value: '+301', delta: +8.2, icon: UserPlus },
-]
+  const cards = useMemo(
+    () =>
+      posts.map((p) => ({
+        name: p.name,
+        tag: p.tag,
+        tagBg: p.tagBg,
+        tagColor: p.tagColor,
+        imageUrl: p.mediaUrl,
+        thumbnailUrl: p.thumbnailUrl,
+        mediaType: p.mediaType?.toLowerCase?.().includes('video') ? 'video' : 'image',
+        metrics: [
+          { label: 'Alcance', value: formatNumber(p.reach || p.impressions), highlight: true },
+          { label: 'Curtidas', value: formatNumber(p.likes) },
+          { label: 'Taxa Eng.', value: formatPercent(p.engagementRate) },
+        ],
+      })),
+    [posts]
+  )
 
-const dailyData = [
-  { dia: '01', alcance: 1200, impressoes: 2100, engajamento: 3.5 },
-  { dia: '05', alcance: 1850, impressoes: 3200, engajamento: 4.1 },
-  { dia: '08', alcance: 980, impressoes: 1700, engajamento: 2.9 },
-  { dia: '10', alcance: 3200, impressoes: 5800, engajamento: 5.2 },
-  { dia: '12', alcance: 1540, impressoes: 2700, engajamento: 3.8 },
-  { dia: '15', alcance: 4100, impressoes: 7200, engajamento: 6.1 },
-  { dia: '17', alcance: 2200, impressoes: 3900, engajamento: 4.4 },
-  { dia: '19', alcance: 5300, impressoes: 9100, engajamento: 7.2 },
-  { dia: '22', alcance: 2800, impressoes: 4900, engajamento: 4.8 },
-  { dia: '24', alcance: 1600, impressoes: 2800, engajamento: 3.2 },
-  { dia: '26', alcance: 3500, impressoes: 6200, engajamento: 5.5 },
-  { dia: '28', alcance: 2100, impressoes: 3700, engajamento: 4.0 },
-  { dia: '31', alcance: 1300, impressoes: 2300, engajamento: 3.6 },
-]
-
-const contentTypes = [
-  { name: 'Reels', value: 42, color: '#FF6B6B' },
-  { name: 'Feed', value: 31, color: '#F5C518' },
-  { name: 'Stories', value: 20, color: '#9B8EFF' },
-  { name: 'Carrossel', value: 7, color: '#4A9BFF' },
-]
-
-const topPosts = [
-  { tipo: 'reel', desc: 'Dica de investimento #1', alcance: 8420, curtidas: 642, comentarios: 48, salvamentos: 234, taxa: 11.0 },
-  { tipo: 'carrossel', desc: '5 erros ao investir', alcance: 6180, curtidas: 498, comentarios: 67, salvamentos: 189, taxa: 12.2 },
-  { tipo: 'feed', desc: 'Resultado cliente — +47%', alcance: 5340, curtidas: 387, comentarios: 31, salvamentos: 145, taxa: 10.5 },
-  { tipo: 'reel', desc: 'Como montar sua reserva', alcance: 4920, curtidas: 356, comentarios: 29, salvamentos: 201, taxa: 12.0 },
-  { tipo: 'stories', desc: 'Quiz: Perfil investidor', alcance: 3800, curtidas: 0, comentarios: 0, salvamentos: 0, taxa: 8.2 },
-]
-
-const igPosts = [
-  {
-    name: 'Dica de investimento #1 — resultados surpreendentes',
-    gradient: 'linear-gradient(145deg, #4a0040 0%, #1a0015 100%)',
-    tag: 'Reel',
-    tagBg: '#FF6B6B25',
-    tagColor: '#FF6B6B',
-    metrics: [
-      { label: 'Alcance', value: '8.420', highlight: true },
-      { label: 'Curtidas', value: '642' },
-      { label: 'Taxa Eng.', value: '11,0%' },
-    ],
-  },
-  {
-    name: '5 erros que todo investidor comete',
-    gradient: 'linear-gradient(145deg, #1a3a5c 0%, #0d1b2a 100%)',
-    tag: 'Carrossel',
-    tagBg: '#4A9BFF25',
-    tagColor: '#4A9BFF',
-    metrics: [
-      { label: 'Alcance', value: '6.180', highlight: true },
-      { label: 'Curtidas', value: '498' },
-      { label: 'Taxa Eng.', value: '12,2%' },
-    ],
-  },
-  {
-    name: 'Resultado de cliente — +47% em 3 meses',
-    gradient: 'linear-gradient(145deg, #2d1b00 0%, #1a1000 100%)',
-    tag: 'Feed',
-    tagBg: '#F5C51825',
-    tagColor: '#F5C518',
-    metrics: [
-      { label: 'Alcance', value: '5.340', highlight: true },
-      { label: 'Curtidas', value: '387' },
-      { label: 'Taxa Eng.', value: '10,5%' },
-    ],
-  },
-  {
-    name: 'Como montar sua reserva de emergência',
-    gradient: 'linear-gradient(145deg, #0f3d2b 0%, #061a12 100%)',
-    tag: 'Reel',
-    tagBg: '#FF6B6B25',
-    tagColor: '#FF6B6B',
-    metrics: [
-      { label: 'Alcance', value: '4.920', highlight: true },
-      { label: 'Curtidas', value: '356' },
-      { label: 'Taxa Eng.', value: '12,0%' },
-    ],
-  },
-  {
-    name: 'Quiz: Descubra seu perfil de investidor',
-    gradient: 'linear-gradient(145deg, #1a1a4a 0%, #0a0a28 100%)',
-    tag: 'Stories',
-    tagBg: '#9B8EFF25',
-    tagColor: '#9B8EFF',
-    metrics: [
-      { label: 'Alcance', value: '3.800', highlight: true },
-      { label: 'Respostas', value: '147' },
-      { label: 'Taxa Eng.', value: '8,2%' },
-    ],
-  },
-  {
-    name: 'Tesouro Direto vs CDB — qual escolher?',
-    gradient: 'linear-gradient(145deg, #3d0a1a 0%, #200511 100%)',
-    tag: 'Carrossel',
-    tagBg: '#4A9BFF25',
-    tagColor: '#4A9BFF',
-    metrics: [
-      { label: 'Alcance', value: '4.210', highlight: true },
-      { label: 'Curtidas', value: '411' },
-      { label: 'Taxa Eng.', value: '13,1%' },
-    ],
-  },
-]
-
-const TIPO_ICONS = { reel: Film, carrossel: Grid, feed: Image, stories: Eye }
-const TIPO_COLORS = { reel: '#FF6B6B', carrossel: '#4A9BFF', feed: '#F5C518', stories: '#9B8EFF' }
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null
   return (
-    <div className="bg-surface-card border border-surface-border rounded-lg px-4 py-2 text-xs shadow-xl">
-      <p className="font-sans text-muted-foreground mb-2">Dia {label}</p>
-      {payload.map((p) => (
-        <div key={p.name} className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color }} />
-          <span className="font-sans text-muted-foreground">{p.name}:</span>
-          <span className="font-mono text-white font-semibold">{p.value}</span>
-        </div>
-      ))}
-    </div>
+    <CreativesCarousel
+      title="Publicações — Instagram"
+      badge={posts.length === 0 ? '0 no período' : `${posts.length} no período`}
+      cards={cards}
+      emptyMessage="Nenhuma publicação no período selecionado. Ajuste as datas ou publique novo conteúdo."
+    />
   )
 }
-
-function IgKpiCard({ index }) {
-  const period = useDashboardBlockPeriod()
-  const src = period === 'previous' ? kpisPrevious : kpis
-  const { label, value, delta } = src[index] ?? kpis[index]
-  const isPos = delta > 0
-  const isNeg = delta < 0
-  const deltaNote = period === 'previous' ? 'vs período ant.' : ''
-  return (
-    <div className="kpi-card min-h-0 w-full shrink-0">
-      <span className="kpi-label block truncate">{label}</span>
-      <span className="kpi-value block truncate tabular-nums">{value}</span>
-      <div className="kpi-delta-row min-w-0">
-        <div
-          className={cn(
-            'inline-flex shrink-0 items-center gap-1',
-            isPos ? 'text-green-400' : isNeg ? 'text-red-400' : 'text-muted-foreground'
-          )}
-        >
-          {isPos ? <TrendingUp size={12} strokeWidth={2} /> : isNeg ? <TrendingDown size={12} strokeWidth={2} /> : null}
-          <span>
-            {isPos ? '+' : ''}
-            {delta}%
-          </span>
-        </div>
-        {deltaNote ? <span className="kpi-delta-note min-w-0 truncate">{deltaNote}</span> : null}
-      </div>
-    </div>
-  )
-}
-
-function IgReachChart() {
-  return (
-    <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
-      <span className="section-title block mb-3 shrink-0">Alcance & Engajamento Diário</span>
-      <div className="h-44 flex-1 min-h-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={dailyData} margin={{ top: 2, right: 8, left: -20, bottom: 0 }}>
-            <defs>
-              <linearGradient id="igGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#e6683c" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#e6683c" stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2C2C2C" vertical={false} />
-            <XAxis dataKey="dia" tick={{ fontSize: 9, fill: '#666', fontFamily: 'Outfit' }} tickLine={false} axisLine={false} />
-            <YAxis yAxisId="alcance" tick={{ fontSize: 9, fill: '#666', fontFamily: 'JetBrains Mono' }} tickLine={false} axisLine={false} />
-            <YAxis
-              yAxisId="eng"
-              orientation="right"
-              tick={{ fontSize: 9, fill: '#666', fontFamily: 'JetBrains Mono' }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v) => `${v}%`}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Area
-              yAxisId="alcance"
-              type="monotone"
-              dataKey="alcance"
-              name="Alcance"
-              stroke="#e6683c"
-              strokeWidth={2}
-              fill="url(#igGrad)"
-              dot={false}
-              activeDot={{ r: 3, fill: '#e6683c', strokeWidth: 0 }}
-            />
-            <Line
-              yAxisId="eng"
-              type="monotone"
-              dataKey="engajamento"
-              name="Eng. %"
-              stroke="#9B8EFF"
-              strokeWidth={1.5}
-              strokeDasharray="4 3"
-              dot={false}
-              activeDot={{ r: 3, fill: '#9B8EFF', strokeWidth: 0 }}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  )
-}
-
-function IgContentTypes() {
-  return (
-    <div className="bg-surface-card border border-surface-border rounded-lg p-4 h-full min-h-0 flex flex-col">
-      <span className="section-title block mb-3 shrink-0">Tipo de Conteúdo</span>
-      <div className="flex items-center gap-2 flex-1 min-h-0">
-        <div className="w-28 h-28 shrink-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={contentTypes}
-                cx="50%"
-                cy="50%"
-                innerRadius={28}
-                outerRadius={48}
-                paddingAngle={2}
-                dataKey="value"
-                strokeWidth={0}
-              >
-                {contentTypes.map((c, i) => (
-                  <Cell key={i} fill={c.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(v) => `${v}%`}
-                contentStyle={{ background: '#1E1E1E', border: '1px solid #2C2C2C', borderRadius: 8, fontSize: 11 }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="flex flex-col gap-2 flex-1 min-w-0">
-          {contentTypes.map((c) => (
-            <div key={c.name} className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full shrink-0" style={{ background: c.color }} />
-              <span className="text-[10px] font-sans text-muted-foreground flex-1 truncate">{c.name}</span>
-              <span className="font-mono text-[11px] text-white">{c.value}%</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function IgTopPostsTable() {
-  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, total, rangeStart, rangeEnd } =
-    usePagedRows(topPosts, { storageKey: 'p12_pagesize_ig_top_posts', defaultSize: 10 })
-  return (
-    <div className="bg-surface-card border border-surface-border rounded-lg overflow-hidden min-w-0 h-full flex flex-col">
-      <div className="px-4 py-4 border-b border-surface-border flex items-center justify-between shrink-0">
-        <span className="section-title">Top Posts — Janeiro</span>
-        <span className="text-[10px] text-muted-foreground font-sans">por taxa de engajamento</span>
-      </div>
-      <div className="overflow-x-auto flex-1 min-h-0">
-        <table className="w-full text-xs min-w-[700px]">
-          <thead>
-            <tr className="border-b border-surface-border bg-surface-input">
-              {['Post', 'Tipo', 'Alcance', 'Curtidas', 'Comentários', 'Salvamentos', 'Taxa Eng.'].map((h) => (
-                <th
-                  key={h}
-                  className={cn(
-                    'px-4 py-2 text-[10px] uppercase tracking-wider font-sans font-medium text-muted-foreground',
-                    h === 'Post' ? 'text-left' : 'text-right'
-                  )}
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {pageRows.map((p, i) => {
-              const Icon = TIPO_ICONS[p.tipo]
-              const color = TIPO_COLORS[p.tipo]
-              return (
-                <tr key={`${p.desc}-${i}`} className="border-b border-surface-border/50 last:border-0 hover:bg-surface-hover/40 transition-colors">
-                  <td className="px-4 py-4 font-sans text-white">{p.desc}</td>
-                  <td className="px-4 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Icon size={11} style={{ color }} />
-                      <span className="font-mono text-[10px]" style={{ color }}>
-                        {p.tipo}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 text-right font-mono text-white">{formatNumber(p.alcance)}</td>
-                  <td className="px-4 py-4 text-right font-mono text-white">{p.curtidas || '—'}</td>
-                  <td className="px-4 py-4 text-right font-mono text-white">{p.comentarios || '—'}</td>
-                  <td className="px-4 py-4 text-right font-mono text-white">{p.salvamentos || '—'}</td>
-                  <td className="px-4 py-4 text-right">
-                    <span
-                      className={cn(
-                        'font-mono text-xs font-semibold',
-                        p.taxa >= 10 ? 'text-green-400' : p.taxa >= 5 ? 'text-yellow-400' : 'text-muted-foreground'
-                      )}
-                    >
-                      {p.taxa}%
-                    </span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-      <TablePagination
-        page={page}
-        totalPages={totalPages}
-        onPage={setPage}
-        pageSize={pageSize}
-        onPageSize={setPageSize}
-        total={total}
-        rangeStart={rangeStart}
-        rangeEnd={rangeEnd}
-        className="shrink-0 border-t border-surface-border px-4 py-2"
-      />
-    </div>
-  )
-}
-
-const KPI_BLOCKS = kpis.map((_, i) => ({
-  id: `ig-kpi-${i}`,
-  tier: 'primary',
-  defaultColSpan: 1,
-  defaultRowSpan: 1,
-  minColSpan: 1,
-  maxColSpan: 4,
-  minRowSpan: 1,
-  maxRowSpan: 3,
-  render: () => <IgKpiCard index={i} />,
-}))
 
 const IG_DASHBOARD_BLOCKS = [
-  ...KPI_BLOCKS,
   {
-    id: 'ig-reach',
-    tier: 'secondary',
-    defaultColSpan: 5,
-    defaultRowSpan: 3,
-    minColSpan: 2,
+    id: 'ig-metrics',
+    tier: 'primary',
+    defaultColSpan: 8,
+    defaultRowSpan: 4,
+    minColSpan: 4,
     maxColSpan: 8,
-    minRowSpan: 2,
-    maxRowSpan: 8,
-    render: () => <IgReachChart />,
+    minRowSpan: 3,
+    maxRowSpan: 6,
+    render: () => <InstagramMetricsPanel />,
   },
   {
-    id: 'ig-content-types',
-    tier: 'secondary',
-    defaultColSpan: 3,
-    defaultRowSpan: 3,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 2,
-    maxRowSpan: 8,
-    render: () => <IgContentTypes />,
-  },
-  {
-    id: 'ig-carousel',
+    id: 'ig-posts-carousel',
     tier: 'secondary',
     defaultColSpan: 8,
-    defaultRowSpan: 2,
+    defaultRowSpan: 3,
     minColSpan: 2,
     maxColSpan: 8,
     minRowSpan: 2,
     maxRowSpan: 8,
-    render: () => <CreativesCarousel title="Posts — Instagram" badge={`${igPosts.length} publicações`} cards={igPosts} />,
+    render: () => <InstagramPostsCarouselBlock />,
   },
   {
     id: 'ig-top-posts',
     tier: 'secondary',
     defaultColSpan: 8,
-    defaultRowSpan: 3,
+    defaultRowSpan: 4,
+    minColSpan: 4,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 10,
+    render: () => <InstagramTopPostsTable />,
+  },
+  {
+    id: 'ig-monthly-results',
+    tier: 'secondary',
+    defaultColSpan: 8,
+    defaultRowSpan: 4,
     minColSpan: 2,
     maxColSpan: 8,
-    minRowSpan: 2,
-    maxRowSpan: 10,
-    render: () => <IgTopPostsTable />,
+    minRowSpan: 3,
+    maxRowSpan: 12,
+    render: () => <MonthlyAccountResultsTable platform="instagram" />,
   },
 ]
 
-function InstagramPageHeader() {
+function InstagramPageHeader({ workerPlatformQuery, onWorkerPlatformQueryChange }) {
+  const { user } = useAuth()
+  const { activeOrgId } = useOrgWorkspace()
+  const secretsMode = user?.role === 'super_admin' && !activeOrgId
+
   return (
     <header className="shrink-0 border-b border-white/[0.06] py-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -440,17 +108,28 @@ function InstagramPageHeader() {
           <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-pink-400">
             Instagram
           </span>
-          <span className="text-white/20" aria-hidden>
-            ·
-          </span>
-          <SuperAdminAccountTitle
-            endpoint="/api/admin/platform/instagram-overview"
-            emptyLabel="@usuário"
-            className="min-w-0 max-w-[min(100%,20rem)] text-left"
-            size="sm"
-          />
+          {!secretsMode ? (
+            <>
+              <span className="text-white/20" aria-hidden>
+                ·
+              </span>
+              <SuperAdminAccountTitle
+                endpoint="/api/admin/platform/instagram-overview"
+                emptyLabel="@usuário"
+                className="min-w-0 max-w-[min(100%,20rem)] text-left"
+                size="sm"
+                workerPlatformQuery={workerPlatformQuery}
+                syncOverviewDates
+              />
+            </>
+          ) : null}
         </div>
-        <div className="ml-auto flex shrink-0 items-center">
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <WorkerSecretsAccountPicker
+            compact
+            provider="instagram"
+            onWorkerQueryChange={onWorkerPlatformQueryChange}
+          />
           <ChannelAccountPicker provider="instagram" className="shrink-0" />
         </div>
       </div>
@@ -458,13 +137,47 @@ function InstagramPageHeader() {
   )
 }
 
-export default function InstagramPage() {
+function InstagramInner({ workerPlatformQuery, onWorkerPlatformQueryChange }) {
+  const definitions = useMemo(() => IG_DASHBOARD_BLOCKS, [])
+
   return (
     <div className="flex min-h-full min-w-0 flex-col">
-      <InstagramPageHeader />
+      <InstagramPageHeader
+        workerPlatformQuery={workerPlatformQuery}
+        onWorkerPlatformQueryChange={onWorkerPlatformQueryChange}
+      />
       <div className="min-h-0 flex-1">
-        <DashboardGrid definitions={IG_DASHBOARD_BLOCKS} className="min-h-full" />
+        <DashboardGrid definitions={definitions} className="min-h-full" />
       </div>
     </div>
+  )
+}
+
+export default function InstagramPage() {
+  const [workerPlatformQuery, setWorkerPlatformQuery] = useState(() =>
+    typeof window !== 'undefined' ? readWorkerInstagramQueryFromStorage() : ''
+  )
+  const { activeOrgId } = useOrgWorkspace()
+  const { dateRange, compareDateRange, comparePrimaryKpi } = useDashboardFilters()
+
+  const overviewUrl = useMemo(
+    () =>
+      buildPlatformOverviewUrl('/api/admin/platform/instagram-overview', {
+        orgId: activeOrgId,
+        workerQuery: workerPlatformQuery,
+        dateRange,
+        compareDateRange,
+        compareEnabled: comparePrimaryKpi,
+      }),
+    [activeOrgId, workerPlatformQuery, dateRange, compareDateRange, comparePrimaryKpi]
+  )
+
+  return (
+    <PlatformOverviewProvider url={overviewUrl}>
+      <InstagramInner
+        workerPlatformQuery={workerPlatformQuery}
+        onWorkerPlatformQueryChange={setWorkerPlatformQuery}
+      />
+    </PlatformOverviewProvider>
   )
 }

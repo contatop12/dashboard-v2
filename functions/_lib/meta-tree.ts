@@ -23,6 +23,8 @@ export type MetaNodeInput = {
   dailyBudget: number
   parentId: string | null
   thumbnailUrl?: string | null
+  mediaType?: 'video' | 'image'
+  imageUrl?: string | null
   metrics: MetaMetrics
 }
 

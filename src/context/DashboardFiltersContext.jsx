@@ -22,6 +22,8 @@ export function DashboardFiltersProvider({ children }) {
   const [dimensionFilters, setDimensionFilters] = useState({})
   /** Filtros locais do bloco Campanhas Google Ads (persistem ao trocar aba / recarregar dados). */
   const [googleCampaignBlockFilters, setGoogleCampaignBlockFilters] = useState({})
+  /** Filtros locais dos blocos Campanhas / Conjuntos Meta Ads. */
+  const [metaBlockFilters, setMetaBlockFilters] = useState({})
   /** Opções publicadas pela página ativa a partir da árvore do overview: { [key]: [{id,name,...}] } */
   const [filterOptions, setFilterOptions] = useState({})
 
@@ -65,6 +67,8 @@ export function DashboardFiltersProvider({ children }) {
       setDimensionFilters,
       googleCampaignBlockFilters,
       setGoogleCampaignBlockFilters,
+      metaBlockFilters,
+      setMetaBlockFilters,
       filterOptions,
       setFilterOptions,
     }),
@@ -78,6 +82,7 @@ export function DashboardFiltersProvider({ children }) {
       previousPeriod,
       dimensionFilters,
       googleCampaignBlockFilters,
+      metaBlockFilters,
       filterOptions,
     ]
   )

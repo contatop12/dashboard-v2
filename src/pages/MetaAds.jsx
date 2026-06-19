@@ -17,7 +17,6 @@ import WorkerSecretsAccountPicker, {
   readWorkerMetaQueryFromStorage,
 } from '@/components/WorkerSecretsAccountPicker'
 import MetaMetricsPanel from '@/components/MetaMetricsPanel'
-import { MetaPlacementsBlock } from '@/components/MetaAnalysisPanel'
 import { MetaAdsetResultsTable } from '@/components/MetaAdsetResultsTable'
 import { MonthlyAccountResultsTable } from '@/components/MonthlyAccountResultsTable'
 import {
@@ -31,11 +30,13 @@ import { BlockCard } from '@/components/ui/BlockCard'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { useCampaignStatusMutation } from '@/hooks/useCampaignStatusMutation'
 import { filterOptionsFromTree, resolveTreeSlice } from '@/lib/filterOptionsFromTree'
+import { META_OBJECTIVE_LABELS } from '@/lib/metaAdsLabels'
+import { MetaBlockFilterToolbar } from '@/components/MetaBlockFilterToolbar'
 
 function MetaCampaignsBlock() {
   const { activeOrgId } = useOrgWorkspace()
   const { loading, data } = usePlatformOverview()
-  const { dimensionFilters, setFilterOptions } = useDashboardFilters()
+  const { dimensionFilters, setFilterOptions, metaBlockFilters, setMetaBlockFilters } = useDashboardFilters()
   const { mutate } = useCampaignStatusMutation(activeOrgId)
   const [tree, setTree] = useState([])
   const [pendingToggle, setPendingToggle] = useState(null) // { level, id, name, nextStatus }
@@ -45,13 +46,20 @@ function MetaCampaignsBlock() {
   // Publica opções de filtro derivadas da árvore completa; FilterBar consome do contexto.
   useEffect(() => {
     if (!Array.isArray(data?.tree)) return
-    const o = filterOptionsFromTree(data.tree)
+    const o = filterOptionsFromTree(data.tree, { objectiveLabels: META_OBJECTIVE_LABELS })
     setFilterOptions({ campanha: o.campanha, children: o.children, ads: o.ads, objetivo: o.objetivo })
   }, [data?.tree, setFilterOptions])
 
   useEffect(() => () => setFilterOptions({}), [setFilterOptions])
 
-  const visibleTree = useMemo(() => resolveTreeSlice(tree, dimensionFilters), [tree, dimensionFilters])
+  const mergedFilters = useMemo(
+    () => ({ ...dimensionFilters, ...metaBlockFilters }),
+    [dimensionFilters, metaBlockFilters]
+  )
+
+  const visibleTree = useMemo(() => resolveTreeSlice(tree, mergedFilters), [tree, mergedFilters])
+  const totalCampaigns = tree.length
+  const hasActiveTreeFilters = Boolean(metaBlockFilters.objetivo || metaBlockFilters.status)
 
   const applyStatus = (node, status) => {
     const patch = (list) =>
@@ -79,18 +87,33 @@ function MetaCampaignsBlock() {
     if (!ok) applyStatus(node, prevStatus) // rollback
   }
 
-  const state = loading ? 'loading' : data?.campaignsError ? 'error' : visibleTree.length === 0 ? 'empty' : 'ready'
+  const state = loading ? 'loading' : data?.campaignsError ? 'error' : totalCampaigns === 0 ? 'empty' : 'ready'
   const activeCount = visibleTree.filter((c) => String(c.effectiveStatus).toUpperCase() === 'ACTIVE').length
+  const badge =
+    hasActiveTreeFilters && totalCampaigns > 0
+      ? `${activeCount} ativas · ${visibleTree.length} de ${totalCampaigns} campanhas`
+      : `${activeCount} ativas · ${visibleTree.length} campanhas`
 
   return (
     <BlockCard
       title="Campanhas Meta Ads"
-      badge={`${activeCount} ativas · ${visibleTree.length} campanhas`}
+      badge={badge}
       state={state}
       emptyMessage="Nenhuma campanha no período."
       errorMessage={String(data?.campaignsError || '')}
       bodyClassName="overflow-auto"
     >
+      <MetaBlockFilterToolbar
+        tree={tree}
+        blockFilters={metaBlockFilters}
+        setBlockFilters={setMetaBlockFilters}
+        className="mb-3 border-b border-white/[0.06] pb-3"
+      />
+      {state === 'ready' && visibleTree.length === 0 && totalCampaigns > 0 ? (
+        <p className="mb-3 text-center text-[11px] text-muted-foreground font-sans">
+          Nenhuma campanha corresponde aos filtros selecionados.
+        </p>
+      ) : null}
       <CampaignTree
         tree={visibleTree}
         onToggleStatus={(node) => setPendingToggle(node)}
@@ -281,17 +304,6 @@ const META_DASHBOARD_BLOCKS = [
     minRowSpan: 2,
     maxRowSpan: 8,
     render: () => <MetaCreativesCarouselBlock />,
-  },
-  {
-    id: 'meta-placements',
-    tier: 'secondary',
-    defaultColSpan: 4,
-    defaultRowSpan: 4,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 3,
-    maxRowSpan: 10,
-    render: () => <MetaPlacementsBlock />,
   },
   {
     id: 'meta-monthly-results',

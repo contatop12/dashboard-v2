@@ -1,53 +1,32 @@
-import { useMemo, useState, useId } from 'react'
+import { useMemo, useId } from 'react'
 import { format, parse } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import {
-  ChevronDown,
-  ChevronUp,
-  Percent,
-  Target,
-  TrendingDown,
-  TrendingUp,
-  Wallet,
-} from 'lucide-react'
+import { Eye, Percent, TrendingDown, TrendingUp, Users } from 'lucide-react'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
-import { cn, formatCurrency, formatNumber } from '@/lib/utils'
+import { cn, formatNumber } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
 import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
-import { Switch } from '@/components/ui/Switch'
-import MetaAnalysisPanel from '@/components/MetaAnalysisPanel'
-import {
-  META_METRIC_DEFS,
-  META_METRIC_TIER_LABEL,
-  META_ADDABLE_METRICS,
-  groupedConversionOptions,
-} from '@/lib/metaMetricsConfig'
-import {
-  readMetaConversionType,
-  writeMetaConversionType,
-  readMetaMetricsVisibility,
-  writeMetaMetricsVisibility,
-  resetMetaMetricsVisibility,
-} from '@/lib/metaMetricsPreferences'
-import { buildMetaMetricsView, rawAggFromDaily } from '@/lib/metaMetricsCompute'
+import InstagramAnalysisPanel from '@/components/InstagramAnalysisPanel'
+import { buildInstagramMetricsView, rawAggFromIgDaily } from '@/lib/instagramMetricsCompute'
 
-const META_HERO_KEYS = ['invest', 'conversions', 'costPerResult', 'conversionRate']
-const META_SECONDARY_KEYS = [
-  { key: 'impressions', label: 'Impressões', higherIsBetter: true },
-  { key: 'linkClicks', label: 'Cliques', higherIsBetter: true },
-  { key: 'cpcLink', label: 'CPC Médio', higherIsBetter: false },
-  { key: 'ctrLink', label: 'CTR', higherIsBetter: true },
+const IG_HERO_KEYS = [
+  { key: 'reach', label: 'Alcance', tone: 'google-amber', icon: Eye, higherIsBetter: true },
+  { key: 'accountsEngaged', label: 'Contas engajadas', tone: 'google-green', icon: Users, higherIsBetter: true },
+  { key: 'engagementRate', label: 'Taxa de engajamento', tone: 'google-purple', icon: Percent, higherIsBetter: true },
+  { key: 'impressions', label: 'Impressões', tone: 'google-blue', icon: Eye, higherIsBetter: true },
 ]
 
-const META_HERO_STYLES = {
-  invest: { tone: 'google-blue', icon: Wallet, higherIsBetter: true },
-  conversions: { tone: 'google-green', icon: Target, higherIsBetter: true },
-  costPerResult: { tone: 'google-amber', icon: Wallet, higherIsBetter: false },
-  conversionRate: { tone: 'google-purple', icon: Percent, higherIsBetter: true },
-}
+const IG_SECONDARY = [
+  { key: 'likes', label: 'Curtidas', higherIsBetter: true },
+  { key: 'comments', label: 'Comentários', higherIsBetter: true },
+  { key: 'saves', label: 'Salvamentos', higherIsBetter: true },
+  { key: 'shares', label: 'Compartilhamentos', higherIsBetter: true },
+]
 
 const COMPACT_NUMBER = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 })
+const IG_PINK = '#E1306C'
+const IG_PINK_COMPARE = '#F472B6'
 
 function formatDayLabel(dateStr) {
   if (!dateStr) return '—'
@@ -76,10 +55,7 @@ function formatRangeLabel(apiRange, fallbackStart, fallbackEnd) {
 
 function summarizeDailySeries(daily, valueKey) {
   if (!Array.isArray(daily) || daily.length === 0) return null
-  const rows = daily.map((d) => ({
-    date: d.date,
-    value: Number(d[valueKey]) || 0,
-  }))
+  const rows = daily.map((d) => ({ date: d.date, value: Number(d[valueKey]) || 0 }))
   const total = rows.reduce((s, r) => s + r.value, 0)
   const avg = total / rows.length
   let peak = rows[0]
@@ -155,7 +131,7 @@ function DailyTrendCard({ title, subtitle, daily, valueKey, formatValue, formatA
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <defs>
-              <linearGradient id={`meta-trend-${gid}`} x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={`ig-trend-${gid}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={color} stopOpacity={0.3} />
                 <stop offset="100%" stopColor={color} stopOpacity={0.02} />
               </linearGradient>
@@ -182,7 +158,7 @@ function DailyTrendCard({ title, subtitle, daily, valueKey, formatValue, formatA
               dataKey="valor"
               stroke={color}
               strokeWidth={2}
-              fill={`url(#meta-trend-${gid})`}
+              fill={`url(#ig-trend-${gid})`}
               dot={false}
               activeDot={{ r: 3, fill: color, strokeWidth: 0 }}
             />
@@ -217,14 +193,11 @@ function DeltaBadge({ deltaPct, higherIsBetter = true }) {
   )
 }
 
-function HeroMetric({ metricKey, label, data, loading, showDelta }) {
-  const style = META_HERO_STYLES[metricKey] ?? META_HERO_STYLES.invest
-  const Icon = style.icon
+function HeroMetric({ label, data, loading, showDelta, tone, icon: Icon, higherIsBetter }) {
   const value = loading ? '…' : (data?.value ?? '—')
   const deltaPct = showDelta ? data?.deltaPct : null
-
   return (
-    <div className={cn('google-hero-metric', `google-hero-metric--${style.tone}`)}>
+    <div className={cn('google-hero-metric', `google-hero-metric--${tone}`)}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="google-hero-metric__icon" aria-hidden>
@@ -234,7 +207,7 @@ function HeroMetric({ metricKey, label, data, loading, showDelta }) {
             {label}
           </span>
         </div>
-        <DeltaBadge deltaPct={deltaPct} higherIsBetter={style.higherIsBetter} />
+        <DeltaBadge deltaPct={deltaPct} higherIsBetter={higherIsBetter} />
       </div>
       <p className="google-hero-metric__value">{value}</p>
       {data?.hint ? <p className="mt-1 text-[10px] text-muted-foreground/80">{data.hint}</p> : null}
@@ -245,7 +218,6 @@ function HeroMetric({ metricKey, label, data, loading, showDelta }) {
 function SecondaryMetric({ label, data, loading, showDelta, higherIsBetter = true }) {
   const value = loading ? '…' : (data?.value ?? '—')
   const deltaPct = showDelta ? data?.deltaPct : null
-
   return (
     <div className="google-secondary-metric">
       <div className="flex items-center gap-1">
@@ -255,80 +227,16 @@ function SecondaryMetric({ label, data, loading, showDelta, higherIsBetter = tru
         <span className="font-mono text-sm font-semibold tabular-nums text-foreground">{value}</span>
         <DeltaBadge deltaPct={deltaPct} higherIsBetter={higherIsBetter} />
       </div>
-      {data?.hint ? <p className="mt-1 text-[10px] text-muted-foreground/75">{data.hint}</p> : null}
     </div>
   )
 }
 
-function CustomizePanel({ visibility, onChange, onReset }) {
-  const tiers = ['primary', 'secondary', 'panel']
-
-  return (
-    <div className="rounded-lg border border-white/[0.08] bg-[#141414] p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-medium text-foreground">Exibir / ocultar métricas extras</span>
-        <button type="button" onClick={onReset} className="text-[10px] text-brand hover:text-brand/80">
-          Restaurar padrão
-        </button>
-      </div>
-      <div className="flex flex-col gap-4">
-        {tiers.map((tier) => {
-          const keys = Object.entries(META_METRIC_DEFS).filter(([, d]) => d.tier === tier)
-          return (
-            <div key={tier}>
-              <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
-                {META_METRIC_TIER_LABEL[tier]}
-              </p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                {keys.map(([key, def]) => (
-                  <label
-                    key={key}
-                    className="flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-surface-card px-3 py-2.5"
-                  >
-                    <span className="text-[11px] text-foreground">{def.label}</span>
-                    <Switch
-                      size="sm"
-                      checked={!!visibility[key]}
-                      onCheckedChange={(on) => onChange({ ...visibility, [key]: on })}
-                      aria-label={def.label}
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-      <div className="mt-4 border-t border-white/[0.06] pt-4">
-        <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
-          Adicionar métrica
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {META_ADDABLE_METRICS.map((m) => (
-            <button
-              key={m.key}
-              type="button"
-              disabled={!!visibility[m.key]}
-              onClick={() => onChange({ ...visibility, [m.key]: true })}
-              className="rounded-full border border-dashed border-white/15 px-2.5 py-1 text-[10px] text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand disabled:opacity-40"
-            >
-              + {m.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export default function MetaMetricsPanel() {
+export default function InstagramMetricsPanel() {
   const period = useDashboardBlockPeriod()
   const { comparePrimaryKpi, compareDateRange, dateRange } = useDashboardFilters()
   const { loading, data } = usePlatformOverview()
   const isPrevious = period === 'previous'
-  const [conversionId, setConversionId] = useState(readMetaConversionType)
-  const [visibility, setVisibility] = useState(readMetaMetricsVisibility)
-  const [customizeOpen, setCustomizeOpen] = useState(false)
+  const followers = data?.profile?.followers ?? data?.igMetricsRaw?.followers ?? 0
 
   const daily = useMemo(
     () => (isPrevious ? data?.compareDaily : data?.daily) ?? [],
@@ -336,15 +244,17 @@ export default function MetaMetricsPanel() {
   )
 
   const metricsRaw = useMemo(() => {
-    const fromApi = isPrevious ? data?.metaMetricsCompareRaw : data?.metaMetricsRaw
+    const fromApi = isPrevious ? data?.igMetricsCompareRaw : data?.igMetricsRaw
     if (fromApi) return fromApi
-    return rawAggFromDaily(daily)
-  }, [isPrevious, data?.metaMetricsCompareRaw, data?.metaMetricsRaw, daily])
+    return rawAggFromIgDaily(daily, followers)
+  }, [isPrevious, data?.igMetricsCompareRaw, data?.igMetricsRaw, daily, followers])
 
   const view = useMemo(() => {
-    const compareRaw = isPrevious ? null : data?.metaMetricsCompareRaw ?? rawAggFromDaily(data?.compareDaily)
-    return buildMetaMetricsView(metricsRaw, compareRaw, conversionId, comparePrimaryKpi && !isPrevious)
-  }, [metricsRaw, data?.metaMetricsCompareRaw, data?.compareDaily, conversionId, comparePrimaryKpi, isPrevious])
+    const compareRaw = isPrevious
+      ? null
+      : data?.igMetricsCompareRaw ?? rawAggFromIgDaily(data?.compareDaily, followers)
+    return buildInstagramMetricsView(metricsRaw, compareRaw, comparePrimaryKpi && !isPrevious)
+  }, [metricsRaw, data?.igMetricsCompareRaw, data?.compareDaily, comparePrimaryKpi, isPrevious, followers])
 
   const showDeltas = comparePrimaryKpi && !isPrevious
   const rangeLabel = useMemo(() => {
@@ -355,26 +265,20 @@ export default function MetaMetricsPanel() {
   }, [isPrevious, data?.compareRange, data?.primaryRange, compareDateRange, dateRange])
 
   const hasComparePayload =
-    data?.metaMetricsCompareRaw != null ||
-    (Array.isArray(data?.compareDaily) && data.compareDaily.some((d) => (Number(d.spend) || 0) > 0))
+    data?.igMetricsCompareRaw != null ||
+    (Array.isArray(data?.compareDaily) &&
+      data.compareDaily.some((d) => (Number(d.reach) || 0) + (Number(d.impressions) || 0) > 0))
   const apiError = typeof data?.error === 'string' && data.error.trim() ? data.error.trim() : null
-
-  const onConversionChange = (id) => {
-    setConversionId(id)
-    writeMetaConversionType(id)
-  }
-
-  const onVisibilityChange = (next) => {
-    setVisibility(next)
-    writeMetaMetricsVisibility(next)
-  }
+  const permissionDenied = Boolean(data?.permissionDenied)
+  const profile = data?.profile
+  const trendColor = isPrevious ? IG_PINK_COMPARE : IG_PINK
 
   if (isPrevious && !loading && !hasComparePayload) {
     return (
       <div className="google-metrics-panel google-metrics-panel--compare rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center">
         <p className="text-xs font-medium text-foreground">Sem dados para o período de comparação</p>
         <p className="mt-1 text-[11px] text-muted-foreground font-sans">
-          Ajuste as datas em &quot;vs …&quot; no topo ou confira se a conta tinha entrega nesse intervalo.
+          Ative &quot;Comparar KPIs&quot; e selecione um intervalo anterior com dados disponíveis.
         </p>
       </div>
     )
@@ -390,20 +294,48 @@ export default function MetaMetricsPanel() {
 
   return (
     <div className={cn('google-metrics-panel', isPrevious && 'google-metrics-panel--compare')}>
-      {apiError && !metricsRaw ? (
-        <p className="mb-4 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100/90 font-sans">
+      {apiError ? (
+        <p className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-100/95 font-sans">
           {apiError}
         </p>
       ) : null}
+      {profile && !metricsRaw && !isPrevious ? (
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-3">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Seguidores</span>
+            <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
+              {formatNumber(profile.followers ?? 0)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-3">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Seguindo</span>
+            <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
+              {formatNumber(profile.following ?? 0)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-3">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Publicações</span>
+            <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
+              {formatNumber(profile.mediaCount ?? 0)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-3">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Perfil</span>
+            <p className="mt-1 truncate font-sans text-sm text-foreground">
+              {profile.username ? `@${profile.username}` : '—'}
+            </p>
+          </div>
+        </div>
+      ) : null}
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-400/90">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-pink-400/90">
             {isPrevious ? 'Período de comparação' : 'Visão geral'}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground font-sans">
             {isPrevious
               ? 'Valores absolutos do intervalo selecionado para comparar com o período principal'
-              : 'Performance da conta Meta no período selecionado'}
+              : 'Performance orgânica do perfil Instagram no período selecionado'}
           </p>
           {rangeLabel ? (
             <p className="mt-1 font-mono text-[10px] tabular-nums text-foreground/75">{rangeLabel}</p>
@@ -414,7 +346,7 @@ export default function MetaMetricsPanel() {
             Ative &quot;Comparar KPIs&quot; para variação vs período anterior
           </span>
         ) : !isPrevious ? (
-          <span className="rounded-md bg-brand/10 px-2 py-0.5 text-[10px] font-medium text-brand">
+          <span className="rounded-md bg-pink-500/10 px-2 py-0.5 text-[10px] font-medium text-pink-400">
             Variação vs comparação
           </span>
         ) : (
@@ -424,62 +356,25 @@ export default function MetaMetricsPanel() {
         )}
       </div>
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Tipo de resultado
-          </span>
-          <select
-            value={conversionId}
-            onChange={(e) => onConversionChange(e.target.value)}
-            className="w-full max-w-md rounded-lg border border-surface-border bg-surface-input px-3 py-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-          >
-            {groupedConversionOptions().map(({ group, options }) => (
-              <optgroup key={group} label={group}>
-                {options.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
-        <button
-          type="button"
-          onClick={() => setCustomizeOpen((v) => !v)}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-surface-border bg-surface-card px-3 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Personalizar métricas
-          {customizeOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </button>
-      </div>
-
-      {customizeOpen ? (
-        <div className="mb-4">
-          <CustomizePanel
-            visibility={visibility}
-            onChange={onVisibilityChange}
-            onReset={() => onVisibilityChange(resetMetaMetricsVisibility())}
-          />
-        </div>
-      ) : null}
-
+      {!permissionDenied && metricsRaw ? (
+        <>
       <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-        {META_HERO_KEYS.map((key) => (
+        {IG_HERO_KEYS.map(({ key, label, tone, icon, higherIsBetter }) => (
           <HeroMetric
             key={key}
-            metricKey={key}
-            label={view.primary[key]?.label ?? META_METRIC_DEFS[key]?.label ?? key}
+            label={label}
             data={view.primary[key]}
             loading={loading}
             showDelta={showDeltas}
+            tone={tone}
+            icon={icon}
+            higherIsBetter={higherIsBetter}
           />
         ))}
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {META_SECONDARY_KEYS.map(({ key, label, higherIsBetter }) => (
+        {IG_SECONDARY.map(({ key, label, higherIsBetter }) => (
           <SecondaryMetric
             key={key}
             label={label}
@@ -493,29 +388,29 @@ export default function MetaMetricsPanel() {
 
       <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         <DailyTrendCard
-          title="Investimento diário"
-          subtitle="Gasto médio por dia no período"
-          daily={daily}
-          valueKey="spend"
-          color={isPrevious ? '#8AB4F8' : '#1877F2'}
-          formatValue={(v) => formatCurrency(v)}
-          formatAxis={(v) => `R$${COMPACT_NUMBER.format(Number(v) || 0)}`}
-        />
-        <DailyTrendCard
-          title="Cliques diários"
-          subtitle="Volume médio de cliques por dia"
-          daily={daily}
-          valueKey="clicks"
-          color={isPrevious ? '#81C995' : '#34A853'}
-          formatValue={(v) => formatNumber(Math.round(v))}
-          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
-        />
-        <DailyTrendCard
           title="Alcance diário"
           subtitle="Alcance médio por dia no período"
           daily={daily}
           valueKey="reach"
-          color={isPrevious ? '#FDD663' : '#F5C518'}
+          color={trendColor}
+          formatValue={(v) => formatNumber(Math.round(v))}
+          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
+        />
+        <DailyTrendCard
+          title="Impressões diárias"
+          subtitle="Impressões médias por dia"
+          daily={daily}
+          valueKey="impressions"
+          color="#9B8EFF"
+          formatValue={(v) => formatNumber(Math.round(v))}
+          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
+        />
+        <DailyTrendCard
+          title="Interações diárias"
+          subtitle="Curtidas, comentários, salvamentos e compartilhamentos"
+          daily={daily}
+          valueKey="interactions"
+          color="#F5C518"
           formatValue={(v) => formatNumber(Math.round(v))}
           formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
         />
@@ -523,8 +418,10 @@ export default function MetaMetricsPanel() {
 
       {!isPrevious ? (
         <div className="mb-4">
-          <MetaAnalysisPanel conversionId={conversionId} metricsRaw={metricsRaw} />
+          <InstagramAnalysisPanel />
         </div>
+      ) : null}
+        </>
       ) : null}
     </div>
   )

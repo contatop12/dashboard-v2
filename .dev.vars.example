@@ -13,6 +13,8 @@ META_APP_ID=
 META_APP_SECRET=
 
 # Opcional — só super_admin: token Graph de sistema/dev (nunca no cliente)
+# Para Instagram orgânico, o token precisa incluir: instagram_basic, instagram_manage_insights,
+# pages_show_list, pages_read_engagement (Graph API Explorer → Generate Access Token).
 META_ACCESS_TOKEN=
 # Conta de anúncios act_123 ou só o número; vazio = primeira de me/adaccounts
 META_AD_ACCOUNT_ID=

@@ -4,6 +4,8 @@ import { cn, formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { mapEffectiveStatusToColor, STATUS_ROW_CLASS } from '@/lib/campaignStatus'
 import { Switch } from '@/components/ui/Switch'
 import { MetricInfo } from '@/components/ui/MetricInfo'
+import CreativeMediaPreview from '@/components/CreativeMediaPreview'
+import { normalizeCreativeMedia } from '@/lib/creativeMedia'
 
 const OBJECTIVE_RESULT_LABEL = {
   LEADS: 'Leads (formulário)',
@@ -211,6 +213,9 @@ function KeywordRow({ kw, searchMode = true }) {
 
 function AdCard({ ad, onToggleStatus, resultsLabel, searchMode = false }) {
   const color = mapEffectiveStatusToColor(ad.effectiveStatus)
+  const media = normalizeCreativeMedia(ad)
+  const hasMedia = media.previewUrl || media.thumbnailUrl || media.imageUrl
+
   return (
     <div
       data-status={color}
@@ -220,8 +225,15 @@ function AdCard({ ad, onToggleStatus, resultsLabel, searchMode = false }) {
       )}
     >
       <div className="aspect-[4/3] w-full bg-surface-hover">
-        {ad.thumbnailUrl ? (
-          <img src={ad.thumbnailUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+        {hasMedia ? (
+          <CreativeMediaPreview
+            mediaType={media.mediaType}
+            imageUrl={media.imageUrl}
+            thumbnailUrl={media.thumbnailUrl}
+            previewUrl={media.previewUrl}
+            alt={ad.name}
+            sizes="(max-width: 768px) 45vw, 200px"
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
             Sem preview

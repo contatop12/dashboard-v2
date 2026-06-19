@@ -7,85 +7,97 @@ import {
   decryptMetaAccessToken,
   getActiveConnectionForOrg,
 } from '../../../_lib/org-platform-credentials'
+import {
+  aggregateIgRawFromDaily,
+  fetchIgDailyInsights,
+  fetchIgPostsAndContent,
+  fetchIgProfile,
+  igDisplayName,
+  parseIgRangeParams,
+} from '../../../_lib/instagram-insights'
+import {
+  EMPTY_IG_MONTHLY_RESULTS,
+  fetchIgMonthlyResults,
+} from '../../../_lib/instagram-monthly'
+import { resolveInstagramGraphToken } from '../../../_lib/meta-ig-token'
+import { IG_REQUIRED_SCOPES, isIgPermissionError } from '../../../_lib/instagram-permissions'
 
-type Metric = { label: string; value: string }
-
-function fmtInt(n: number): string {
-  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(n)
+function resolveIgUserId(url: URL, env: WorkerEnv): string | null {
+  const fromQuery = url.searchParams.get('ig_user_id')?.trim()
+  if (fromQuery) return fromQuery
+  const configured = env.META_INSTAGRAM_USER_ID?.trim()
+  return configured || null
 }
 
-async function instagramPayload(
-  token: string,
+async function buildInstagramResponse(
+  userToken: string,
   igId: string,
   accountDisplay: string,
-  source: 'worker_env' | 'oauth_org'
+  source: 'worker_env' | 'oauth_org',
+  since: string,
+  until: string,
+  compareSince: string | null,
+  compareUntil: string | null,
+  businessId?: string | null
 ): Promise<Record<string, unknown>> {
-  const profUrl = new URL(`https://graph.facebook.com/v21.0/${igId}`)
-  profUrl.searchParams.set('fields', 'username,followers_count,follows_count,media_count,name')
-  profUrl.searchParams.set('access_token', token)
+  const resolved = await resolveInstagramGraphToken(userToken, igId, businessId)
+  const token = resolved.token
 
-  const pr = await fetch(profUrl.toString())
-  const prof = (await pr.json()) as {
-    username?: string
-    followers_count?: number
-    follows_count?: number
-    media_count?: number
-    name?: string
-    error?: { message?: string }
-  }
+  const [profile, primaryPack, comparePack, postsPack, monthlyResults] = await Promise.all([
+    fetchIgProfile(token, igId),
+    fetchIgDailyInsights(token, igId, since, until),
+    compareSince && compareUntil
+      ? fetchIgDailyInsights(token, igId, compareSince, compareUntil)
+      : Promise.resolve({ daily: [], error: null, permissionDenied: false, hasInsightData: false }),
+    fetchIgPostsAndContent(token, igId, since, until),
+    fetchIgMonthlyResults(token, igId, until),
+  ])
 
-  if (!pr.ok || prof.error) {
-    return {
-      configured: true,
-      source,
-      accountDisplay: `IG ${igId}`,
-      error: prof.error?.message || 'Perfil Instagram inválido',
-      detail: `IG ${igId}`,
-      metrics: [] as Metric[],
-    }
-  }
+  const followers = profile?.followers ?? 0
+  const display = accountDisplay || igDisplayName(profile, igId)
+  const hasInsightData = primaryPack.hasInsightData
+  const igMetricsRaw = hasInsightData ? aggregateIgRawFromDaily(primaryPack.daily, followers) : null
+  const igMetricsCompareRaw =
+    compareSince && compareUntil && comparePack.hasInsightData
+      ? aggregateIgRawFromDaily(comparePack.daily, followers)
+      : null
 
-  const display =
-    accountDisplay ||
-    (prof.username?.trim() ? `@${prof.username.trim()}` : prof.name?.trim() || `IG ${igId}`)
-
-  const metrics: Metric[] = [
-    { label: 'Usuário', value: `@${prof.username ?? '—'}` },
-    { label: 'Seguidores', value: fmtInt(prof.followers_count ?? 0) },
-    { label: 'Seguindo', value: fmtInt(prof.follows_count ?? 0) },
-    { label: 'Mídias', value: fmtInt(prof.media_count ?? 0) },
-  ]
-
-  const insUrl = new URL(`https://graph.facebook.com/v21.0/${igId}/insights`)
-  insUrl.searchParams.set('metric', 'impressions,reach')
-  insUrl.searchParams.set('period', 'days_28')
-  insUrl.searchParams.set('access_token', token)
-
-  const ir = await fetch(insUrl.toString())
-  const ins = (await ir.json()) as {
-    data?: { name?: string; values?: { value?: number }[] }[]
-    error?: { message?: string }
-  }
-
-  if (ir.ok && !ins.error && ins.data?.length) {
-    for (const row of ins.data) {
-      const v = row.values?.[0]?.value
-      if (row.name === 'impressions' && v != null) {
-        metrics.push({ label: 'Impressões (28d)', value: fmtInt(v) })
-      }
-      if (row.name === 'reach' && v != null) {
-        metrics.push({ label: 'Alcance (28d)', value: fmtInt(v) })
-      }
-    }
-  }
+  const permissionDenied = Boolean(
+    primaryPack.permissionDenied ||
+      (typeof postsPack.error === 'string' && isIgPermissionError(postsPack.error))
+  )
+  const errors = [primaryPack.error, postsPack.error, monthlyResults.error].filter(Boolean)
+  const primaryError = errors[0] ?? null
 
   return {
     configured: true,
     source,
     accountDisplay: display,
-    error: ins.error && !ins.data?.length ? ins.error.message : null,
-    detail: `${prof.name ?? 'Instagram'} · Graph API`,
-    metrics,
+    error: primaryError,
+    permissionDenied,
+    missingIgScopes: permissionDenied ? [...IG_REQUIRED_SCOPES] : [],
+    tokenSource: resolved.source,
+    linkedPage: resolved.pageName,
+    detail: profile?.name ? `${profile.name} · Graph API` : 'Instagram · Graph API',
+    primaryRange: { since, until },
+    compareRange:
+      compareSince && compareUntil ? { since: compareSince, until: compareUntil } : null,
+    profile: profile
+      ? {
+          username: profile.username,
+          followers: profile.followers,
+          following: profile.following,
+          mediaCount: profile.mediaCount,
+        }
+      : null,
+    igMetricsRaw,
+    igMetricsCompareRaw,
+    daily: primaryPack.daily,
+    compareDaily: comparePack.daily,
+    monthlyResults: monthlyResults ?? EMPTY_IG_MONTHLY_RESULTS,
+    contentTypes: postsPack.contentTypes,
+    posts: postsPack.posts,
+    postsError: postsPack.error,
   }
 }
 
@@ -98,6 +110,7 @@ export async function onRequestGet(context: {
   if (!user) return jsonError('Não autorizado', 401)
 
   const url = new URL(context.request.url)
+  const { since, until, compareSince, compareUntil } = parseIgRangeParams(url)
   const orgId = url.searchParams.get('org_id')?.trim() || ''
 
   if (orgId) {
@@ -112,7 +125,15 @@ export async function onRequestGet(context: {
         accountDisplay: null,
         error: null,
         detail: 'Nenhuma conta Instagram ligada a esta organização.',
-        metrics: [] as Metric[],
+        primaryRange: { since, until },
+        compareRange: null,
+        igMetricsRaw: null,
+        igMetricsCompareRaw: null,
+        daily: [],
+        compareDaily: [],
+        monthlyResults: EMPTY_IG_MONTHLY_RESULTS,
+        contentTypes: [],
+        posts: [],
       })
     }
     const token = await decryptMetaAccessToken(context.env.DB, context.env, conn.oauth_credential_id)
@@ -123,13 +144,31 @@ export async function onRequestGet(context: {
         accountDisplay: conn.external_name,
         error: null,
         detail: 'Token Meta indisponível. Reconecte em Integrações.',
-        metrics: [] as Metric[],
+        primaryRange: { since, until },
+        compareRange: null,
+        igMetricsRaw: null,
+        igMetricsCompareRaw: null,
+        daily: [],
+        compareDaily: [],
+        monthlyResults: EMPTY_IG_MONTHLY_RESULTS,
+        contentTypes: [],
+        posts: [],
       })
     }
     const igId = conn.external_id.trim()
     const accountDisplay = conn.external_name?.trim() || ''
     try {
-      const body = await instagramPayload(token, igId, accountDisplay, 'oauth_org')
+      const body = await buildInstagramResponse(
+        token,
+        igId,
+        accountDisplay,
+        'oauth_org',
+        since,
+        until,
+        compareSince,
+        compareUntil,
+        context.env.META_BUSINESS_ID
+      )
       return json(body)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Erro Instagram'
@@ -139,7 +178,15 @@ export async function onRequestGet(context: {
         accountDisplay: conn.external_name ?? `IG ${igId}`,
         error: msg,
         detail: null,
-        metrics: [] as Metric[],
+        primaryRange: { since, until },
+        compareRange: null,
+        igMetricsRaw: null,
+        igMetricsCompareRaw: null,
+        daily: [],
+        compareDaily: [],
+        monthlyResults: EMPTY_IG_MONTHLY_RESULTS,
+        contentTypes: [],
+        posts: [],
       })
     }
   }
@@ -152,7 +199,7 @@ export async function onRequestGet(context: {
   if (denied) return denied
 
   const token = context.env.META_ACCESS_TOKEN?.trim()
-  const igId = context.env.META_INSTAGRAM_USER_ID?.trim()
+  const igId = resolveIgUserId(url, context.env)
 
   if (!token || !igId) {
     return json({
@@ -161,12 +208,30 @@ export async function onRequestGet(context: {
       accountDisplay: null,
       error: null,
       detail: 'Defina META_ACCESS_TOKEN e META_INSTAGRAM_USER_ID no Worker.',
-      metrics: [] as Metric[],
+      primaryRange: { since, until },
+      compareRange: null,
+      igMetricsRaw: null,
+      igMetricsCompareRaw: null,
+      daily: [],
+      compareDaily: [],
+      monthlyResults: EMPTY_IG_MONTHLY_RESULTS,
+      contentTypes: [],
+      posts: [],
     })
   }
 
   try {
-    const body = await instagramPayload(token, igId, '', 'worker_env')
+    const body = await buildInstagramResponse(
+      token,
+      igId,
+      '',
+      'worker_env',
+      since,
+      until,
+      compareSince,
+      compareUntil,
+      context.env.META_BUSINESS_ID
+    )
     return json(body)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Erro Instagram'
@@ -176,7 +241,15 @@ export async function onRequestGet(context: {
       accountDisplay: null,
       error: msg,
       detail: null,
-      metrics: [] as Metric[],
+      primaryRange: { since, until },
+      compareRange: null,
+      igMetricsRaw: null,
+      igMetricsCompareRaw: null,
+      daily: [],
+      compareDaily: [],
+      monthlyResults: EMPTY_IG_MONTHLY_RESULTS,
+      contentTypes: [],
+      posts: [],
     })
   }
 }

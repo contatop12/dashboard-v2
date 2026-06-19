@@ -1,15 +1,11 @@
 /** Configuração das métricas Meta Ads — tiers, chaves e conversões. */
 
-export const META_CONVERSION_OPTIONS = [
-  { id: 'auto', label: 'Automático (resultado da Meta)' },
-  { id: 'messages', label: 'Conversas por mensagem iniciadas' },
-  { id: 'post_engagement', label: 'Engajamento com a publicação' },
-  { id: 'leads', label: 'Leads' },
-  { id: 'purchases', label: 'Compras' },
-  { id: 'landing_page_view', label: 'Visualizações da página de destino' },
-  { id: 'link_click', label: 'Cliques no link' },
-  { id: 'thruplay', label: 'ThruPlay' },
-]
+export {
+  META_CONVERSION_OPTIONS,
+  META_RESULT_TYPE_GROUPS,
+  conversionResultLabel,
+  groupedConversionOptions,
+} from './metaResultTypes'
 
 export const META_METRIC_DEFS = {
   // Primárias
@@ -49,18 +45,4 @@ export const META_METRIC_TIER_LABEL = {
   primary: 'Primárias',
   secondary: 'Secundárias',
   panel: 'Painéis',
-}
-
-export function conversionResultLabel(conversionId) {
-  const map = {
-    auto: 'Resultado Meta',
-    messages: 'Mensagens',
-    post_engagement: 'Engajamento',
-    leads: 'Leads',
-    purchases: 'Compras',
-    landing_page_view: 'Visualiz. LP',
-    link_click: 'Cliques no link',
-    thruplay: 'ThruPlay',
-  }
-  return map[conversionId] ?? 'Resultados'
 }

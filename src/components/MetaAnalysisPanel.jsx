@@ -2,7 +2,9 @@ import { useEffect, useId, useMemo, useState } from 'react'
 import { format, parse } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Settings2 } from 'lucide-react'
-import { cn, formatCurrency, formatNumber } from '@/lib/utils'
+import { pickMetaResults } from '@/lib/metaMetricsCompute'
+import { conversionResultLabel } from '@/lib/metaMetricsConfig'
+import { cn, formatNumber } from '@/lib/utils'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { FunnelChart } from '@/components/FunnelChart'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
@@ -84,12 +86,14 @@ function sumMetaDailyTotals(daily) {
   )
 }
 
-function buildMetaFunnelStages(totals) {
-  const { impressions: i, clicks: c, leads: l } = totals
+function buildMetaFunnelStages(totals, resultsCount, resultsLabel) {
+  const { impressions: i, clicks: c } = totals
+  const label = resultsLabel || 'Resultados'
+  const r = Math.max(0, Number(resultsCount) || 0)
   return [
     { label: 'Impressões', value: Math.max(0, i), displayValue: formatNumber(Math.round(Math.max(0, i))) },
     { label: 'Cliques', value: Math.max(0, c), displayValue: formatNumber(Math.round(Math.max(0, c))) },
-    { label: 'Leads', value: Math.max(0, l), displayValue: formatNumber(Math.round(Math.max(0, l))) },
+    { label, value: r, displayValue: formatNumber(Math.round(r)) },
   ]
 }
 
@@ -345,10 +349,18 @@ function MetaDailyChart({ embedded = false }) {
   return chartBody
 }
 
-function MetaFunnelBlock({ embedded = false }) {
+function MetaFunnelBlock({ embedded = false, conversionId = 'auto', metricsRaw = null }) {
   const { loading, data } = usePlatformOverview()
   const totals = useMemo(() => sumMetaDailyTotals(data?.daily), [data?.daily])
-  const funnelStages = useMemo(() => buildMetaFunnelStages(totals), [totals])
+  const resultsCount = useMemo(
+    () => pickMetaResults(metricsRaw ?? data?.metaMetricsRaw, conversionId),
+    [metricsRaw, data?.metaMetricsRaw, conversionId]
+  )
+  const resultsLabel = useMemo(() => conversionResultLabel(conversionId), [conversionId])
+  const funnelStages = useMemo(
+    () => buildMetaFunnelStages(totals, resultsCount, resultsLabel),
+    [totals, resultsCount, resultsLabel]
+  )
   const funnelMax = funnelStages[0]?.value ?? 0
   const accountEmpty = !loading && funnelMax <= 0
   const showFunnelChart = funnelStages.length > 0 && funnelMax > 0
@@ -383,7 +395,7 @@ function MetaFunnelBlock({ embedded = false }) {
       <div className="meta-analysis-cell flex min-h-0 flex-col border-l border-white/[0.06] lg:border-l">
         <div className="mb-2 flex shrink-0 flex-col gap-1.5">
           <span className="text-[11px] font-medium text-foreground font-sans">Funil</span>
-          <p className="text-[9px] text-muted-foreground font-sans">Impressão → Clique → Leads</p>
+          <p className="text-[9px] text-muted-foreground font-sans">Impressão → Clique → {resultsLabel}</p>
         </div>
         {loading ? <p className="text-[9px] text-muted-foreground">Carregando…</p> : funnelBody}
       </div>
@@ -456,12 +468,12 @@ export function MetaPlacementsBlock() {
   )
 }
 
-export default function MetaAnalysisPanel() {
+export default function MetaAnalysisPanel({ conversionId = 'auto', metricsRaw = null }) {
   return (
     <div className="google-analysis-panel-v2">
       <div className="google-analysis-row-main">
         <MetaDailyChart embedded />
-        <MetaFunnelBlock embedded />
+        <MetaFunnelBlock embedded conversionId={conversionId} metricsRaw={metricsRaw} />
       </div>
     </div>
   )

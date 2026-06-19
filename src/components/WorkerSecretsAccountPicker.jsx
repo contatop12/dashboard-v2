@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 
 const STORAGE = {
   meta_ads: 'p12_worker_meta_ad_account',
+  instagram: 'p12_worker_instagram_user',
   google_ads: 'p12_worker_google_ads_customer',
   google_business: 'p12_worker_gmb_account',
 }
@@ -48,6 +49,15 @@ export function readWorkerGmbQueryFromStorage() {
   }
 }
 
+export function readWorkerInstagramQueryFromStorage() {
+  try {
+    const v = localStorage.getItem(STORAGE.instagram)?.trim()
+    return v ? `ig_user_id=${encodeURIComponent(v)}` : ''
+  } catch {
+    return ''
+  }
+}
+
 /**
  * Super admin, sem organização ativa (modo secrets): lista contas da API e persiste escolha em localStorage.
  * O pai deve inicializar `workerPlatformQuery` com `readWorker*FromStorage()` e passar `setWorkerPlatformQuery` aqui.
@@ -64,9 +74,11 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
   const listEndpoint =
     provider === 'meta_ads'
       ? '/api/admin/platform/meta-accounts'
-      : provider === 'google_business'
-        ? '/api/admin/platform/google-business-accounts'
-        : '/api/admin/platform/google-ads-accounts'
+      : provider === 'instagram'
+        ? '/api/admin/platform/instagram-accounts'
+        : provider === 'google_business'
+          ? '/api/admin/platform/google-business-accounts'
+          : '/api/admin/platform/google-ads-accounts'
   const storageKey = STORAGE[provider]
 
   useEffect(() => {
@@ -98,6 +110,23 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
           /* ignore */
         }
         onWorkerQueryChange(`ad_account_id=${encodeURIComponent(id)}`)
+      } else if (provider === 'instagram') {
+        const id = String(rawValue).trim()
+        if (!id) {
+          try {
+            localStorage.removeItem(storageKey)
+          } catch {
+            /* ignore */
+          }
+          onWorkerQueryChange('')
+        } else {
+          try {
+            localStorage.setItem(storageKey, id)
+          } catch {
+            /* ignore */
+          }
+          onWorkerQueryChange(`ig_user_id=${encodeURIComponent(id)}`)
+        }
       } else if (provider === 'google_business') {
         const id = String(rawValue).trim().replace(/^accounts\//, '')
         if (!id) {
@@ -195,6 +224,7 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
     const normSelected = (raw) => {
       if (!raw) return ''
       if (provider === 'meta_ads') return normalizeWorkerMetaActId(raw)
+      if (provider === 'instagram') return String(raw).trim()
       if (provider === 'google_business') return String(raw).trim().replace(/^accounts\//, '')
       return String(raw).replace(/\D/g, '')
     }
@@ -205,18 +235,23 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
           const id =
             provider === 'meta_ads'
               ? normalizeWorkerMetaActId(a.id)
-              : provider === 'google_business'
-                ? String(a.id).trim().replace(/^accounts\//, '')
-                : String(a.id).replace(/\D/g, '')
+              : provider === 'instagram'
+                ? String(a.id).trim()
+                : provider === 'google_business'
+                  ? String(a.id).trim().replace(/^accounts\//, '')
+                  : String(a.id).replace(/\D/g, '')
           return id === current
         })
       : null
 
-    const isValidClient = provider === 'google_business' ? !!currentRow : currentRow && !currentRow.isManager
+    const isValidClient =
+      provider === 'google_business' || provider === 'instagram'
+        ? !!currentRow
+        : currentRow && !currentRow.isManager
     if (isValidClient) return
 
     const firstClient =
-      provider === 'google_business'
+      provider === 'google_business' || provider === 'instagram'
         ? accounts[0]
         : accounts.find((a) => !a.isManager)
     if (!firstClient) return
@@ -224,9 +259,11 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
     const val =
       provider === 'meta_ads'
         ? normalizeWorkerMetaActId(firstClient.id)
-        : provider === 'google_business'
-          ? String(firstClient.id).trim().replace(/^accounts\//, '')
-          : String(firstClient.id).replace(/\D/g, '')
+        : provider === 'instagram'
+          ? String(firstClient.id).trim()
+          : provider === 'google_business'
+            ? String(firstClient.id).trim().replace(/^accounts\//, '')
+            : String(firstClient.id).replace(/\D/g, '')
     setSelected(val)
     emitQuery(val)
   }, [accounts, loading, selected, provider, emitQuery, user?.role, activeOrgId])
@@ -243,6 +280,7 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
 
   const normalizeAccountId = (raw) => {
     if (provider === 'meta_ads') return normalizeWorkerMetaActId(raw)
+    if (provider === 'instagram') return String(raw).trim()
     if (provider === 'google_business') return String(raw).trim().replace(/^accounts\//, '')
     return String(raw).replace(/\D/g, '')
   }
@@ -268,9 +306,11 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
   const label =
     provider === 'meta_ads'
       ? 'Conta de anúncios (secrets)'
-      : provider === 'google_business'
-        ? 'Conta Google Meu Negócio (secrets)'
-        : 'Cliente Google Ads (secrets)'
+      : provider === 'instagram'
+        ? 'Perfil Instagram (secrets)'
+        : provider === 'google_business'
+          ? 'Conta Google Meu Negócio (secrets)'
+          : 'Cliente Google Ads (secrets)'
 
   const selectEl = (
     <div className="relative min-w-0 flex-1">
@@ -287,17 +327,21 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
         <option value="">
           {provider === 'meta_ads'
             ? 'Padrão (.env ou primeira conta)'
-            : provider === 'google_business'
-              ? 'Selecione a conta GBP…'
-              : 'Selecione a conta Google…'}
+            : provider === 'instagram'
+              ? 'Padrão (.env ou primeiro perfil)'
+              : provider === 'google_business'
+                ? 'Selecione a conta GBP…'
+                : 'Selecione a conta Google…'}
         </option>
         {selected && !savedInList && (
           <option value={normalizeAccountId(selected)}>
             {provider === 'meta_ads'
               ? normalizeWorkerMetaActId(selected)
-              : provider === 'google_business'
+              : provider === 'instagram'
                 ? `Salvo: ${normalizeAccountId(selected)}`
-                : `Salvo: ${selected}`}
+                : provider === 'google_business'
+                  ? `Salvo: ${normalizeAccountId(selected)}`
+                  : `Salvo: ${selected}`}
           </option>
         )}
         {filtered.map((a) => {

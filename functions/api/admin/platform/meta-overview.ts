@@ -9,6 +9,21 @@ import {
 } from '../../../_lib/org-platform-credentials'
 import { buildMetaTree, type MetaNodeInput } from '../../../_lib/meta-tree'
 import { parseMetaDimensionFilters, metaFilteringQuery } from '../../../_lib/meta-filtering'
+import { resolveCreativePreview } from '../../../_lib/meta-creative-media'
+import {
+  parseLeadsFromRow,
+  parseObjectiveResults,
+  parseThruPlayFromRow,
+  parseVideo3SecFromRow,
+  sumActionValues,
+  sumVideoMetricField,
+} from '../../../_lib/meta-conversions'
+import {
+  EMPTY_META_MONTHLY_RESULTS,
+  fetchMetaMonthlyResults,
+} from '../../../_lib/meta-monthly'
+import { buildResultsByTypeFromRow } from '../../../_lib/meta-result-types'
+import { sortMetaAdInsightRows, type MetaAdInsightRow } from '../../../_lib/meta-ad-insights'
 
 type Metric = { label: string; value: string; deltaPct?: number | null }
 
@@ -73,20 +88,6 @@ async function fetchAdAccountDisplay(token: string, actId: string): Promise<stri
   return j.name.trim()
 }
 
-function parseLeadsFromRow(row: Record<string, unknown>): number {
-  const actions = row.actions
-  if (!Array.isArray(actions)) return 0
-  let n = 0
-  for (const a of actions) {
-    const o = a as { action_type?: string; value?: string }
-    const t = String(o.action_type ?? '')
-    if (t.includes('lead') || t.includes('onsite_conversion') || t === 'offsite_conversion.fb_pixel_lead') {
-      n += Number.parseFloat(String(o.value ?? '0')) || 0
-    }
-  }
-  return Math.round(n)
-}
-
 type RawAgg = {
   spend: number
   impressions: number
@@ -97,6 +98,7 @@ type RawAgg = {
   cpm: number
   frequency: number
   leads: number
+  metaResults: number
   linkClicks: number
   lpViews: number
   hookViews: number
@@ -105,24 +107,75 @@ type RawAgg = {
   messages: number
   postEngagement: number
   conversionValue: number
+  resultsByType: Record<string, number>
   videoP25: number
   videoP50: number
   videoP75: number
   videoP100: number
 }
 
-export type MetaMetricsRaw = RawAgg
-
-function sumActionValues(actions: unknown, match: (t: string) => boolean): number {
-  if (!Array.isArray(actions)) return 0
-  let n = 0
-  for (const a of actions) {
-    const o = a as { action_type?: string; value?: string }
-    const t = String(o.action_type ?? '')
-    if (match(t)) n += Number.parseFloat(String(o.value ?? '0')) || 0
+function emptyRawAgg(): RawAgg {
+  return {
+    spend: 0,
+    impressions: 0,
+    reach: 0,
+    clicks: 0,
+    ctr: 0,
+    cpc: 0,
+    cpm: 0,
+    frequency: 0,
+    leads: 0,
+    metaResults: 0,
+    linkClicks: 0,
+    lpViews: 0,
+    hookViews: 0,
+    thruPlay: 0,
+    purchases: 0,
+    messages: 0,
+    postEngagement: 0,
+    conversionValue: 0,
+    resultsByType: {},
+    videoP25: 0,
+    videoP50: 0,
+    videoP75: 0,
+    videoP100: 0,
   }
-  return Math.round(n)
 }
+
+/** Fallback quando insights agregados falham mas a série diária existe. */
+function aggregateRawFromDaily(daily: DailyRow[]): RawAgg | null {
+  if (!daily.length) return null
+  let spend = 0
+  let impressions = 0
+  let reach = 0
+  let clicks = 0
+  let leads = 0
+  for (const d of daily) {
+    spend += Number(d.spend) || 0
+    impressions += Math.round(Number(d.impressions) || 0)
+    reach += Math.round(Number(d.reach) || 0)
+    clicks += Math.round(Number(d.clicks) || 0)
+    leads += Math.round(Number(d.leads) || 0)
+  }
+  const linkClicks = clicks
+  const ctr = impressions > 0 ? (linkClicks / impressions) * 100 : 0
+  const cpc = linkClicks > 0 ? spend / linkClicks : 0
+  const cpm = impressions > 0 ? spend / (impressions / 1000) : 0
+  return {
+    ...emptyRawAgg(),
+    spend,
+    impressions,
+    reach,
+    clicks,
+    linkClicks,
+    leads,
+    ctr,
+    cpc,
+    cpm,
+  }
+}
+
+export type MetaMetricsRaw = RawAgg
 
 function sumVideoField(row: Record<string, unknown>, key: string): number {
   const v = row[key]
@@ -145,6 +198,7 @@ function rowToRaw(row: Record<string, string | number> | undefined): RawAgg | nu
   const cpm = Number.parseFloat(String(row.cpm ?? 0)) || 0
   const frequency = Number.parseFloat(String(row.frequency ?? 0)) || 0
   const leads = parseLeadsFromRow(r)
+  const metaResults = parseObjectiveResults(r)
   const purchases = sumActionValues(r.actions, (t) =>
     t.includes('purchase') || t.includes('omni_purchase')
   )
@@ -153,10 +207,8 @@ function rowToRaw(row: Record<string, string | number> | undefined): RawAgg | nu
   )
   const postEngagement = sumActionValues(r.actions, (t) => t === 'post_engagement')
   const lpViews = sumActionValues(r.actions, (t) => t === 'landing_page_view' || t.includes('landing_page'))
-  const hookViews =
-    sumVideoField(r, 'video_3_sec_watched_actions') ||
-    sumActionValues(r.actions, (t) => t.includes('video_view') || t === 'video_view')
-  const thruPlay = sumVideoField(r, 'video_thruplay_watched_actions')
+  const hookViews = parseVideo3SecFromRow(r)
+  const thruPlay = parseThruPlayFromRow(r, spend)
   const conversionValue = sumActionValues(r.actions, (t) =>
     t.includes('offsite_conversion.fb_pixel_purchase') || t.includes('purchase')
   )
@@ -164,6 +216,7 @@ function rowToRaw(row: Record<string, string | number> | undefined): RawAgg | nu
   else if (impressions > 0 && ctr === 0 && clicks > 0) ctr = (clicks / impressions) * 100
   if (linkClicks > 0 && spend > 0) cpc = spend / linkClicks
   else if (clicks > 0 && cpc === 0 && spend > 0) cpc = spend / clicks
+  const resultsByType = buildResultsByTypeFromRow(r, { linkClicks, thruPlay, hookViews })
   return {
     spend,
     impressions,
@@ -174,6 +227,7 @@ function rowToRaw(row: Record<string, string | number> | undefined): RawAgg | nu
     cpm,
     frequency,
     leads,
+    metaResults,
     linkClicks,
     lpViews,
     hookViews,
@@ -182,6 +236,7 @@ function rowToRaw(row: Record<string, string | number> | undefined): RawAgg | nu
     messages,
     postEngagement,
     conversionValue,
+    resultsByType,
     videoP25: sumVideoField(r, 'video_p25_watched_actions'),
     videoP50: sumVideoField(r, 'video_p50_watched_actions'),
     videoP75: sumVideoField(r, 'video_p75_watched_actions'),
@@ -231,7 +286,7 @@ async function fetchInsightsAggregate(
   until: string,
   filtering = ''
 ): Promise<{ row: Record<string, string | number> | null; error?: string }> {
-  const fields = [
+  const coreFields = [
     'spend',
     'impressions',
     'reach',
@@ -242,27 +297,48 @@ async function fetchInsightsAggregate(
     'frequency',
     'actions',
     'inline_link_clicks',
+    'objective_results',
+    'results',
+    'conversions',
+  ]
+  const videoFields = [
     'video_p25_watched_actions',
     'video_p50_watched_actions',
     'video_p75_watched_actions',
     'video_p100_watched_actions',
     'video_thruplay_watched_actions',
     'video_3_sec_watched_actions',
-  ].join(',')
-  const iu = new URL(`https://graph.facebook.com/v21.0/${actId}/insights`)
-  iu.searchParams.set('fields', fields)
-  iu.searchParams.set('time_range', JSON.stringify({ since, until }))
-  iu.searchParams.set('access_token', token)
+    'cost_per_thruplay',
+  ]
 
-  const ir = await fetch(iu.toString() + filtering)
-  const idata = (await ir.json()) as {
-    data?: Record<string, string | number>[]
-    error?: { message?: string }
+  async function request(fields: string[]) {
+    const iu = new URL(`https://graph.facebook.com/v21.0/${actId}/insights`)
+    iu.searchParams.set('fields', fields.join(','))
+    iu.searchParams.set('time_range', JSON.stringify({ since, until }))
+    iu.searchParams.set('access_token', token)
+    const ir = await fetch(iu.toString() + filtering)
+    const idata = (await ir.json()) as {
+      data?: Record<string, string | number>[]
+      error?: { message?: string }
+    }
+    if (!ir.ok || idata.error) {
+      return { row: null as Record<string, string | number> | null, error: idata.error?.message || 'Graph API insights falhou' }
+    }
+    return { row: idata.data?.[0] ?? null, error: undefined as string | undefined }
   }
-  if (!ir.ok || idata.error) {
-    return { row: null, error: idata.error?.message || 'Graph API insights falhou' }
+
+  const [core, video] = await Promise.all([request(coreFields), request(videoFields)])
+  if (!core.row && core.error) return { row: null, error: core.error }
+
+  const merged = {
+    ...(core.row ?? {}),
+    ...(video.row ?? {}),
+  } as Record<string, string | number>
+
+  if (Object.keys(merged).length === 0) {
+    return { row: null, error: core.error ?? video.error ?? 'Sem dados agregados no período.' }
   }
-  return { row: idata.data?.[0] ?? null }
+  return { row: merged }
 }
 
 async function fetchInsightsDaily(
@@ -356,14 +432,7 @@ function fillDailyGaps(since: string, until: string, daily: DailyRow[]): DailyRo
   return out
 }
 
-type AdInsightRow = {
-  ad_id: string
-  ad_name: string
-  spend: number
-  leads: number
-  impressions: number
-  linkClicks: number
-}
+type AdInsightRow = MetaAdInsightRow
 
 async function fetchAdLevelInsights(
   token: string,
@@ -371,7 +440,15 @@ async function fetchAdLevelInsights(
   since: string,
   until: string
 ): Promise<AdInsightRow[]> {
-  const fields = ['ad_id', 'ad_name', 'spend', 'impressions', 'inline_link_clicks', 'actions'].join(',')
+  const fields = [
+    'ad_id',
+    'ad_name',
+    'adset_id',
+    'spend',
+    'impressions',
+    'inline_link_clicks',
+    'actions',
+  ].join(',')
   const merged = new Map<string, AdInsightRow>()
   let url: string | null =
     `https://graph.facebook.com/v21.0/${actId}/insights?fields=${encodeURIComponent(fields)}&level=ad&time_range=${encodeURIComponent(JSON.stringify({ since, until }))}&limit=500&access_token=${encodeURIComponent(token)}`
@@ -382,6 +459,7 @@ async function fetchAdLevelInsights(
       data?: {
         ad_id?: string
         ad_name?: string
+        adset_id?: string
         spend?: string
         impressions?: string
         inline_link_clicks?: string
@@ -399,21 +477,23 @@ async function fetchAdLevelInsights(
       const linkClicks = Number.parseFloat(String(row.inline_link_clicks ?? 0)) || 0
       const leads = parseLeadsFromRow(row as Record<string, unknown>)
       const name = String(row.ad_name ?? 'Anúncio').trim() || 'Anúncio'
+      const adsetId = String(row.adset_id ?? '').trim()
       const cur = merged.get(id)
       if (!cur)
-        merged.set(id, { ad_id: id, ad_name: name, spend, leads, impressions, linkClicks })
+        merged.set(id, { ad_id: id, ad_name: name, adset_id: adsetId, spend, leads, impressions, linkClicks })
       else {
         cur.spend += spend
         cur.leads += leads
         cur.impressions += impressions
         cur.linkClicks += linkClicks
         if (name && name !== 'Anúncio') cur.ad_name = name
+        if (adsetId && !cur.adset_id) cur.adset_id = adsetId
       }
     }
     url = j.paging?.next ?? null
   }
 
-  return [...merged.values()].sort((a, b) => b.spend - a.spend).slice(0, 15)
+  return sortMetaAdInsightRows([...merged.values()])
 }
 
 type AdObj = {
@@ -421,7 +501,12 @@ type AdObj = {
   effective_status?: string
   adset_id?: string
   campaign_id?: string
-  creative?: { thumbnail_url?: string; image_url?: string }
+  creative?: {
+    thumbnail_url?: string
+    image_url?: string
+    object_type?: string
+    video_id?: string
+  }
   error?: { message?: string }
 }
 
@@ -435,7 +520,10 @@ async function fetchAdsByIdsBatch(
     const slice = adIds.slice(i, i + chunk)
     const u = new URL('https://graph.facebook.com/v21.0/')
     u.searchParams.set('ids', slice.join(','))
-    u.searchParams.set('fields', 'name,effective_status,adset_id,campaign_id,creative{thumbnail_url,image_url}')
+    u.searchParams.set(
+      'fields',
+      'name,effective_status,adset_id,campaign_id,creative{thumbnail_url,image_url,object_type,video_id}'
+    )
     u.searchParams.set('access_token', token)
     const r = await fetch(u.toString())
     const j = (await r.json()) as Record<string, AdObj | { error?: { message?: string } }>
@@ -800,13 +888,14 @@ async function fetchCreativesForPeriod(
   try {
     const rows = await fetchAdLevelInsights(token, actId, since, until)
     if (!rows.length) return []
+    const topRows = sortMetaAdInsightRows(rows, 15)
     const thumbs = await fetchAdsByIdsBatch(
       token,
-      rows.map((r) => r.ad_id)
+      topRows.map((r) => r.ad_id)
     )
-    return rows.map((row, i) => {
+    return topRows.map((row, i) => {
       const ad = thumbs.get(row.ad_id)
-      const img = ad?.creative?.image_url || ad?.creative?.thumbnail_url || null
+      const preview = resolveCreativePreview(ad?.creative)
       const st = String(ad?.effective_status ?? 'ACTIVE').toUpperCase()
       const status =
         st.includes('PAUSED') || st.includes('ARCHIVED') || st.includes('DELETED') ? 'paused' : 'active'
@@ -818,7 +907,10 @@ async function fetchCreativesForPeriod(
       return {
         id: row.ad_id,
         name,
-        image: img,
+        image: preview.previewUrl,
+        mediaType: preview.mediaType,
+        thumbnailUrl: preview.thumbnailUrl,
+        imageUrl: preview.imageUrl,
         gradient: CREATIVE_GRADIENTS[i % CREATIVE_GRADIENTS.length],
         status,
         spend,
@@ -870,12 +962,13 @@ async function buildMetaResponse(
 ): Promise<Record<string, unknown>> {
   // Árvore (fetchAdLevelInsights/fetchMetaCampaignsForOverview) fica sem filtro — volta completa;
   // o recorte server-side vale para agregados, série diária e posicionamentos.
-  const [agg, dailyRaw, places, adInsightRows, campPack] = await Promise.all([
+  const [agg, dailyRaw, places, adInsightRows, campPack, monthlyResults] = await Promise.all([
     fetchInsightsAggregate(token, actId, since, until, filtering),
     fetchInsightsDaily(token, actId, since, until, filtering),
     fetchPlacementsBreakdown(token, actId, since, until, filtering),
     fetchAdLevelInsights(token, actId, since, until),
     fetchMetaCampaignsForOverview(token, actId, since, until),
+    fetchMetaMonthlyResults(token, actId, until),
   ])
 
   const daily = fillDailyGaps(since, until, dailyRaw)
@@ -887,10 +980,11 @@ async function buildMetaResponse(
     ? await fetchAdsByIdsBatch(token, adInsightRows.map((r) => r.ad_id))
     : new Map<string, AdObj>()
 
-  // Build creatives array (same shape as before)
-  const creatives: Record<string, unknown>[] = adInsightRows.map((row, i) => {
+  // Build creatives array (top 15 by spend — carrossel only)
+  const creativeRows = sortMetaAdInsightRows(adInsightRows, 15)
+  const creatives: Record<string, unknown>[] = creativeRows.map((row, i) => {
     const ad = thumbs.get(row.ad_id)
-    const img = ad?.creative?.image_url || ad?.creative?.thumbnail_url || null
+    const preview = resolveCreativePreview(ad?.creative)
     const st = String(ad?.effective_status ?? 'ACTIVE').toUpperCase()
     const status =
       st.includes('PAUSED') || st.includes('ARCHIVED') || st.includes('DELETED') ? 'paused' : 'active'
@@ -898,7 +992,10 @@ async function buildMetaResponse(
     return {
       id: row.ad_id,
       name,
-      image: img,
+      image: preview.previewUrl,
+      mediaType: preview.mediaType,
+      thumbnailUrl: preview.thumbnailUrl,
+      imageUrl: preview.imageUrl,
       gradient: CREATIVE_GRADIENTS[i % CREATIVE_GRADIENTS.length],
       status,
       spend: row.spend,
@@ -908,16 +1005,17 @@ async function buildMetaResponse(
     }
   })
 
-  // Build ad-level MetaNodeInput[] for tree assembly
+  // Build ad-level MetaNodeInput[] for tree assembly (todos os anúncios com dados no período)
   const adNodes: MetaNodeInput[] = adInsightRows.map((row) => {
     const ad = thumbs.get(row.ad_id)
-    const adsetId = String(ad?.adset_id ?? '').trim()
+    const adsetId = String(row.adset_id || ad?.adset_id || '').trim()
     const spend = row.spend
     const results = row.leads
     const impressions = row.impressions
     const linkClicks = row.linkClicks
     const ctrLink = impressions > 0 ? (linkClicks / impressions) * 100 : 0
     const cpm = impressions > 0 ? spend / (impressions / 1000) : 0
+    const preview = resolveCreativePreview(ad?.creative)
     return {
       id: row.ad_id,
       name: (ad?.name?.trim() || row.ad_name).trim() || 'Anúncio',
@@ -925,7 +1023,9 @@ async function buildMetaResponse(
       objective: '',
       dailyBudget: 0,
       parentId: adsetId || null,
-      thumbnailUrl: ad?.creative?.image_url || ad?.creative?.thumbnail_url || null,
+      thumbnailUrl: preview.thumbnailUrl,
+      mediaType: preview.mediaType,
+      imageUrl: preview.imageUrl,
       metrics: { spend, results, ctrLink, cpm },
     }
   })
@@ -933,75 +1033,47 @@ async function buildMetaResponse(
   // Assemble the full Campaign → AdSet → Ad tree
   const tree = buildMetaTree(campPack.tree, campPack.adsetNodes, adNodes)
 
-  if (agg.error || !agg.row) {
-    return {
-      configured: true,
-      source,
-      accountDisplay,
-      adAccountId: actId,
-      error: agg.error ?? 'Sem dados agregados no período.',
-      detail: actId,
-      metrics: [] as Metric[],
-      primaryRange: { since, until },
-      compareRange: null,
-      compareMetrics: null as Metric[] | null,
-      daily: [] as DailyRow[],
-      placements: [] as { name: string; value: number }[],
-      creatives: [] as Record<string, unknown>[],
-      campaigns,
-      campaignsError,
-      tree,
-    }
-  }
+  const primaryRawFromAgg = agg.row ? rowToRaw(agg.row as Record<string, string | number>) : null
+  const primaryRaw = primaryRawFromAgg ?? aggregateRawFromDaily(daily)
+  const aggError = !primaryRaw ? (agg.error ?? 'Sem dados agregados no período.') : null
 
-  const primaryRaw = rowToRaw(agg.row as Record<string, string | number>)
   if (!primaryRaw) {
     return {
       configured: true,
       source,
       accountDisplay,
       adAccountId: actId,
-      error: 'Resposta de insights vazia.',
+      error: aggError,
       detail: actId,
       metrics: [] as Metric[],
       primaryRange: { since, until },
       compareRange: null,
       compareMetrics: null as Metric[] | null,
+      metaMetricsRaw: null,
+      metaMetricsCompareRaw: null,
       daily,
-      placements: [],
-      creatives,
+      compareDaily: [] as DailyRow[],
+      placements: [] as { name: string; value: number }[],
+      creatives: [] as Record<string, unknown>[],
       campaigns,
       campaignsError,
       tree,
+      monthlyResults,
     }
   }
 
   let compareRaw: RawAgg | null = null
+  let compareDaily: DailyRow[] = []
   if (compareSince && compareUntil) {
-    const c = await fetchInsightsAggregate(token, actId, compareSince, compareUntil, filtering)
-    compareRaw = rowToRaw(c.row as Record<string, string | number>) ?? {
-      spend: 0,
-      impressions: 0,
-      reach: 0,
-      clicks: 0,
-      ctr: 0,
-      cpc: 0,
-      cpm: 0,
-      frequency: 0,
-      leads: 0,
-      linkClicks: 0,
-      lpViews: 0,
-      hookViews: 0,
-      thruPlay: 0,
-      purchases: 0,
-      messages: 0,
-      postEngagement: 0,
-      conversionValue: 0,
-      videoP25: 0,
-      videoP50: 0,
-      videoP75: 0,
-      videoP100: 0,
-    }
+    const [cAgg, cDailyRaw] = await Promise.all([
+      fetchInsightsAggregate(token, actId, compareSince, compareUntil, filtering),
+      fetchInsightsDaily(token, actId, compareSince, compareUntil, filtering),
+    ])
+    compareDaily = fillDailyGaps(compareSince, compareUntil, cDailyRaw)
+    compareRaw =
+      (cAgg.row ? rowToRaw(cAgg.row as Record<string, string | number>) : null) ??
+      aggregateRawFromDaily(compareDaily) ??
+      emptyRawAgg()
   }
 
   const metrics = buildMetrics(primaryRaw, compareRaw)
@@ -1031,11 +1103,13 @@ async function buildMetaResponse(
     metaMetricsCompareRaw,
     qualityRanking: null as string | null,
     daily,
+    compareDaily,
     placements,
     creatives,
     campaigns,
     campaignsError,
     tree,
+    monthlyResults,
   }
 }
 
@@ -1083,6 +1157,7 @@ export async function onRequestGet(context: {
         campaigns: [],
         campaignsError: null,
         tree: [],
+        monthlyResults: EMPTY_META_MONTHLY_RESULTS,
       })
     }
     const useWorkerSecrets = !conn.oauth_credential_id
@@ -1108,6 +1183,7 @@ export async function onRequestGet(context: {
         campaigns: [],
         campaignsError: null,
         tree: [],
+        monthlyResults: EMPTY_META_MONTHLY_RESULTS,
       })
     }
     const actId = normalizeActId(conn.external_id)
@@ -1151,6 +1227,7 @@ export async function onRequestGet(context: {
       campaigns: [],
       campaignsError: null,
       tree: [],
+      monthlyResults: EMPTY_META_MONTHLY_RESULTS,
     })
   }
 
@@ -1180,6 +1257,7 @@ export async function onRequestGet(context: {
         campaigns: [],
         campaignsError: null,
         tree: [],
+        monthlyResults: EMPTY_META_MONTHLY_RESULTS,
       })
     }
 
@@ -1212,6 +1290,7 @@ export async function onRequestGet(context: {
       campaigns: [],
       campaignsError: null,
       tree: [],
+      monthlyResults: EMPTY_META_MONTHLY_RESULTS,
     })
   }
 }

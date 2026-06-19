@@ -12,6 +12,10 @@ import { cn } from '@/lib/utils'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
+import { useDashboardFilters } from '@/context/DashboardFiltersContext'
+import { resolveTreeSlice } from '@/lib/filterOptionsFromTree'
+import { filterMetaAdsetRows } from '@/lib/metaTreeFilters'
+import { MetaBlockFilterToolbar } from '@/components/MetaBlockFilterToolbar'
 
 const PAGE_SIZE = 15
 const LS_VISIBILITY = 'p12_meta_ads_adset_results_columns'
@@ -49,6 +53,9 @@ function flattenAdsetsFromTree(tree) {
         id: String(ag.id),
         name: String(ag.name || `Conjunto ${ag.id}`),
         campaignName: String(camp.name || ''),
+        campaignId: String(camp.id),
+        objective: String(camp.objective ?? ag.objective ?? ''),
+        effectiveStatus: String(ag.effectiveStatus ?? ''),
         spend,
         impressions,
         clicks,
@@ -173,8 +180,24 @@ function buildColumns() {
 
 export function MetaAdsetResultsTable() {
   const { loading, data } = usePlatformOverview()
-  const rows = useMemo(() => flattenAdsetsFromTree(data?.tree), [data?.tree])
+  const { dimensionFilters, metaBlockFilters, setMetaBlockFilters } = useDashboardFilters()
+  const tree = data?.tree
+
+  const mergedFilters = useMemo(
+    () => ({ ...dimensionFilters, ...metaBlockFilters }),
+    [dimensionFilters, metaBlockFilters]
+  )
+
+  const rows = useMemo(() => {
+    const sliced = resolveTreeSlice(Array.isArray(tree) ? tree : [], mergedFilters)
+    const flat = flattenAdsetsFromTree(sliced)
+    return filterMetaAdsetRows(flat, mergedFilters)
+  }, [tree, mergedFilters])
+
+  const allRowsCount = useMemo(() => flattenAdsetsFromTree(tree).length, [tree])
+
   const err = typeof data?.campaignsError === 'string' && data.campaignsError.trim() ? data.campaignsError.trim() : null
+  const hasFilters = Boolean(metaBlockFilters.objetivo || metaBlockFilters.status)
 
   const [columnVisibility, setColumnVisibility] = useState(() => {
     const saved = readJsonLs(LS_VISIBILITY, null)
@@ -210,7 +233,7 @@ export function MetaAdsetResultsTable() {
 
   useEffect(() => {
     setPage(1)
-  }, [rows.length, sorting])
+  }, [rows.length, sorting, metaBlockFilters])
 
   const columns = useMemo(() => buildColumns(), [])
 
@@ -236,12 +259,16 @@ export function MetaAdsetResultsTable() {
 
   return (
     <div className="flex min-h-0 h-full min-w-0 flex-col overflow-hidden rounded-lg border border-surface-border bg-surface-card">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-surface-border px-3 py-3 sm:px-4">
-        <div className="min-w-0">
-          <span className="section-title">Resultados por conjunto de anúncios</span>
-          <p className="mt-0.5 text-[10px] text-muted-foreground font-sans">Período selecionado no filtro de datas</p>
-        </div>
-        <DropdownMenu.Root>
+      <div className="flex shrink-0 flex-col gap-2 border-b border-surface-border px-3 py-3 sm:px-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <span className="section-title">Resultados por conjunto de anúncios</span>
+            <p className="mt-0.5 text-[10px] text-muted-foreground font-sans">
+              Período selecionado no filtro de datas
+              {hasFilters && allRowsCount > 0 ? ` · ${rows.length} de ${allRowsCount} conjuntos` : null}
+            </p>
+          </div>
+          <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button
               type="button"
@@ -280,6 +307,12 @@ export function MetaAdsetResultsTable() {
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
+        </div>
+        <MetaBlockFilterToolbar
+          tree={Array.isArray(tree) ? tree : []}
+          blockFilters={metaBlockFilters}
+          setBlockFilters={setMetaBlockFilters}
+        />
       </div>
 
       {err ? <p className="shrink-0 px-3 py-2 text-[10px] text-amber-400/90 sm:px-4">{err}</p> : null}
@@ -293,7 +326,9 @@ export function MetaAdsetResultsTable() {
 
       {!loading && rows.length === 0 ? (
         <p className="px-3 py-6 text-center text-[11px] text-muted-foreground sm:px-4">
-          Nenhum conjunto de anúncios com métricas no período.
+          {hasFilters && allRowsCount > 0
+            ? 'Nenhum conjunto corresponde aos filtros selecionados.'
+            : 'Nenhum conjunto de anúncios com métricas no período.'}
         </p>
       ) : null}
 

@@ -16,6 +16,7 @@
     "cf:secrets": "wrangler secret bulk .dev.vars",
     "cf:secrets:sync": "node scripts/sync-worker-secrets.mjs",
     "cf:secrets:list": "wrangler secret list",
+    "check:meta-instagram": "node scripts/check-meta-instagram-token.mjs",
     "cf:access:setup": "node scripts/setup-cloudflare-access.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
