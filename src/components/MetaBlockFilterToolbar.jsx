@@ -1,8 +1,13 @@
 import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { DimensionFilterSelect } from '@/components/ui/DimensionFilterSelect'
+import { NameContainsFilter } from '@/components/ui/NameContainsFilter'
 import { filterOptionsFromTree } from '@/lib/filterOptionsFromTree'
 import { META_OBJECTIVE_LABELS, META_STATUS_FILTER_OPTIONS } from '@/lib/metaAdsLabels'
+
+function hasNameContainsFilter(blockFilters) {
+  return Boolean(String(blockFilters?.nameContains?.text ?? '').trim())
+}
 
 export function MetaBlockFilterToolbar({ tree, blockFilters, setBlockFilters, className }) {
   const treeFilterOptions = useMemo(() => {
@@ -22,7 +27,19 @@ export function MetaBlockFilterToolbar({ tree, blockFilters, setBlockFilters, cl
       return next
     })
 
-  const hasBlockFilters = Boolean(blockFilters?.objetivo || blockFilters?.status)
+  const hasBlockFilters = Boolean(
+    blockFilters?.objetivo || blockFilters?.status || hasNameContainsFilter(blockFilters)
+  )
+
+  const setNameContains = (value) =>
+    setBlockFilters((prev) => ({ ...prev, nameContains: value }))
+
+  const clearNameContains = () =>
+    setBlockFilters((prev) => {
+      const next = { ...prev }
+      delete next.nameContains
+      return next
+    })
 
   return (
     <div className={cn('flex flex-wrap items-center gap-2', className)}>
@@ -42,6 +59,13 @@ export function MetaBlockFilterToolbar({ tree, blockFilters, setBlockFilters, cl
         options={treeFilterOptions.status}
         onChange={setBlockFilter}
         onClear={clearBlockFilter}
+        compact
+      />
+      <NameContainsFilter
+        value={blockFilters?.nameContains}
+        onChange={setNameContains}
+        onClear={clearNameContains}
+        childLevelLabel="Conjunto"
         compact
       />
       {hasBlockFilters ? (

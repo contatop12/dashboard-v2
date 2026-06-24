@@ -59,7 +59,9 @@ function MetaCampaignsBlock() {
 
   const visibleTree = useMemo(() => resolveTreeSlice(tree, mergedFilters), [tree, mergedFilters])
   const totalCampaigns = tree.length
-  const hasActiveTreeFilters = Boolean(metaBlockFilters.objetivo || metaBlockFilters.status)
+  const hasActiveTreeFilters = Boolean(
+    metaBlockFilters.objetivo || metaBlockFilters.status || String(metaBlockFilters.nameContains?.text ?? '').trim()
+  )
 
   const applyStatus = (node, status) => {
     const patch = (list) =>

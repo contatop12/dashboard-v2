@@ -69,6 +69,55 @@ export function filterOptionsFromTree(tree, opts = {}) {
   return { campanha, children, ads, objetivo, keywords }
 }
 
+export const NAME_CONTAINS_LEVELS = [
+  { id: 'campanha', label: 'Campanha' },
+  { id: 'children', label: 'children' },
+  { id: 'ads', label: 'Anúncio' },
+]
+
+function nodeNameContains(node, needle) {
+  return String(node?.name ?? '').toLowerCase().includes(needle)
+}
+
+/** Filtra árvore por substring no nome, no nível escolhido (campanha, children ou ads). */
+export function applyNameContainsToTree(tree, nameContains) {
+  const text = String(nameContains?.text ?? '').trim()
+  if (!text) return Array.isArray(tree) ? tree : []
+
+  const needle = text.toLowerCase()
+  const level = nameContains?.level || 'campanha'
+  const rows = Array.isArray(tree) ? tree : []
+
+  if (level === 'campanha') {
+    return rows.filter((c) => nodeNameContains(c, needle))
+  }
+
+  if (level === 'children') {
+    return rows
+      .map((c) => ({
+        ...c,
+        adsets: (c.adsets ?? []).filter((s) => nodeNameContains(s, needle)),
+      }))
+      .filter((c) => c.adsets.length > 0)
+  }
+
+  if (level === 'ads') {
+    return rows
+      .map((c) => ({
+        ...c,
+        adsets: (c.adsets ?? [])
+          .map((s) => ({
+            ...s,
+            ads: (s.ads ?? []).filter((a) => nodeNameContains(a, needle)),
+          }))
+          .filter((s) => s.ads.length > 0),
+      }))
+      .filter((c) => c.adsets.length > 0)
+  }
+
+  return rows
+}
+
 /** Recorte client-side da árvore conforme filtros selecionados. */
 export function resolveTreeSlice(tree, selected) {
   let rows = Array.isArray(tree) ? tree : []
@@ -120,5 +169,5 @@ export function resolveTreeSlice(tree, selected) {
       }))
       .filter((c) => c.adsets.length > 0)
   }
-  return rows
+  return applyNameContainsToTree(rows, selected?.nameContains)
 }

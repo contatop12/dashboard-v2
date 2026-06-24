@@ -11,6 +11,8 @@ import { ArrowDown, ArrowUp, Columns3, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
+import { useDashboardFilters } from '@/context/DashboardFiltersContext'
+import { resolveTreeSlice } from '@/lib/filterOptionsFromTree'
 import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
 const PAGE_SIZE = 15
@@ -173,7 +175,33 @@ function buildColumns() {
 
 export function GoogleAdGroupResultsTable() {
   const { loading, data } = usePlatformOverview()
-  const rows = useMemo(() => flattenAdGroupsFromTree(data?.campaignTree), [data?.campaignTree])
+  const { dimensionFilters, googleCampaignBlockFilters } = useDashboardFilters()
+  const tree = data?.campaignTree
+
+  const mergedFilters = useMemo(
+    () => ({ ...dimensionFilters, ...googleCampaignBlockFilters }),
+    [dimensionFilters, googleCampaignBlockFilters]
+  )
+
+  const rows = useMemo(() => {
+    const sliced = resolveTreeSlice(Array.isArray(tree) ? tree : [], mergedFilters)
+    return flattenAdGroupsFromTree(sliced)
+  }, [tree, mergedFilters])
+
+  const allRowsCount = useMemo(() => flattenAdGroupsFromTree(tree).length, [tree])
+
+  const hasFilters = useMemo(
+    () =>
+      Boolean(
+        googleCampaignBlockFilters.campanha ||
+          googleCampaignBlockFilters.children ||
+          googleCampaignBlockFilters.objetivo ||
+          googleCampaignBlockFilters.status ||
+          String(googleCampaignBlockFilters.nameContains?.text ?? '').trim()
+      ),
+    [googleCampaignBlockFilters]
+  )
+
   const err = typeof data?.campaignsError === 'string' && data.campaignsError.trim() ? data.campaignsError.trim() : null
 
   const [columnVisibility, setColumnVisibility] = useState(() => {
@@ -293,7 +321,9 @@ export function GoogleAdGroupResultsTable() {
 
       {!loading && rows.length === 0 ? (
         <p className="px-3 py-6 text-center text-[11px] text-muted-foreground sm:px-4">
-          Nenhum grupo de anúncios com métricas no período.
+          {hasFilters && allRowsCount > 0
+            ? 'Nenhum grupo corresponde aos filtros selecionados.'
+            : 'Nenhum grupo de anúncios com métricas no período.'}
         </p>
       ) : null}
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { filterOptionsFromTree, resolveTreeSlice } from './filterOptionsFromTree'
+import { applyNameContainsToTree, filterOptionsFromTree, resolveTreeSlice } from './filterOptionsFromTree'
 
 const tree = [
   {
@@ -113,5 +113,50 @@ describe('resolveTreeSlice', () => {
     expect(out).toHaveLength(1)
     expect(out[0].adsets[0].keywords).toHaveLength(1)
     expect(out[0].adsets[0].keywords[0].keyword).toBe('cyrela sp')
+  })
+
+  test('filtra por palavra no título da campanha', () => {
+    const out = resolveTreeSlice(tree, { nameContains: { level: 'campanha', text: 'camp a' } })
+    expect(out).toHaveLength(1)
+    expect(out[0].id).toBe('1')
+    expect(out[0].adsets).toHaveLength(2)
+  })
+
+  test('filtra por palavra no título do conjunto', () => {
+    const out = resolveTreeSlice(tree, { nameContains: { level: 'children', text: 'set 1' } })
+    expect(out).toHaveLength(1)
+    expect(out[0].adsets).toHaveLength(1)
+    expect(out[0].adsets[0].id).toBe('11')
+  })
+
+  test('filtra por palavra no título do anúncio', () => {
+    const out = resolveTreeSlice(tree, { nameContains: { level: 'ads', text: 'ad 1' } })
+    expect(out).toHaveLength(1)
+    expect(out[0].adsets[0].ads).toHaveLength(1)
+    expect(out[0].adsets[0].ads[0].id).toBe('111')
+  })
+
+  test('nameContains é case-insensitive', () => {
+    const out = resolveTreeSlice(tree, { nameContains: { level: 'campanha', text: 'CYRELA' } })
+    expect(out).toHaveLength(0)
+    const out2 = resolveTreeSlice(
+      [
+        {
+          id: '9',
+          name: 'Cyrela SP',
+          adsets: [{ id: '91', name: 'Grupo', ads: [] }],
+        },
+      ],
+      { nameContains: { level: 'campanha', text: 'CYRELA' } }
+    )
+    expect(out2).toHaveLength(1)
+    expect(out2[0].id).toBe('9')
+  })
+})
+
+describe('applyNameContainsToTree', () => {
+  test('sem texto retorna árvore inalterada', () => {
+    expect(applyNameContainsToTree(tree, { level: 'campanha', text: '' })).toHaveLength(2)
+    expect(applyNameContainsToTree(tree, null)).toHaveLength(2)
   })
 })

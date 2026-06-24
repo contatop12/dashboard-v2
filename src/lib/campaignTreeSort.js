@@ -93,5 +93,6 @@ export function hasActiveCampaignToolbarExtras(blockFilters = {}) {
   const hasSort = id !== DEFAULT_CAMPAIGN_SORT.id || desc !== DEFAULT_CAMPAIGN_SORT.desc
   const dimensionKeys = ['campanha', 'children', 'objetivo', 'status']
   const hasDimension = dimensionKeys.some((k) => blockFilters[k])
-  return hasView || hasSort || hasDimension
+  const hasNameContains = Boolean(String(blockFilters.nameContains?.text ?? '').trim())
+  return hasView || hasSort || hasDimension || hasNameContains
 }

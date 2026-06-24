@@ -197,7 +197,11 @@ export function MetaAdsetResultsTable() {
   const allRowsCount = useMemo(() => flattenAdsetsFromTree(tree).length, [tree])
 
   const err = typeof data?.campaignsError === 'string' && data.campaignsError.trim() ? data.campaignsError.trim() : null
-  const hasFilters = Boolean(metaBlockFilters.objetivo || metaBlockFilters.status)
+  const hasFilters = Boolean(
+    metaBlockFilters.objetivo ||
+      metaBlockFilters.status ||
+      String(metaBlockFilters.nameContains?.text ?? '').trim()
+  )
 
   const [columnVisibility, setColumnVisibility] = useState(() => {
     const saved = readJsonLs(LS_VISIBILITY, null)

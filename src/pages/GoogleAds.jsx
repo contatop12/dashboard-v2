@@ -29,6 +29,7 @@ import GoogleConversionMixChart from '@/components/GoogleConversionMixChart'
 import { BlockCard } from '@/components/ui/BlockCard'
 import { CampaignTree } from '@/components/CampaignTree'
 import { DimensionFilterSelect } from '@/components/ui/DimensionFilterSelect'
+import { NameContainsFilter } from '@/components/ui/NameContainsFilter'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { useCampaignStatusMutation } from '@/hooks/useCampaignStatusMutation'
 import { filterOptionsFromTree, resolveTreeSlice } from '@/lib/filterOptionsFromTree'
@@ -792,7 +793,8 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
           mergedFilters.objetivo ||
           mergedFilters.status ||
           mergedFilters.ads ||
-          mergedFilters.keywords
+          mergedFilters.keywords ||
+          String(mergedFilters.nameContains?.text ?? '').trim()
       ),
     [mergedFilters]
   )
@@ -870,6 +872,19 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
           options={treeFilterOptions.status}
           onChange={setBlockFilter}
           onClear={clearBlockFilter}
+          compact
+        />
+        <NameContainsFilter
+          value={blockFilters.nameContains}
+          onChange={(value) => setBlockFilters((prev) => ({ ...prev, nameContains: value }))}
+          onClear={() =>
+            setBlockFilters((prev) => {
+              const next = { ...prev }
+              delete next.nameContains
+              return next
+            })
+          }
+          childLevelLabel="Grupo"
           compact
         />
         {hasBlockFilters ? (
