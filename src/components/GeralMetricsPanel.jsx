@@ -9,6 +9,7 @@ import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
 import { MetricInfo } from '@/components/ui/MetricInfo'
 import GeralAnalysisPanel from '@/components/GeralAnalysisPanel'
+import GeralChannelSummary from '@/components/GeralChannelSummary'
 import { buildGeralMetricCells, selectGeralDaily } from '@/lib/geralOverviewMetrics'
 
 const COMPACT_NUMBER = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 })
@@ -354,6 +355,8 @@ export default function GeralMetricsPanel() {
           <SecondaryMetric key={m.id} {...m} data={metrics.secondary[m.id]} />
         ))}
       </div>
+
+      <GeralChannelSummary />
 
       <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         <DailyTrendCard

@@ -100,3 +100,65 @@ export function mapGeralDailyForChart(daily) {
     gasto: Number(d.spend) || 0,
   }))
 }
+
+function channelSpendDelta(current, previous) {
+  return deltaPct(current, previous)
+}
+
+/**
+ * Linhas Meta vs Google para o resumo compacto na visão geral.
+ */
+export function buildGeralChannelSummary(data, { isPrevious, compareEnabled }) {
+  const totals = isPrevious ? data?.compareTotals : data?.totals
+  const compareTotals = compareEnabled && !isPrevious ? data?.compareTotals : null
+  if (!totals) return { rows: [], totalSpend: 0, totalResults: 0 }
+
+  const metaSpend = Number(totals.metaSpend) || 0
+  const googleSpend = Number(totals.googleSpend) || 0
+  const metaResults = Number(totals.metaResults) || 0
+  const googleResults = Number(totals.googleConversions) || 0
+  const totalSpend = metaSpend + googleSpend
+  const totalResults = metaResults + googleResults
+  const metaAccounts = Number(data?.metaAccountCount) || 0
+  const googleAccounts = Number(data?.googleAccountCount) || 0
+
+  const defs = [
+    {
+      id: 'meta_ads',
+      name: 'Meta Ads',
+      color: '#1877F2',
+      spend: metaSpend,
+      results: metaResults,
+      accountCount: metaAccounts,
+      compareSpend: compareTotals ? Number(compareTotals.metaSpend) || 0 : null,
+      visible: metaSpend > 0 || metaResults > 0 || metaAccounts > 0,
+    },
+    {
+      id: 'google_ads',
+      name: 'Google Ads',
+      color: '#34A853',
+      spend: googleSpend,
+      results: googleResults,
+      accountCount: googleAccounts,
+      compareSpend: compareTotals ? Number(compareTotals.googleSpend) || 0 : null,
+      visible: googleSpend > 0 || googleResults > 0 || googleAccounts > 0,
+    },
+  ]
+
+  const rows = defs
+    .filter((d) => d.visible)
+    .map((d) => ({
+      id: d.id,
+      name: d.name,
+      color: d.color,
+      spend: d.spend,
+      results: d.results,
+      accountCount: d.accountCount,
+      spendShare: totalSpend > 0 ? (d.spend / totalSpend) * 100 : 0,
+      resultsShare: totalResults > 0 ? (d.results / totalResults) * 100 : 0,
+      costPerResult: d.results > 0 ? d.spend / d.results : null,
+      spendDeltaPct: d.compareSpend != null ? channelSpendDelta(d.spend, d.compareSpend) : null,
+    }))
+
+  return { rows, totalSpend, totalResults }
+}

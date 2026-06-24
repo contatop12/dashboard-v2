@@ -1,9 +1,4 @@
 import GeralMetricsPanel from '@/components/GeralMetricsPanel'
-import OverviewTable from '@/components/OverviewTable'
-import Demographics from '@/components/Demographics'
-import GeralChannelBlock from '@/components/GeralChannelBlock'
-import KeywordsHighlight from '@/components/KeywordsHighlight'
-import VideoRange from '@/components/VideoRange'
 import { GeralMetaClientsTable, GeralGoogleClientsTable } from '@/components/GeralPlatformClientsTable'
 
 export const GERAL_DASHBOARD_BLOCKS = [
@@ -22,77 +17,22 @@ export const GERAL_DASHBOARD_BLOCKS = [
     id: 'geral-meta-clients',
     tier: 'secondary',
     defaultColSpan: 8,
-    defaultRowSpan: 5,
+    defaultRowSpan: 6,
     minColSpan: 4,
     maxColSpan: 8,
     minRowSpan: 4,
-    maxRowSpan: 12,
+    maxRowSpan: 14,
     render: () => <GeralMetaClientsTable />,
   },
   {
     id: 'geral-google-clients',
     tier: 'secondary',
     defaultColSpan: 8,
-    defaultRowSpan: 5,
+    defaultRowSpan: 6,
     minColSpan: 4,
     maxColSpan: 8,
     minRowSpan: 4,
-    maxRowSpan: 12,
+    maxRowSpan: 14,
     render: () => <GeralGoogleClientsTable />,
-  },
-  {
-    id: 'overview-campaigns',
-    tier: 'secondary',
-    defaultColSpan: 8,
-    defaultRowSpan: 4,
-    minColSpan: 4,
-    maxColSpan: 8,
-    minRowSpan: 3,
-    maxRowSpan: 10,
-    render: () => <OverviewTable />,
-  },
-  {
-    id: 'investimento-canal',
-    tier: 'secondary',
-    defaultColSpan: 4,
-    defaultRowSpan: 4,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 3,
-    maxRowSpan: 8,
-    render: () => <GeralChannelBlock />,
-  },
-  {
-    id: 'demographics',
-    tier: 'secondary',
-    defaultColSpan: 4,
-    defaultRowSpan: 4,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 3,
-    maxRowSpan: 8,
-    render: () => <Demographics />,
-  },
-  {
-    id: 'keywords',
-    tier: 'secondary',
-    defaultColSpan: 4,
-    defaultRowSpan: 4,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 3,
-    maxRowSpan: 8,
-    render: () => <KeywordsHighlight />,
-  },
-  {
-    id: 'video-range',
-    tier: 'secondary',
-    defaultColSpan: 4,
-    defaultRowSpan: 4,
-    minColSpan: 2,
-    maxColSpan: 8,
-    minRowSpan: 3,
-    maxRowSpan: 8,
-    render: () => <VideoRange />,
   },
 ]
