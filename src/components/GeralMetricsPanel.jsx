@@ -1,14 +1,15 @@
 import { useMemo, useId } from 'react'
-import { format } from 'date-fns'
+import { format, parse } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Target, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { cn, formatCurrency, formatNumber } from '@/lib/utils'
-import { kpiData, kpiDataPrevious, timelineData } from '@/data/mockData'
+import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
 import { MetricInfo } from '@/components/ui/MetricInfo'
 import GeralAnalysisPanel from '@/components/GeralAnalysisPanel'
+import { buildGeralMetricCells, selectGeralDaily } from '@/lib/geralOverviewMetrics'
 
 const COMPACT_NUMBER = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 })
 
@@ -26,45 +27,19 @@ const SECONDARY_METRICS = [
   { id: 'ctr', label: 'CTR', infoKey: 'ctr', higherIsBetter: true },
 ]
 
-function computeDeltaPct(current, previous) {
-  const c = Number(current)
-  const p = Number(previous)
-  if (!Number.isFinite(c) || !Number.isFinite(p) || p === 0) return null
-  return ((c - p) / Math.abs(p)) * 100
-}
-
-function buildMetricView(currentSrc, previousSrc, compareEnabled) {
-  const read = (src, id) => src[id] ?? null
-  const build = (id) => {
-    const row = read(currentSrc, id)
-    if (!row) return null
-    const prev = read(previousSrc, id)
-    const deltaPct =
-      compareEnabled && prev?.value != null ? computeDeltaPct(row.value, prev.value) : null
-    return { value: row.formatted, deltaPct }
+function formatDayLabel(dateStr) {
+  if (!dateStr) return '—'
+  try {
+    return format(parse(dateStr, 'yyyy-MM-dd', new Date()), 'dd/MM', { locale: ptBR })
+  } catch {
+    return dateStr
   }
-  return { build }
-}
-
-function mapTimelineToDaily(data) {
-  if (!Array.isArray(data)) return []
-  return data.map((d, i) => ({
-    date: `dia-${i}`,
-    leads: Number(d.leads) || 0,
-    spend: (Number(d.leads) || 0) * (Number(d.custo) || 0),
-    impressions: Math.round(((Number(d.leads) || 0) / 11) * 50000),
-  }))
-}
-
-function formatDayLabel(idx) {
-  const row = timelineData[idx]
-  return row?.date ?? `D${idx + 1}`
 }
 
 function summarizeDailySeries(daily, valueKey) {
   if (!Array.isArray(daily) || daily.length === 0) return null
-  const rows = daily.map((d, i) => ({
-    date: formatDayLabel(i),
+  const rows = daily.map((d) => ({
+    date: d.date,
     value: Number(d[valueKey]) || 0,
   }))
   const total = rows.reduce((s, r) => s + r.value, 0)
@@ -82,7 +57,7 @@ function DailyTrendTooltip({ active, payload, label, formatValue }) {
   if (!active || !payload?.length) return null
   return (
     <div className="rounded-lg border border-surface-border bg-surface-card px-3 py-2 text-xs shadow-xl">
-      <p className="mb-1 font-sans text-muted-foreground">{label}</p>
+      <p className="mb-1 font-sans text-muted-foreground">Dia {label}</p>
       <p className="font-mono font-semibold tabular-nums text-white">
         {formatValue(Number(payload[0]?.value) || 0)}
       </p>
@@ -95,8 +70,8 @@ function DailyTrendCard({ title, subtitle, daily, valueKey, formatValue, formatA
   const summary = useMemo(() => summarizeDailySeries(daily, valueKey), [daily, valueKey])
   const chartData = useMemo(() => {
     if (!Array.isArray(daily)) return []
-    return daily.map((d, i) => ({
-      dia: formatDayLabel(i),
+    return daily.map((d) => ({
+      dia: formatDayLabel(d.date),
       valor: Number(d[valueKey]) || 0,
     }))
   }, [daily, valueKey])
@@ -129,12 +104,12 @@ function DailyTrendCard({ title, subtitle, daily, valueKey, formatValue, formatA
           <span>
             Pico{' '}
             <strong className="font-mono font-medium text-foreground/90">{formatValue(peak.value)}</strong>
-            {peak.date ? ` (${peak.date})` : ''}
+            {peak.date ? ` (${formatDayLabel(peak.date)})` : ''}
           </span>
           <span>
             Mín.{' '}
             <strong className="font-mono font-medium text-foreground/90">{formatValue(low.value)}</strong>
-            {low.date ? ` (${low.date})` : ''}
+            {low.date ? ` (${formatDayLabel(low.date)})` : ''}
           </span>
         </div>
       </div>
@@ -239,26 +214,54 @@ function SecondaryMetric({ label, infoKey, higherIsBetter, data }) {
   )
 }
 
+function formatRangeLabel(apiRange, fallbackStart, fallbackEnd) {
+  if (apiRange?.since && apiRange?.until) {
+    try {
+      const s = parse(apiRange.since, 'yyyy-MM-dd', new Date())
+      const u = parse(apiRange.until, 'yyyy-MM-dd', new Date())
+      return `${format(s, 'd MMM', { locale: ptBR })} – ${format(u, 'd MMM yyyy', { locale: ptBR })}`
+    } catch {
+      /* fall through */
+    }
+  }
+  if (fallbackStart && fallbackEnd) {
+    return `${format(fallbackStart, 'd MMM', { locale: ptBR })} – ${format(fallbackEnd, 'd MMM yyyy', { locale: ptBR })}`
+  }
+  return null
+}
+
 export default function GeralMetricsPanel() {
   const period = useDashboardBlockPeriod()
   const { comparePrimaryKpi, compareDateRange, dateRange } = useDashboardFilters()
+  const { loading, data, error } = usePlatformOverview()
   const isPrevious = period === 'previous'
   const showDeltas = comparePrimaryKpi && !isPrevious
 
-  const currentSrc = isPrevious ? kpiDataPrevious : kpiData
-  const previousSrc = isPrevious ? kpiData : kpiDataPrevious
-  const metricView = useMemo(
-    () => buildMetricView(currentSrc, previousSrc, showDeltas),
-    [currentSrc, previousSrc, showDeltas]
+  const metrics = useMemo(
+    () => buildGeralMetricCells(data, { isPrevious, compareEnabled: comparePrimaryKpi }),
+    [data, isPrevious, comparePrimaryKpi]
   )
 
-  const daily = useMemo(() => mapTimelineToDaily(timelineData), [])
+  const daily = useMemo(() => selectGeralDaily(data, isPrevious), [data, isPrevious])
 
   const rangeLabel = useMemo(() => {
-    const r = isPrevious ? compareDateRange : dateRange
-    if (!r?.start || !r?.end) return null
-    return `${format(r.start, 'd MMM', { locale: ptBR })} – ${format(r.end, 'd MMM yyyy', { locale: ptBR })}`
-  }, [isPrevious, compareDateRange, dateRange])
+    if (isPrevious) {
+      return formatRangeLabel(data?.compareRange, compareDateRange.start, compareDateRange.end)
+    }
+    return formatRangeLabel(data?.primaryRange, dateRange.start, dateRange.end)
+  }, [isPrevious, data?.compareRange, data?.primaryRange, compareDateRange, dateRange])
+
+  const sourceHint = useMemo(() => {
+    if (data?.source === 'worker_all') {
+      const m = data?.metaAccountCount ?? 0
+      const g = data?.googleAccountCount ?? 0
+      return `Soma de ${m} conta(s) Meta e ${g} conta(s) Google no período`
+    }
+    if (data?.source === 'org') return 'Contas Meta e Google ligadas à organização ativa'
+    return null
+  }, [data?.source, data?.metaAccountCount, data?.googleAccountCount])
+
+  const hasComparePayload = data?.compareTotals != null
 
   if (isPrevious && !comparePrimaryKpi) {
     return (
@@ -271,8 +274,46 @@ export default function GeralMetricsPanel() {
     )
   }
 
+  if (isPrevious && !loading && comparePrimaryKpi && !hasComparePayload) {
+    return (
+      <div className="google-metrics-panel google-metrics-panel--compare rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center">
+        <p className="text-xs font-medium text-foreground">Sem dados para o período de comparação</p>
+        <p className="mt-1 text-[11px] text-muted-foreground font-sans">
+          Ajuste as datas em &quot;vs …&quot; no topo ou confira se havia entrega nesse intervalo.
+        </p>
+      </div>
+    )
+  }
+
+  if (loading && !data?.configured) {
+    return (
+      <div className={cn('google-metrics-panel', isPrevious && 'google-metrics-panel--compare')}>
+        <p className="text-xs text-muted-foreground">Carregando visão consolidada…</p>
+      </div>
+    )
+  }
+
+  if (!loading && !data?.configured) {
+    return (
+      <div className="google-metrics-panel rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center">
+        <p className="text-xs font-medium text-foreground">Visão consolidada indisponível</p>
+        <p className="mt-1 text-[11px] text-muted-foreground font-sans">
+          {data?.detail || error || 'Configure as credenciais Meta/Google ou selecione uma organização com contas conectadas.'}
+        </p>
+      </div>
+    )
+  }
+
+  const apiErr =
+    [data?.errors?.meta, data?.errors?.google].filter(Boolean).join(' · ') || error
+
   return (
     <div className={cn('google-metrics-panel', isPrevious && 'google-metrics-panel--compare')}>
+      {apiErr ? (
+        <p className="mb-4 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100/90 font-sans">
+          {apiErr}
+        </p>
+      ) : null}
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand/90">
@@ -281,7 +322,7 @@ export default function GeralMetricsPanel() {
           <p className="mt-0.5 text-xs text-muted-foreground font-sans">
             {isPrevious
               ? 'Valores absolutos do intervalo selecionado para comparar com o período principal'
-              : 'Meta Ads + Google Ads + demais canais no período selecionado'}
+              : sourceHint ?? 'Meta Ads + Google Ads no período selecionado'}
           </p>
           {rangeLabel ? (
             <p className="mt-1 font-mono text-[10px] tabular-nums text-foreground/75">{rangeLabel}</p>
@@ -304,13 +345,13 @@ export default function GeralMetricsPanel() {
 
       <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
         {HERO_METRICS.map((m) => (
-          <HeroMetric key={m.id} {...m} data={metricView.build(m.id)} />
+          <HeroMetric key={m.id} {...m} data={metrics.hero[m.id]} />
         ))}
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {SECONDARY_METRICS.map((m) => (
-          <SecondaryMetric key={m.id} {...m} data={metricView.build(m.id)} />
+          <SecondaryMetric key={m.id} {...m} data={metrics.secondary[m.id]} />
         ))}
       </div>
 
@@ -325,10 +366,10 @@ export default function GeralMetricsPanel() {
           formatAxis={(v) => `R$${COMPACT_NUMBER.format(Number(v) || 0)}`}
         />
         <DailyTrendCard
-          title="Leads diários"
+          title="Resultados diários"
           subtitle="Volume médio de resultados por dia"
           daily={daily}
-          valueKey="leads"
+          valueKey="results"
           color={isPrevious ? '#81C995' : '#34A853'}
           formatValue={(v) => formatNumber(Math.round(v))}
           formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}

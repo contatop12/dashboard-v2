@@ -144,6 +144,108 @@ function leafAccounts(accounts: GoogleAdsAccountEntry[]): GoogleAdsAccountEntry[
   return accounts.filter((a) => !a.isManager)
 }
 
+export type GoogleDailyRow = {
+  date: string
+  spend: number
+  impressions: number
+  clicks: number
+  conversions: number
+  conversionsValue: number
+}
+
+export async function fetchGoogleAccountDaily(
+  env: WorkerEnv,
+  accessToken: string,
+  customerId: string,
+  since: string,
+  until: string
+): Promise<GoogleDailyRow[]> {
+  const devToken = env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim()
+  if (!devToken) return []
+  const ver = resolveGoogleApiVersion(env)
+  const loginId = resolveGoogleLoginCustomerId(env)
+  const id = customerPathId(customerId)
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+    'developer-token': devToken,
+  }
+  if (loginId && customerPathId(loginId) !== id) {
+    headers['login-customer-id'] = customerPathId(loginId)
+  }
+  const query = `
+    SELECT
+      segments.date,
+      metrics.cost_micros,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.conversions,
+      metrics.conversions_value
+    FROM customer
+    WHERE segments.date BETWEEN '${since}' AND '${until}'
+  `
+  try {
+    const res = await fetch(`https://googleads.googleapis.com/${ver}/customers/${id}/googleAds:search`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query }),
+    })
+    const parsed = await readGoogleAdsJson(res)
+    if (!parsed.ok || !res.ok) return []
+    const data = parsed.data as {
+      results?: Array<{ segments?: { date?: string }; metrics?: Record<string, unknown> }>
+    }
+    const map = new Map<string, GoogleDailyRow>()
+    for (const row of data.results ?? []) {
+      const date = String(row.segments?.date ?? '').trim()
+      if (!date) continue
+      const m = row.metrics ?? {}
+      const cur = map.get(date) ?? {
+        date,
+        spend: 0,
+        impressions: 0,
+        clicks: 0,
+        conversions: 0,
+        conversionsValue: 0,
+      }
+      cur.spend += (Number.parseInt(String(m.costMicros ?? '0'), 10) || 0) / 1_000_000
+      cur.impressions += Number.parseInt(String(m.impressions ?? '0'), 10) || 0
+      cur.clicks += Number.parseInt(String(m.clicks ?? '0'), 10) || 0
+      cur.conversions += Number.parseFloat(String(m.conversions ?? '0')) || 0
+      cur.conversionsValue += Number.parseFloat(String(m.conversionsValue ?? m.conversions_value ?? '0')) || 0
+      map.set(date, cur)
+    }
+    return [...map.values()].sort((a, b) => a.date.localeCompare(b.date))
+  } catch {
+    return []
+  }
+}
+
+export async function fetchSingleGoogleAccountMetrics(
+  env: WorkerEnv,
+  accessToken: string,
+  customerId: string,
+  name: string,
+  since: string,
+  until: string
+): Promise<GoogleAccountMetricsRow> {
+  const { metrics, error } = await fetchGoogleCustomerMetrics(
+    accessToken,
+    env.GOOGLE_ADS_DEVELOPER_TOKEN!.trim(),
+    resolveGoogleApiVersion(env),
+    customerId,
+    resolveGoogleLoginCustomerId(env),
+    since,
+    until
+  )
+  return {
+    id: customerPathId(customerId),
+    name,
+    ...metrics,
+    error,
+  }
+}
+
 export async function fetchGoogleAccountsOverview(
   env: WorkerEnv,
   accessToken: string,

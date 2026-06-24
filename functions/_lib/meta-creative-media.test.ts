@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  collectCreativeMediaRefs,
+  collectCreativeIds,
   isVideoCreative,
-  pickBestVideoPicture,
   resolveCreativeDisplayUrl,
   resolveCreativePreview,
 } from './meta-creative-media'
@@ -30,23 +29,19 @@ describe('resolveCreativePreview', () => {
     expect(preview.mediaType).toBe('image')
     expect(preview.thumbnailUrl).toBe('https://cdn/thumb.jpg')
     expect(preview.imageUrl).toBe('https://cdn/full.jpg')
-    expect(preview.highResUrl).toBe('https://cdn/full.jpg')
+    expect(preview.phoneUrl).toBe('https://cdn/full.jpg')
   })
 
-  it('prioriza adimages e object_story_spec em alta resolução', () => {
+  it('usa phone thumbnail da API quando disponível', () => {
     const preview = resolveCreativePreview(
       {
+        id: 'cr1',
         thumbnail_url: 'https://cdn/thumb.jpg',
-        image_url: 'https://cdn/medium.jpg',
-        image_hash: 'abc123',
-        object_story_spec: {
-          link_data: { picture: 'https://cdn/story.jpg' },
-        },
+        image_url: 'https://cdn/full.jpg',
       },
-      { adImageByHash: new Map([['abc123', 'https://cdn/full-adimage.jpg']]) }
+      new Map([['cr1', 'https://cdn/phone.jpg']])
     )
-    expect(preview.highResUrl).toBe('https://cdn/full-adimage.jpg')
-    expect(preview.imageUrl).toBe('https://cdn/medium.jpg')
+    expect(preview.phoneUrl).toBe('https://cdn/phone.jpg')
   })
 
   it('detecta vídeo por object_type', () => {
@@ -55,29 +50,9 @@ describe('resolveCreativePreview', () => {
   })
 })
 
-describe('collectCreativeMediaRefs', () => {
-  it('coleta hashes e video ids de nested fields', () => {
-    const refs = collectCreativeMediaRefs([
-      { image_hash: 'h1' },
-      { object_story_spec: { video_data: { video_id: 'v99' } } },
-    ])
-    expect(refs.imageHashes).toEqual(['h1'])
-    expect(refs.videoIds).toEqual(['v99'])
-  })
-})
-
-describe('pickBestVideoPicture', () => {
-  it('escolhe thumbnail com maior largura', () => {
-    const url = pickBestVideoPicture({
-      picture: 'https://cdn/small.jpg',
-      thumbnails: {
-        data: [
-          { uri: 'https://cdn/t1.jpg', width: 120 },
-          { uri: 'https://cdn/t2.jpg', width: 720 },
-        ],
-      },
-    })
-    expect(url).toBe('https://cdn/t2.jpg')
+describe('collectCreativeIds', () => {
+  it('coleta ids únicos', () => {
+    expect(collectCreativeIds([{ id: 'a' }, { id: 'b' }, { id: 'a' }])).toEqual(['a', 'b'])
   })
 })
 
@@ -86,19 +61,15 @@ describe('resolveCreativeDisplayUrl', () => {
     mediaType: 'image' as const,
     thumbnailUrl: 'https://cdn/thumb.jpg',
     imageUrl: 'https://cdn/std.jpg',
-    highResUrl: 'https://cdn/hi.jpg',
+    phoneUrl: 'https://cdn/phone.jpg',
     previewUrl: 'https://cdn/std.jpg',
   }
 
-  it('modo compact usa thumbnail', () => {
-    expect(resolveCreativeDisplayUrl(preview, 'compact')).toBe('https://cdn/thumb.jpg')
+  it('estilo thumb usa thumbnail', () => {
+    expect(resolveCreativeDisplayUrl(preview, 'thumb')).toBe('https://cdn/thumb.jpg')
   })
 
-  it('modo high usa highResUrl', () => {
-    expect(resolveCreativeDisplayUrl(preview, 'high')).toBe('https://cdn/hi.jpg')
-  })
-
-  it('modo balanced usa imageUrl', () => {
-    expect(resolveCreativeDisplayUrl(preview, 'balanced')).toBe('https://cdn/std.jpg')
+  it('estilo phone usa phoneUrl', () => {
+    expect(resolveCreativeDisplayUrl(preview, 'phone')).toBe('https://cdn/phone.jpg')
   })
 })

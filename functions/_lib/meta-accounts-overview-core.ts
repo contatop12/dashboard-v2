@@ -254,3 +254,62 @@ export async function fetchMetaAccountsOverview(
 
   return { rows, range: { since, until }, error: listed.error }
 }
+
+export type MetaDailyRow = {
+  date: string
+  spend: number
+  impressions: number
+  clicks: number
+  leads: number
+  reach: number
+}
+
+export async function fetchMetaAccountDaily(
+  token: string,
+  actId: string,
+  since: string,
+  until: string
+): Promise<MetaDailyRow[]> {
+  const fields = ['spend', 'impressions', 'reach', 'clicks', 'actions', 'date_start'].join(',')
+  const iu = new URL(`https://graph.facebook.com/v21.0/${actId}/insights`)
+  iu.searchParams.set('fields', fields)
+  iu.searchParams.set('time_range', JSON.stringify({ since, until }))
+  iu.searchParams.set('time_increment', '1')
+  iu.searchParams.set('access_token', token)
+  try {
+    const ir = await fetch(iu.toString())
+    const idata = (await ir.json()) as {
+      data?: Record<string, string | number | unknown>[]
+      error?: { message?: string }
+    }
+    if (!ir.ok || idata.error || !idata.data?.length) return []
+    return idata.data.map((row) => ({
+      date: String(row.date_start ?? ''),
+      spend: Number.parseFloat(String(row.spend ?? 0)) || 0,
+      reach: Number.parseFloat(String(row.reach ?? 0)) || 0,
+      impressions: Number.parseFloat(String(row.impressions ?? 0)) || 0,
+      clicks: Number.parseFloat(String(row.clicks ?? 0)) || 0,
+      leads: parseLeadsFromRow(row as Record<string, unknown>),
+    }))
+  } catch {
+    return []
+  }
+}
+
+export async function fetchSingleMetaAccountMetrics(
+  token: string,
+  actId: string,
+  name: string,
+  accountId: string,
+  since: string,
+  until: string
+): Promise<MetaAccountMetricsRow> {
+  const { row, error } = await fetchMetaAccountInsights(token, actId, since, until)
+  return {
+    id: actId,
+    accountId,
+    name,
+    ...rowToMetrics(row),
+    error,
+  }
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Printer, X } from 'lucide-react'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
@@ -9,6 +9,9 @@ import DashboardGrid from './components/DashboardGrid'
 import { GERAL_DASHBOARD_BLOCKS } from './dashboard/geralBlocks'
 import { useAuth } from './context/AuthContext'
 import { DashboardFiltersProvider, useDashboardFilters } from './context/DashboardFiltersContext'
+import { useOrgWorkspace } from './context/OrgWorkspaceContext'
+import { PlatformOverviewProvider } from './components/PlatformOverviewProvider'
+import { buildPlatformOverviewUrl } from './lib/platformOverviewUrl'
 
 // Pages
 import MetaAds from './pages/MetaAds'
@@ -19,25 +22,40 @@ import Configuracoes from './pages/Configuracoes'
 import Clientes from './pages/Clientes'
 
 function GeralPage() {
+  const { activeOrgId } = useOrgWorkspace()
+  const { dateRange, compareDateRange, comparePrimaryKpi } = useDashboardFilters()
+  const overviewUrl = useMemo(
+    () =>
+      buildPlatformOverviewUrl('/api/admin/platform/geral-overview', {
+        orgId: activeOrgId,
+        dateRange,
+        compareDateRange,
+        compareEnabled: comparePrimaryKpi,
+      }),
+    [activeOrgId, dateRange, compareDateRange, comparePrimaryKpi]
+  )
+
   return (
-    <div className="flex min-h-full min-w-0 flex-col">
-      <header className="shrink-0 border-b border-white/[0.06] py-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand">
-            Visão Geral
-          </span>
-          <span className="text-white/20" aria-hidden>
-            ·
-          </span>
-          <span className="text-[11px] text-muted-foreground font-sans">
-            Todos os canais de mídia paga
-          </span>
+    <PlatformOverviewProvider url={overviewUrl}>
+      <div className="flex min-h-full min-w-0 flex-col">
+        <header className="shrink-0 border-b border-white/[0.06] py-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand">
+              Visão Geral
+            </span>
+            <span className="text-white/20" aria-hidden>
+              ·
+            </span>
+            <span className="text-[11px] text-muted-foreground font-sans">
+              Meta Ads + Google Ads — dados reais agregados
+            </span>
+          </div>
+        </header>
+        <div className="min-h-0 flex-1">
+          <DashboardGrid definitions={GERAL_DASHBOARD_BLOCKS} className="min-h-full" />
         </div>
-      </header>
-      <div className="min-h-0 flex-1">
-        <DashboardGrid definitions={GERAL_DASHBOARD_BLOCKS} className="min-h-full" />
       </div>
-    </div>
+    </PlatformOverviewProvider>
   )
 }
 

@@ -5,7 +5,7 @@ export function normalizeCreativeMedia(item) {
       mediaType: 'image',
       thumbnailUrl: null,
       imageUrl: null,
-      highResUrl: null,
+      phoneUrl: null,
       previewUrl: null,
     }
   }
@@ -17,25 +17,20 @@ export function normalizeCreativeMedia(item) {
     item.image_url?.trim?.() ||
     item.image?.trim?.() ||
     null
-  const highResUrl = item.highResUrl?.trim?.() || item.high_res_url?.trim?.() || null
+  const phoneUrl = item.phoneUrl?.trim?.() || item.phone_url?.trim?.() || null
   const previewUrl =
     mediaType === 'video'
-      ? thumbnailUrl || imageUrl || highResUrl
-      : imageUrl || highResUrl || thumbnailUrl || item.image || null
+      ? thumbnailUrl || phoneUrl || imageUrl
+      : imageUrl || phoneUrl || thumbnailUrl || item.image || null
 
-  return { mediaType, thumbnailUrl, imageUrl, highResUrl, previewUrl }
+  return { mediaType, thumbnailUrl, imageUrl, phoneUrl, previewUrl }
 }
 
-/** Escolhe a URL de exibição conforme o modo de qualidade. */
-export function resolveCreativeDisplayUrl(media, qualityMode = 'balanced') {
-  const { thumbnailUrl, imageUrl, highResUrl, previewUrl } = media
-  switch (qualityMode) {
-    case 'compact':
-      return thumbnailUrl || imageUrl || highResUrl || previewUrl
-    case 'high':
-      return highResUrl || imageUrl || previewUrl || thumbnailUrl
-    case 'balanced':
-    default:
-      return imageUrl || previewUrl || highResUrl || thumbnailUrl
+/** Escolhe a URL conforme o estilo nativo Meta (thumb | phone). */
+export function resolveCreativeDisplayUrl(media, previewStyle = 'thumb') {
+  const { thumbnailUrl, imageUrl, phoneUrl, previewUrl } = media
+  if (previewStyle === 'phone') {
+    return phoneUrl || imageUrl || previewUrl || thumbnailUrl
   }
+  return thumbnailUrl || previewUrl || imageUrl || phoneUrl
 }

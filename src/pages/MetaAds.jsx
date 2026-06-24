@@ -25,10 +25,10 @@ import {
   writeMetaCreativesSort,
   readMetaCreativesMetricKeys,
   writeMetaCreativesMetricKeys,
-  readMetaCreativesImageQuality,
-  writeMetaCreativesImageQuality,
-  cycleMetaCreativesImageQuality,
-  labelForMetaCreativesImageQuality,
+  readMetaCreativesPreviewStyle,
+  writeMetaCreativesPreviewStyle,
+  cycleMetaCreativesPreviewStyle,
+  labelForMetaCreativesPreviewStyle,
 } from '@/lib/metaCreativesPreferences'
 import { CampaignTree } from '@/components/CampaignTree'
 import { BlockCard } from '@/components/ui/BlockCard'
@@ -218,7 +218,7 @@ function MetaCreativesCarouselBlock() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sortId, setSortId] = useState(() => readMetaCreativesSort())
   const [metricKeys, setMetricKeys] = useState(() => readMetaCreativesMetricKeys())
-  const [imageQuality, setImageQuality] = useState(() => readMetaCreativesImageQuality())
+  const [previewStyle, setPreviewStyle] = useState(() => readMetaCreativesPreviewStyle())
 
   const baseCards = useMemo(() => {
     const c = data?.creatives
@@ -247,16 +247,16 @@ function MetaCreativesCarouselBlock() {
     writeMetaCreativesMetricKeys(keys)
   }
 
-  const onImageQualityChange = (id) => {
-    setImageQuality(id)
-    writeMetaCreativesImageQuality(id)
+  const onPreviewStyleChange = (id) => {
+    setPreviewStyle(id)
+    writeMetaCreativesPreviewStyle(id)
   }
 
-  const onCycleImageQuality = () => {
-    setImageQuality((prev) => cycleMetaCreativesImageQuality(prev))
+  const onCyclePreviewStyle = () => {
+    setPreviewStyle((prev) => cycleMetaCreativesPreviewStyle(prev))
   }
 
-  const qualityLabel = labelForMetaCreativesImageQuality(imageQuality)
+  const previewStyleLabel = labelForMetaCreativesPreviewStyle(previewStyle)
 
   return (
     <>
@@ -264,19 +264,19 @@ function MetaCreativesCarouselBlock() {
         title="Criativos — Meta Ads"
         badge={empty ? '0 no período' : `${activeCount} ativos`}
         cards={cards}
-        imageQualityMode={imageQuality}
+        previewStyle={previewStyle}
         emptyMessage="Nenhum anúncio com gasto no período selecionado. Ajuste as datas ou verifique as campanhas."
         headerExtra={
           <>
             <button
               type="button"
-              onClick={onCycleImageQuality}
-              title={`Qualidade: ${qualityLabel}. Clique para alternar.`}
+              onClick={onCyclePreviewStyle}
+              title={`Preview: ${previewStyleLabel}. Clique para alternar.`}
               className="flex h-6 items-center gap-1 rounded px-1.5 text-[9px] font-mono text-muted-foreground transition-colors hover:bg-surface-hover hover:text-white"
-              aria-label={`Qualidade da imagem: ${qualityLabel}`}
+              aria-label={`Estilo de preview: ${previewStyleLabel}`}
             >
               <Image size={12} />
-              <span className="hidden sm:inline">{qualityLabel}</span>
+              <span className="hidden sm:inline">{previewStyleLabel}</span>
             </button>
             <button
               type="button"
@@ -296,8 +296,8 @@ function MetaCreativesCarouselBlock() {
         onSortIdChange={onSortIdChange}
         metricKeys={metricKeys}
         onMetricKeysChange={onMetricKeysChange}
-        imageQuality={imageQuality}
-        onImageQualityChange={onImageQualityChange}
+        previewStyle={previewStyle}
+        onPreviewStyleChange={onPreviewStyleChange}
       />
     </>
   )

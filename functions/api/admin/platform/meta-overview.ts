@@ -10,7 +10,8 @@ import {
 import { buildMetaTree, type MetaNodeInput } from '../../../_lib/meta-tree'
 import { parseMetaDimensionFilters, metaFilteringQuery } from '../../../_lib/meta-filtering'
 import {
-  buildCreativeMediaExtras,
+  collectCreativeIds,
+  fetchCreativePhoneThumbnails,
   resolveCreativePreview,
   type MetaCreativeFields,
 } from '../../../_lib/meta-creative-media'
@@ -521,7 +522,7 @@ async function fetchAdsByIdsBatch(
     u.searchParams.set('ids', slice.join(','))
     u.searchParams.set(
       'fields',
-      'name,effective_status,adset_id,campaign_id,creative{thumbnail_url,image_url,object_type,video_id,image_hash,object_story_spec{link_data{picture,image_hash},video_data{image_url,video_id,picture}}}'
+      'name,effective_status,adset_id,campaign_id,creative{id,thumbnail_url,image_url,object_type,video_id}'
     )
     u.searchParams.set('access_token', token)
     const r = await fetch(u.toString())
@@ -892,14 +893,14 @@ async function fetchCreativesForPeriod(
       token,
       topRows.map((r) => r.ad_id)
     )
-    const mediaExtras = await buildCreativeMediaExtras(
+    const creativeList = topRows.map((row) => thumbs.get(row.ad_id)?.creative)
+    const phoneByCreativeId = await fetchCreativePhoneThumbnails(
       token,
-      actId,
-      topRows.map((row) => thumbs.get(row.ad_id)?.creative)
+      collectCreativeIds(creativeList)
     )
     return topRows.map((row, i) => {
       const ad = thumbs.get(row.ad_id)
-      const preview = resolveCreativePreview(ad?.creative, mediaExtras)
+      const preview = resolveCreativePreview(ad?.creative, phoneByCreativeId)
       const st = String(ad?.effective_status ?? 'ACTIVE').toUpperCase()
       const status =
         st.includes('PAUSED') || st.includes('ARCHIVED') || st.includes('DELETED') ? 'paused' : 'active'
@@ -915,7 +916,7 @@ async function fetchCreativesForPeriod(
         mediaType: preview.mediaType,
         thumbnailUrl: preview.thumbnailUrl,
         imageUrl: preview.imageUrl,
-        highResUrl: preview.highResUrl,
+        phoneUrl: preview.phoneUrl,
         gradient: CREATIVE_GRADIENTS[i % CREATIVE_GRADIENTS.length],
         status,
         spend,
@@ -985,19 +986,16 @@ async function buildMetaResponse(
     ? await fetchAdsByIdsBatch(token, adInsightRows.map((r) => r.ad_id))
     : new Map<string, AdObj>()
 
-  const mediaExtras = adInsightRows.length
-    ? await buildCreativeMediaExtras(
-        token,
-        actId,
-        adInsightRows.map((row) => thumbs.get(row.ad_id)?.creative)
-      )
-    : { adImageByHash: new Map(), videoPictureById: new Map() }
+  const creativeList = adInsightRows.map((row) => thumbs.get(row.ad_id)?.creative)
+  const phoneByCreativeId = adInsightRows.length
+    ? await fetchCreativePhoneThumbnails(token, collectCreativeIds(creativeList))
+    : new Map<string, string>()
 
   // Build creatives array (top 15 by spend — carrossel only)
   const creativeRows = sortMetaAdInsightRows(adInsightRows, 15)
   const creatives: Record<string, unknown>[] = creativeRows.map((row, i) => {
     const ad = thumbs.get(row.ad_id)
-    const preview = resolveCreativePreview(ad?.creative, mediaExtras)
+    const preview = resolveCreativePreview(ad?.creative, phoneByCreativeId)
     const st = String(ad?.effective_status ?? 'ACTIVE').toUpperCase()
     const status =
       st.includes('PAUSED') || st.includes('ARCHIVED') || st.includes('DELETED') ? 'paused' : 'active'
@@ -1009,7 +1007,7 @@ async function buildMetaResponse(
       mediaType: preview.mediaType,
       thumbnailUrl: preview.thumbnailUrl,
       imageUrl: preview.imageUrl,
-      highResUrl: preview.highResUrl,
+      phoneUrl: preview.phoneUrl,
       gradient: CREATIVE_GRADIENTS[i % CREATIVE_GRADIENTS.length],
       status,
       spend: row.spend,
@@ -1029,7 +1027,7 @@ async function buildMetaResponse(
     const linkClicks = row.linkClicks
     const ctrLink = impressions > 0 ? (linkClicks / impressions) * 100 : 0
     const cpm = impressions > 0 ? spend / (impressions / 1000) : 0
-    const preview = resolveCreativePreview(ad?.creative, mediaExtras)
+    const preview = resolveCreativePreview(ad?.creative, phoneByCreativeId)
     return {
       id: row.ad_id,
       name: (ad?.name?.trim() || row.ad_name).trim() || 'Anúncio',

@@ -2,23 +2,19 @@
 
 export const META_CREATIVES_LS_SORT = 'p12_meta_creatives_sort'
 export const META_CREATIVES_LS_METRICS = 'p12_meta_creatives_metric_keys'
-export const META_CREATIVES_LS_QUALITY = 'p12_meta_creatives_image_quality'
+export const META_CREATIVES_LS_PREVIEW_STYLE = 'p12_meta_creatives_preview_style'
 
-export const META_CREATIVE_IMAGE_QUALITY_OPTIONS = [
+/** Estilos nativos de preview da Meta. */
+export const META_CREATIVE_PREVIEW_STYLE_OPTIONS = [
   {
-    id: 'compact',
-    label: 'Compacta',
-    description: 'Miniatura — carrega mais rápido e usa menos dados.',
+    id: 'thumb',
+    label: 'Thumb',
+    description: 'Miniatura padrão da Meta (rápida, menor resolução).',
   },
   {
-    id: 'balanced',
-    label: 'Padrão',
-    description: 'Qualidade intermediária (image_url da Meta).',
-  },
-  {
-    id: 'high',
-    label: 'Máxima',
-    description: 'Melhor resolução disponível (adimages, story spec, vídeo HD).',
+    id: 'phone',
+    label: 'Phone',
+    description: 'Preview mobile nativo (thumbnail 400×500 px da API Meta).',
   },
 ]
 
@@ -43,7 +39,13 @@ export const META_CREATIVE_METRIC_OPTIONS = [
 
 const DEFAULT_SORT = 'spend_desc'
 const DEFAULT_METRICS = ['leads', 'cpl', 'spend']
-const DEFAULT_QUALITY = 'balanced'
+const DEFAULT_PREVIEW_STYLE = 'thumb'
+
+const LEGACY_PREVIEW_STYLE = {
+  compact: 'thumb',
+  balanced: 'thumb',
+  high: 'phone',
+}
 
 export function readMetaCreativesSort() {
   try {
@@ -101,32 +103,36 @@ export function writeMetaCreativesMetricKeys(keys) {
   }
 }
 
-export function readMetaCreativesImageQuality() {
+export function readMetaCreativesPreviewStyle() {
   try {
-    const v = localStorage.getItem(META_CREATIVES_LS_QUALITY)?.trim()
-    if (v && META_CREATIVE_IMAGE_QUALITY_OPTIONS.some((o) => o.id === v)) return v
+    const legacy = localStorage.getItem('p12_meta_creatives_image_quality')?.trim()
+    if (legacy && LEGACY_PREVIEW_STYLE[legacy]) {
+      return LEGACY_PREVIEW_STYLE[legacy]
+    }
+    const v = localStorage.getItem(META_CREATIVES_LS_PREVIEW_STYLE)?.trim()
+    if (v && META_CREATIVE_PREVIEW_STYLE_OPTIONS.some((o) => o.id === v)) return v
   } catch {
     /* ignore */
   }
-  return DEFAULT_QUALITY
+  return DEFAULT_PREVIEW_STYLE
 }
 
-export function writeMetaCreativesImageQuality(id) {
+export function writeMetaCreativesPreviewStyle(id) {
   try {
-    localStorage.setItem(META_CREATIVES_LS_QUALITY, id)
+    localStorage.setItem(META_CREATIVES_LS_PREVIEW_STYLE, id)
   } catch {
     /* ignore */
   }
 }
 
-export function cycleMetaCreativesImageQuality(current) {
-  const ids = META_CREATIVE_IMAGE_QUALITY_OPTIONS.map((o) => o.id)
+export function cycleMetaCreativesPreviewStyle(current) {
+  const ids = META_CREATIVE_PREVIEW_STYLE_OPTIONS.map((o) => o.id)
   const idx = ids.indexOf(current)
   const next = ids[(idx + 1) % ids.length]
-  writeMetaCreativesImageQuality(next)
+  writeMetaCreativesPreviewStyle(next)
   return next
 }
 
-export function labelForMetaCreativesImageQuality(id) {
-  return META_CREATIVE_IMAGE_QUALITY_OPTIONS.find((o) => o.id === id)?.label ?? 'Padrão'
+export function labelForMetaCreativesPreviewStyle(id) {
+  return META_CREATIVE_PREVIEW_STYLE_OPTIONS.find((o) => o.id === id)?.label ?? 'Thumb'
 }

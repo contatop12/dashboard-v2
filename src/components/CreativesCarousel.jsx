@@ -4,10 +4,10 @@ import { cn } from '@/lib/utils'
 import CreativeMediaPreview from '@/components/CreativeMediaPreview'
 import { normalizeCreativeMedia } from '@/lib/creativeMedia'
 
-function CreativeCard({ card, imageQualityMode = 'balanced' }) {
+function CreativeCard({ card, previewStyle = 'thumb' }) {
   const media = normalizeCreativeMedia(card)
   const hasMedia =
-    media.previewUrl || media.thumbnailUrl || media.imageUrl || media.highResUrl
+    media.previewUrl || media.thumbnailUrl || media.imageUrl || media.phoneUrl
 
   return (
     <div
@@ -21,12 +21,12 @@ function CreativeCard({ card, imageQualityMode = 'balanced' }) {
             mediaType={media.mediaType}
             imageUrl={media.imageUrl}
             thumbnailUrl={media.thumbnailUrl}
-            highResUrl={media.highResUrl}
+            phoneUrl={media.phoneUrl}
             previewUrl={media.previewUrl}
-            qualityMode={imageQualityMode}
+            previewStyle={previewStyle}
             alt={card.name}
             sizes={
-              imageQualityMode === 'high'
+              previewStyle === 'phone'
                 ? '(max-width: 768px) 90vw, 416px'
                 : '(max-width: 768px) 45vw, 208px'
             }
@@ -85,7 +85,7 @@ export default function CreativesCarousel({
   badge,
   emptyMessage,
   headerExtra,
-  imageQualityMode = 'balanced',
+  previewStyle = 'thumb',
 }) {
   const scrollRef = useRef(null)
 
@@ -135,7 +135,7 @@ export default function CreativesCarousel({
             <CreativeCard
               key={card.id != null ? String(card.id) : `creative-${i}`}
               card={card}
-              imageQualityMode={imageQualityMode}
+              previewStyle={previewStyle}
             />
           ))
         )}

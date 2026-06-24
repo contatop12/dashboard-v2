@@ -1,4 +1,6 @@
 import { useId, useMemo, useState } from 'react'
+import { format, parse } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { Settings2 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -12,15 +14,16 @@ import {
   Tooltip,
 } from 'recharts'
 import { cn, formatCurrency, formatNumber } from '@/lib/utils'
-import { timelineData } from '@/data/mockData'
+import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
+import { mapGeralDailyForChart } from '@/lib/geralOverviewMetrics'
 
 const GERAL_DAILY_CHART_LS = 'p12_geral_daily_chart_mode'
 const GERAL_DAILY_VISIBLE_MODES_LS = 'p12_geral_daily_visible_modes'
 
 const GERAL_CHART_MODES = [
-  { id: 'leads_custo', label: 'Leads e custo/lead' },
+  { id: 'leads_custo', label: 'Resultados e custo/resultado' },
   { id: 'investimento', label: 'Investimento' },
-  { id: 'leads', label: 'Leads' },
+  { id: 'leads', label: 'Resultados' },
 ]
 
 function readGeralChartMode() {
@@ -47,15 +50,24 @@ function readGeralVisibleChartModes() {
   }
 }
 
+function formatDayLabel(dateStr) {
+  if (!dateStr) return '—'
+  try {
+    return format(parse(dateStr, 'yyyy-MM-dd', new Date()), 'dd/MM', { locale: ptBR })
+  } catch {
+    return dateStr
+  }
+}
+
 function mapGeralTimelineToChart(data) {
   if (!Array.isArray(data) || data.length === 0) {
     return [{ dia: '—', leads: 0, custo: 0, gasto: 0 }]
   }
   return data.map((d) => ({
-    dia: d.date,
+    dia: formatDayLabel(d.date),
     leads: Number(d.leads) || 0,
     custo: Number(d.custo) || 0,
-    gasto: Math.round((Number(d.leads) || 0) * (Number(d.custo) || 0) * 100) / 100,
+    gasto: Number(d.gasto) || 0,
   }))
 }
 
@@ -82,10 +94,12 @@ function GeralDailyTooltip({ active, payload, label }) {
 }
 
 export default function GeralAnalysisPanel() {
+  const { loading, data } = usePlatformOverview()
   const gid = useId().replace(/:/g, '')
   const gradLeads = `geralLeads-${gid}`
   const gradGasto = `geralGasto-${gid}`
-  const chartData = useMemo(() => mapGeralTimelineToChart(timelineData), [])
+  const chartSource = useMemo(() => mapGeralDailyForChart(data?.daily ?? []), [data?.daily])
+  const chartData = useMemo(() => mapGeralTimelineToChart(chartSource), [chartSource])
   const [chartMode, setChartMode] = useState(readGeralChartMode)
   const [visibleModes, setVisibleModes] = useState(readGeralVisibleChartModes)
   const [showModePicker, setShowModePicker] = useState(false)
@@ -144,10 +158,10 @@ export default function GeralAnalysisPanel() {
   const chartLegend = isDual ? (
     <div className="flex flex-wrap items-center gap-3 text-[10px] font-sans text-muted-foreground">
       <span className="inline-flex items-center gap-1.5">
-        <span className="h-2 w-2 rounded-full bg-brand" aria-hidden /> Leads
+        <span className="h-2 w-2 rounded-full bg-brand" aria-hidden /> Resultados
       </span>
       <span className="inline-flex items-center gap-1.5">
-        <span className="h-2 w-2 rounded-full bg-[#9B8EFF]" aria-hidden /> Custo / lead
+        <span className="h-2 w-2 rounded-full bg-[#9B8EFF]" aria-hidden /> Custo / resultado
       </span>
     </div>
   ) : (
@@ -202,7 +216,7 @@ export default function GeralAnalysisPanel() {
               yAxisId="left"
               type="monotone"
               dataKey="leads"
-              name="Leads"
+              name="Resultados"
               stroke="#F5C518"
               strokeWidth={2}
               fill={`url(#${gradLeads})`}
@@ -213,7 +227,7 @@ export default function GeralAnalysisPanel() {
               yAxisId="right"
               type="monotone"
               dataKey="custo"
-              name="Custo / lead"
+              name="Custo / resultado"
               stroke="#9B8EFF"
               strokeWidth={1.5}
               strokeDasharray="4 3"
@@ -245,7 +259,7 @@ export default function GeralAnalysisPanel() {
             <Area
               type="monotone"
               dataKey={chartMode === 'investimento' ? 'gasto' : 'leads'}
-              name={chartMode === 'investimento' ? 'Investimento' : 'Leads'}
+              name={chartMode === 'investimento' ? 'Investimento' : 'Resultados'}
               stroke={chartMode === 'investimento' ? '#4285F4' : '#F5C518'}
               strokeWidth={2}
               fill={`url(#${gradGasto})`}
@@ -312,6 +326,7 @@ export default function GeralAnalysisPanel() {
             </div>
           </div>
           {chartLegend}
+          {loading ? <p className="mb-1 text-[9px] text-muted-foreground">Carregando…</p> : null}
           <div className="mt-1 shrink-0">{chartBody}</div>
         </div>
       </div>
