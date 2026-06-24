@@ -2,6 +2,25 @@
 
 export const META_CREATIVES_LS_SORT = 'p12_meta_creatives_sort'
 export const META_CREATIVES_LS_METRICS = 'p12_meta_creatives_metric_keys'
+export const META_CREATIVES_LS_QUALITY = 'p12_meta_creatives_image_quality'
+
+export const META_CREATIVE_IMAGE_QUALITY_OPTIONS = [
+  {
+    id: 'compact',
+    label: 'Compacta',
+    description: 'Miniatura — carrega mais rápido e usa menos dados.',
+  },
+  {
+    id: 'balanced',
+    label: 'Padrão',
+    description: 'Qualidade intermediária (image_url da Meta).',
+  },
+  {
+    id: 'high',
+    label: 'Máxima',
+    description: 'Melhor resolução disponível (adimages, story spec, vídeo HD).',
+  },
+]
 
 export const META_CREATIVE_SORT_OPTIONS = [
   { id: 'spend_desc', label: 'Investimento (maior → menor)' },
@@ -24,6 +43,7 @@ export const META_CREATIVE_METRIC_OPTIONS = [
 
 const DEFAULT_SORT = 'spend_desc'
 const DEFAULT_METRICS = ['leads', 'cpl', 'spend']
+const DEFAULT_QUALITY = 'balanced'
 
 export function readMetaCreativesSort() {
   try {
@@ -79,4 +99,34 @@ export function writeMetaCreativesMetricKeys(keys) {
   } catch {
     /* ignore */
   }
+}
+
+export function readMetaCreativesImageQuality() {
+  try {
+    const v = localStorage.getItem(META_CREATIVES_LS_QUALITY)?.trim()
+    if (v && META_CREATIVE_IMAGE_QUALITY_OPTIONS.some((o) => o.id === v)) return v
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_QUALITY
+}
+
+export function writeMetaCreativesImageQuality(id) {
+  try {
+    localStorage.setItem(META_CREATIVES_LS_QUALITY, id)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function cycleMetaCreativesImageQuality(current) {
+  const ids = META_CREATIVE_IMAGE_QUALITY_OPTIONS.map((o) => o.id)
+  const idx = ids.indexOf(current)
+  const next = ids[(idx + 1) % ids.length]
+  writeMetaCreativesImageQuality(next)
+  return next
+}
+
+export function labelForMetaCreativesImageQuality(id) {
+  return META_CREATIVE_IMAGE_QUALITY_OPTIONS.find((o) => o.id === id)?.label ?? 'Padrão'
 }

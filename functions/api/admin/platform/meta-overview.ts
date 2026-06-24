@@ -9,7 +9,11 @@ import {
 } from '../../../_lib/org-platform-credentials'
 import { buildMetaTree, type MetaNodeInput } from '../../../_lib/meta-tree'
 import { parseMetaDimensionFilters, metaFilteringQuery } from '../../../_lib/meta-filtering'
-import { resolveCreativePreview } from '../../../_lib/meta-creative-media'
+import {
+  buildCreativeMediaExtras,
+  resolveCreativePreview,
+  type MetaCreativeFields,
+} from '../../../_lib/meta-creative-media'
 import {
   parseLeadsFromRow,
   parseObjectiveResults,
@@ -501,12 +505,7 @@ type AdObj = {
   effective_status?: string
   adset_id?: string
   campaign_id?: string
-  creative?: {
-    thumbnail_url?: string
-    image_url?: string
-    object_type?: string
-    video_id?: string
-  }
+  creative?: MetaCreativeFields
   error?: { message?: string }
 }
 
@@ -522,7 +521,7 @@ async function fetchAdsByIdsBatch(
     u.searchParams.set('ids', slice.join(','))
     u.searchParams.set(
       'fields',
-      'name,effective_status,adset_id,campaign_id,creative{thumbnail_url,image_url,object_type,video_id}'
+      'name,effective_status,adset_id,campaign_id,creative{thumbnail_url,image_url,object_type,video_id,image_hash,object_story_spec{link_data{picture,image_hash},video_data{image_url,video_id,picture}}}'
     )
     u.searchParams.set('access_token', token)
     const r = await fetch(u.toString())
@@ -893,9 +892,14 @@ async function fetchCreativesForPeriod(
       token,
       topRows.map((r) => r.ad_id)
     )
+    const mediaExtras = await buildCreativeMediaExtras(
+      token,
+      actId,
+      topRows.map((row) => thumbs.get(row.ad_id)?.creative)
+    )
     return topRows.map((row, i) => {
       const ad = thumbs.get(row.ad_id)
-      const preview = resolveCreativePreview(ad?.creative)
+      const preview = resolveCreativePreview(ad?.creative, mediaExtras)
       const st = String(ad?.effective_status ?? 'ACTIVE').toUpperCase()
       const status =
         st.includes('PAUSED') || st.includes('ARCHIVED') || st.includes('DELETED') ? 'paused' : 'active'
@@ -911,6 +915,7 @@ async function fetchCreativesForPeriod(
         mediaType: preview.mediaType,
         thumbnailUrl: preview.thumbnailUrl,
         imageUrl: preview.imageUrl,
+        highResUrl: preview.highResUrl,
         gradient: CREATIVE_GRADIENTS[i % CREATIVE_GRADIENTS.length],
         status,
         spend,
@@ -980,11 +985,19 @@ async function buildMetaResponse(
     ? await fetchAdsByIdsBatch(token, adInsightRows.map((r) => r.ad_id))
     : new Map<string, AdObj>()
 
+  const mediaExtras = adInsightRows.length
+    ? await buildCreativeMediaExtras(
+        token,
+        actId,
+        adInsightRows.map((row) => thumbs.get(row.ad_id)?.creative)
+      )
+    : { adImageByHash: new Map(), videoPictureById: new Map() }
+
   // Build creatives array (top 15 by spend — carrossel only)
   const creativeRows = sortMetaAdInsightRows(adInsightRows, 15)
   const creatives: Record<string, unknown>[] = creativeRows.map((row, i) => {
     const ad = thumbs.get(row.ad_id)
-    const preview = resolveCreativePreview(ad?.creative)
+    const preview = resolveCreativePreview(ad?.creative, mediaExtras)
     const st = String(ad?.effective_status ?? 'ACTIVE').toUpperCase()
     const status =
       st.includes('PAUSED') || st.includes('ARCHIVED') || st.includes('DELETED') ? 'paused' : 'active'
@@ -996,6 +1009,7 @@ async function buildMetaResponse(
       mediaType: preview.mediaType,
       thumbnailUrl: preview.thumbnailUrl,
       imageUrl: preview.imageUrl,
+      highResUrl: preview.highResUrl,
       gradient: CREATIVE_GRADIENTS[i % CREATIVE_GRADIENTS.length],
       status,
       spend: row.spend,
@@ -1015,7 +1029,7 @@ async function buildMetaResponse(
     const linkClicks = row.linkClicks
     const ctrLink = impressions > 0 ? (linkClicks / impressions) * 100 : 0
     const cpm = impressions > 0 ? spend / (impressions / 1000) : 0
-    const preview = resolveCreativePreview(ad?.creative)
+    const preview = resolveCreativePreview(ad?.creative, mediaExtras)
     return {
       id: row.ad_id,
       name: (ad?.name?.trim() || row.ad_name).trim() || 'Anúncio',

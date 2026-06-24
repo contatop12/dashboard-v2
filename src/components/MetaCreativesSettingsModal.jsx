@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import {
   META_CREATIVE_SORT_OPTIONS,
   META_CREATIVE_METRIC_OPTIONS,
+  META_CREATIVE_IMAGE_QUALITY_OPTIONS,
 } from '@/lib/metaCreativesPreferences'
 import { CORNER_DIALOG_CONTENT_CLASS } from '@/lib/cornerDialogClass'
 
@@ -13,6 +14,8 @@ export default function MetaCreativesSettingsModal({
   onSortIdChange,
   metricKeys,
   onMetricKeysChange,
+  imageQuality,
+  onImageQualityChange,
 }) {
   function setMetricAt(index, newKey) {
     const prev = [...metricKeys]
@@ -61,6 +64,35 @@ export default function MetaCreativesSettingsModal({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground font-sans">
+                Qualidade da imagem
+              </span>
+              <div className="flex flex-col gap-2">
+                {META_CREATIVE_IMAGE_QUALITY_OPTIONS.map((o) => (
+                  <label
+                    key={o.id}
+                    className="flex cursor-pointer items-start gap-2 rounded-lg border border-surface-border bg-[#141414] px-3 py-2 transition-colors has-[:checked]:border-brand/50 has-[:checked]:bg-brand/5"
+                  >
+                    <input
+                      type="radio"
+                      name="meta-creative-quality"
+                      value={o.id}
+                      checked={imageQuality === o.id}
+                      onChange={() => onImageQualityChange(o.id)}
+                      className="mt-0.5 accent-brand"
+                    />
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-xs font-medium text-white font-sans">{o.label}</span>
+                      <span className="text-[10px] text-muted-foreground font-sans leading-snug">
+                        {o.description}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
 
             <div className="flex flex-col gap-3">

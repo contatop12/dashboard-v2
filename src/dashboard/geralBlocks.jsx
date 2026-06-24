@@ -4,6 +4,7 @@ import Demographics from '@/components/Demographics'
 import GeralChannelBlock from '@/components/GeralChannelBlock'
 import KeywordsHighlight from '@/components/KeywordsHighlight'
 import VideoRange from '@/components/VideoRange'
+import { GeralMetaClientsTable, GeralGoogleClientsTable } from '@/components/GeralPlatformClientsTable'
 
 export const GERAL_DASHBOARD_BLOCKS = [
   {
@@ -16,6 +17,28 @@ export const GERAL_DASHBOARD_BLOCKS = [
     minRowSpan: 4,
     maxRowSpan: 8,
     render: () => <GeralMetricsPanel />,
+  },
+  {
+    id: 'geral-meta-clients',
+    tier: 'secondary',
+    defaultColSpan: 8,
+    defaultRowSpan: 5,
+    minColSpan: 4,
+    maxColSpan: 8,
+    minRowSpan: 4,
+    maxRowSpan: 12,
+    render: () => <GeralMetaClientsTable />,
+  },
+  {
+    id: 'geral-google-clients',
+    tier: 'secondary',
+    defaultColSpan: 8,
+    defaultRowSpan: 5,
+    minColSpan: 4,
+    maxColSpan: 8,
+    minRowSpan: 4,
+    maxRowSpan: 12,
+    render: () => <GeralGoogleClientsTable />,
   },
   {
     id: 'overview-campaigns',

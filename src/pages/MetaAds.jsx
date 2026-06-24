@@ -6,6 +6,7 @@ import { buildPlatformOverviewUrl } from '@/lib/platformOverviewUrl'
 import { PlatformOverviewProvider, usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import {
   Cog,
+  Image,
 } from 'lucide-react'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import CreativesCarousel from '@/components/CreativesCarousel'
@@ -24,6 +25,10 @@ import {
   writeMetaCreativesSort,
   readMetaCreativesMetricKeys,
   writeMetaCreativesMetricKeys,
+  readMetaCreativesImageQuality,
+  writeMetaCreativesImageQuality,
+  cycleMetaCreativesImageQuality,
+  labelForMetaCreativesImageQuality,
 } from '@/lib/metaCreativesPreferences'
 import { CampaignTree } from '@/components/CampaignTree'
 import { BlockCard } from '@/components/ui/BlockCard'
@@ -213,6 +218,7 @@ function MetaCreativesCarouselBlock() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sortId, setSortId] = useState(() => readMetaCreativesSort())
   const [metricKeys, setMetricKeys] = useState(() => readMetaCreativesMetricKeys())
+  const [imageQuality, setImageQuality] = useState(() => readMetaCreativesImageQuality())
 
   const baseCards = useMemo(() => {
     const c = data?.creatives
@@ -241,22 +247,46 @@ function MetaCreativesCarouselBlock() {
     writeMetaCreativesMetricKeys(keys)
   }
 
+  const onImageQualityChange = (id) => {
+    setImageQuality(id)
+    writeMetaCreativesImageQuality(id)
+  }
+
+  const onCycleImageQuality = () => {
+    setImageQuality((prev) => cycleMetaCreativesImageQuality(prev))
+  }
+
+  const qualityLabel = labelForMetaCreativesImageQuality(imageQuality)
+
   return (
     <>
       <CreativesCarousel
         title="Criativos — Meta Ads"
         badge={empty ? '0 no período' : `${activeCount} ativos`}
         cards={cards}
+        imageQualityMode={imageQuality}
         emptyMessage="Nenhum anúncio com gasto no período selecionado. Ajuste as datas ou verifique as campanhas."
         headerExtra={
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-surface-hover hover:text-white"
-            aria-label="Configurar criativos"
-          >
-            <Cog size={14} />
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={onCycleImageQuality}
+              title={`Qualidade: ${qualityLabel}. Clique para alternar.`}
+              className="flex h-6 items-center gap-1 rounded px-1.5 text-[9px] font-mono text-muted-foreground transition-colors hover:bg-surface-hover hover:text-white"
+              aria-label={`Qualidade da imagem: ${qualityLabel}`}
+            >
+              <Image size={12} />
+              <span className="hidden sm:inline">{qualityLabel}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-surface-hover hover:text-white"
+              aria-label="Configurar criativos"
+            >
+              <Cog size={14} />
+            </button>
+          </>
         }
       />
       <MetaCreativesSettingsModal
@@ -266,6 +296,8 @@ function MetaCreativesCarouselBlock() {
         onSortIdChange={onSortIdChange}
         metricKeys={metricKeys}
         onMetricKeysChange={onMetricKeysChange}
+        imageQuality={imageQuality}
+        onImageQualityChange={onImageQualityChange}
       />
     </>
   )

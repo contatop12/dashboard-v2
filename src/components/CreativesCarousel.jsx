@@ -4,9 +4,10 @@ import { cn } from '@/lib/utils'
 import CreativeMediaPreview from '@/components/CreativeMediaPreview'
 import { normalizeCreativeMedia } from '@/lib/creativeMedia'
 
-function CreativeCard({ card }) {
+function CreativeCard({ card, imageQualityMode = 'balanced' }) {
   const media = normalizeCreativeMedia(card)
-  const hasMedia = media.previewUrl || media.thumbnailUrl || media.imageUrl
+  const hasMedia =
+    media.previewUrl || media.thumbnailUrl || media.imageUrl || media.highResUrl
 
   return (
     <div
@@ -20,9 +21,15 @@ function CreativeCard({ card }) {
             mediaType={media.mediaType}
             imageUrl={media.imageUrl}
             thumbnailUrl={media.thumbnailUrl}
+            highResUrl={media.highResUrl}
             previewUrl={media.previewUrl}
+            qualityMode={imageQualityMode}
             alt={card.name}
-            sizes="(max-width: 768px) 45vw, 208px"
+            sizes={
+              imageQualityMode === 'high'
+                ? '(max-width: 768px) 90vw, 416px'
+                : '(max-width: 768px) 45vw, 208px'
+            }
           />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 opacity-40">
@@ -72,7 +79,14 @@ function CreativeCard({ card }) {
   )
 }
 
-export default function CreativesCarousel({ title, cards, badge, emptyMessage, headerExtra }) {
+export default function CreativesCarousel({
+  title,
+  cards,
+  badge,
+  emptyMessage,
+  headerExtra,
+  imageQualityMode = 'balanced',
+}) {
   const scrollRef = useRef(null)
 
   function scroll(dir) {
@@ -118,7 +132,11 @@ export default function CreativesCarousel({ title, cards, badge, emptyMessage, h
           </p>
         ) : (
           cards.map((card, i) => (
-            <CreativeCard key={card.id != null ? String(card.id) : `creative-${i}`} card={card} />
+            <CreativeCard
+              key={card.id != null ? String(card.id) : `creative-${i}`}
+              card={card}
+              imageQualityMode={imageQualityMode}
+            />
           ))
         )}
       </div>
