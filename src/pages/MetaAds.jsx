@@ -30,6 +30,12 @@ import { BlockCard } from '@/components/ui/BlockCard'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { useCampaignStatusMutation } from '@/hooks/useCampaignStatusMutation'
 import { filterOptionsFromTree, resolveTreeSlice } from '@/lib/filterOptionsFromTree'
+import {
+  applyCampaignViewFilters,
+  applyTopSpendFilter,
+  hasActiveCampaignBlockFilters,
+  resolveCampaignViewFilters,
+} from '@/lib/campaignTreeSort'
 import { META_OBJECTIVE_LABELS } from '@/lib/metaAdsLabels'
 import { MetaBlockFilterToolbar } from '@/components/MetaBlockFilterToolbar'
 
@@ -57,11 +63,14 @@ function MetaCampaignsBlock() {
     [dimensionFilters, metaBlockFilters]
   )
 
-  const visibleTree = useMemo(() => resolveTreeSlice(tree, mergedFilters), [tree, mergedFilters])
+  const visibleTree = useMemo(() => {
+    const sliced = resolveTreeSlice(tree, mergedFilters)
+    const viewFilters = resolveCampaignViewFilters(metaBlockFilters)
+    const withView = applyCampaignViewFilters(sliced, viewFilters)
+    return applyTopSpendFilter(withView, metaBlockFilters.topSpendCount)
+  }, [tree, mergedFilters, metaBlockFilters])
   const totalCampaigns = tree.length
-  const hasActiveTreeFilters = Boolean(
-    metaBlockFilters.objetivo || metaBlockFilters.status || String(metaBlockFilters.nameContains?.text ?? '').trim()
-  )
+  const hasActiveTreeFilters = hasActiveCampaignBlockFilters(metaBlockFilters)
 
   const applyStatus = (node, status) => {
     const patch = (list) =>

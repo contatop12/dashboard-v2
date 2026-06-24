@@ -19,7 +19,26 @@ import Configuracoes from './pages/Configuracoes'
 import Clientes from './pages/Clientes'
 
 function GeralPage() {
-  return <DashboardGrid definitions={GERAL_DASHBOARD_BLOCKS} className="min-h-full" />
+  return (
+    <div className="flex min-h-full min-w-0 flex-col">
+      <header className="shrink-0 border-b border-white/[0.06] py-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand">
+            Visão Geral
+          </span>
+          <span className="text-white/20" aria-hidden>
+            ·
+          </span>
+          <span className="text-[11px] text-muted-foreground font-sans">
+            Todos os canais de mídia paga
+          </span>
+        </div>
+      </header>
+      <div className="min-h-0 flex-1">
+        <DashboardGrid definitions={GERAL_DASHBOARD_BLOCKS} className="min-h-full" />
+      </div>
+    </div>
+  )
 }
 
 function Splash({ message = 'Carregando sessão…' }) {

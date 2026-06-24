@@ -10,9 +10,13 @@ import {
 } from '../../../_lib/org-platform-credentials'
 import type { HttpGet } from '../../../_lib/google-business-performance'
 import { buildBusinessOverviewSections } from '../../../_lib/google-business-overview-core'
+import {
+  fetchGoogleBusinessAccounts,
+  normalizeGmbAccountId,
+} from '../../../_lib/google-business-accounts'
 
 function normalizeGmbAccountKey(raw: string): string {
-  return raw.trim().replace(/^accounts\//, '')
+  return normalizeGmbAccountId(raw)
 }
 
 function isYmd(s: string): boolean {
@@ -74,23 +78,26 @@ async function pickAccountId(
   httpGet: HttpGet,
   preferredExternalId: string | null
 ): Promise<{ accountId: string | null; accountDisplay: string | null; error: string | null }> {
-  const res = await httpGet('https://mybusinessaccountmanagement.googleapis.com/v1/accounts')
-  if (!res.ok) {
-    const j = res.json as { error?: { message?: string } }
-    return { accountId: null, accountDisplay: null, error: j?.error?.message || `Account API (${res.status})` }
+  const { accounts, error } = await fetchGoogleBusinessAccounts(httpGet)
+  if (error && accounts.length === 0) {
+    return { accountId: null, accountDisplay: null, error }
   }
-  const body = res.json as { accounts?: { name?: string; accountName?: string }[] }
-  let accounts = body.accounts ?? []
+
+  let list = accounts
   if (preferredExternalId?.trim()) {
     const want = normalizeGmbAccountKey(preferredExternalId)
-    const filtered = accounts.filter((a) => normalizeGmbAccountKey(a.name ?? '') === want || (a.name ?? '').includes(want))
-    if (filtered.length) accounts = filtered
+    const filtered = list.filter((a) => a.id === want)
+    if (filtered.length) list = filtered
   }
-  const primary = accounts[0]
-  if (!primary) return { accountId: null, accountDisplay: null, error: 'Nenhuma conta Google Business encontrada.' }
+
+  const primary = list[0]
+  if (!primary) {
+    return { accountId: null, accountDisplay: null, error: 'Nenhuma conta Google Business encontrada.' }
+  }
+
   return {
-    accountId: normalizeGmbAccountKey(primary.name ?? ''),
-    accountDisplay: primary.accountName?.trim() || normalizeGmbAccountKey(primary.name ?? '') || null,
+    accountId: primary.id,
+    accountDisplay: primary.name || primary.id || null,
     error: null,
   }
 }
@@ -171,18 +178,24 @@ export async function onRequestGet(context: {
         ...emptySections(),
       })
     }
-    const access = await getValidGoogleAccessTokenFromCredential(
-      context.env.DB,
-      context.env,
-      conn.oauth_credential_id
-    )
+    const useWorkerSecrets = !conn.oauth_credential_id
+    const access = useWorkerSecrets
+      ? await getGoogleAccessTokenFromEnv(context.env)
+      : await getValidGoogleAccessTokenFromCredential(
+          context.env.DB,
+          context.env,
+          conn.oauth_credential_id
+        )
+    const orgSource = useWorkerSecrets ? 'assigned_env' : 'oauth_org'
     if (!access) {
       return json({
         configured: false,
-        source: 'oauth_org',
+        source: orgSource,
         accountDisplay: conn.external_name,
         error: null,
-        detail: 'Token Google indisponível. Reconecte em Integrações.',
+        detail: useWorkerSecrets
+          ? 'Secrets Google não configurados no Worker (refresh token com escopo business.manage).'
+          : 'Token Google indisponível. Reconecte em Integrações.',
         primaryRange: { since: range.since, until: range.until },
         compareRange: null,
         ...emptySections(),
@@ -191,7 +204,7 @@ export async function onRequestGet(context: {
     try {
       const body = await buildBody(
         access,
-        'oauth_org',
+        orgSource,
         conn.external_id,
         conn.external_name?.trim() || null,
         locationId,
@@ -201,7 +214,7 @@ export async function onRequestGet(context: {
     } catch (e) {
       return json({
         configured: true,
-        source: 'oauth_org',
+        source: orgSource,
         accountDisplay: conn.external_name ?? null,
         error: e instanceof Error ? e.message : 'Erro Google Business',
         detail: null,

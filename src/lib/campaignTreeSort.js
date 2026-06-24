@@ -1,4 +1,6 @@
 /** Ordenação de nós da árvore de campanhas (campanha, grupo, anúncio). */
+import { hasActiveNameContainsFilters } from '@/lib/filterOptionsFromTree'
+
 export const CAMPAIGN_SORT_OPTIONS = [
   { id: 'spend', label: 'Investimento' },
   { id: 'impressions', label: 'Impressões' },
@@ -51,6 +53,29 @@ export function sortCampaignNodes(items, sortId = 'spend', desc = true) {
   return list
 }
 
+export const CAMPAIGN_VIEW_FILTER_CHIPS = [
+  { key: 'onlyWithSpend', label: 'Com gasto' },
+  { key: 'onlyWithConversions', label: 'Com conversões' },
+  { key: 'onlyWithImpressions', label: 'Com impressões' },
+  { key: 'onlyWithClicks', label: 'Com cliques' },
+]
+
+export const TOP_SPEND_FILTER_OPTIONS = [
+  { id: '', label: 'Todos investimentos' },
+  { id: '5', label: 'Top 5 investimento' },
+  { id: '10', label: 'Top 10 investimento' },
+  { id: '20', label: 'Top 20 investimento' },
+]
+
+/** Mantém apenas as N campanhas com maior investimento no período. */
+export function applyTopSpendFilter(rows, topN) {
+  const n = Number(topN)
+  if (!Number.isFinite(n) || n <= 0) return Array.isArray(rows) ? rows : []
+  const list = [...(rows || [])]
+  list.sort((a, b) => (Number(b.metrics?.spend) || 0) - (Number(a.metrics?.spend) || 0))
+  return list.slice(0, n)
+}
+
 /** Filtros rápidos de visualização (com gasto, conversões, etc.). */
 export function applyCampaignViewFilters(rows, view = {}) {
   let list = Array.isArray(rows) ? rows : []
@@ -86,6 +111,20 @@ export function resolveCampaignViewFilters(blockFilters = {}) {
   }
 }
 
+/** Indica se há filtros locais ativos no bloco de campanhas (Meta ou Google). */
+export function hasActiveCampaignBlockFilters(blockFilters = {}) {
+  const view = resolveCampaignViewFilters(blockFilters)
+  return Boolean(
+    blockFilters.objetivo ||
+      blockFilters.status ||
+      blockFilters.campanha ||
+      blockFilters.children ||
+      hasActiveNameContainsFilters(blockFilters) ||
+      blockFilters.topSpendCount ||
+      Object.values(view).some(Boolean)
+  )
+}
+
 export function hasActiveCampaignToolbarExtras(blockFilters = {}) {
   const { id, desc } = resolveCampaignSort(blockFilters)
   const view = resolveCampaignViewFilters(blockFilters)
@@ -93,6 +132,9 @@ export function hasActiveCampaignToolbarExtras(blockFilters = {}) {
   const hasSort = id !== DEFAULT_CAMPAIGN_SORT.id || desc !== DEFAULT_CAMPAIGN_SORT.desc
   const dimensionKeys = ['campanha', 'children', 'objetivo', 'status']
   const hasDimension = dimensionKeys.some((k) => blockFilters[k])
-  const hasNameContains = Boolean(String(blockFilters.nameContains?.text ?? '').trim())
-  return hasView || hasSort || hasDimension || hasNameContains
+  const hasNameContains = Array.isArray(blockFilters.nameContainsFilters)
+    ? blockFilters.nameContainsFilters.some((f) => String(f?.text ?? '').trim())
+    : Boolean(String(blockFilters.nameContains?.text ?? '').trim())
+  const hasTopSpend = Boolean(blockFilters.topSpendCount)
+  return hasView || hasSort || hasDimension || hasNameContains || hasTopSpend
 }

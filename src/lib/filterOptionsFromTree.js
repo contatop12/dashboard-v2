@@ -79,6 +79,38 @@ function nodeNameContains(node, needle) {
   return String(node?.name ?? '').toLowerCase().includes(needle)
 }
 
+export const LEVEL_SLOT_IDS = {
+  campanha: 'level-campanha',
+  children: 'level-children',
+  ads: 'level-ads',
+}
+
+/** Normaliza filtros de título (array novo ou objeto legado único). */
+export function normalizeNameContainsFilters(selected) {
+  const filters = []
+  if (Array.isArray(selected?.nameContainsFilters)) {
+    for (const f of selected.nameContainsFilters) {
+      const text = String(f?.text ?? '').trim()
+      if (!text) continue
+      filters.push({ id: f.id, level: f.level || 'campanha', text })
+    }
+  } else {
+    const legacy = String(selected?.nameContains?.text ?? '').trim()
+    if (legacy) {
+      filters.push({
+        id: LEVEL_SLOT_IDS[selected?.nameContains?.level || 'campanha'] ?? 'legacy',
+        level: selected?.nameContains?.level || 'campanha',
+        text: legacy,
+      })
+    }
+  }
+  return filters
+}
+
+export function hasActiveNameContainsFilters(selected) {
+  return normalizeNameContainsFilters(selected).length > 0
+}
+
 /** Filtra árvore por substring no nome, no nível escolhido (campanha, children ou ads). */
 export function applyNameContainsToTree(tree, nameContains) {
   const text = String(nameContains?.text ?? '').trim()
@@ -115,6 +147,15 @@ export function applyNameContainsToTree(tree, nameContains) {
       .filter((c) => c.adsets.length > 0)
   }
 
+  return rows
+}
+
+/** Aplica vários filtros de título em sequência (AND). */
+export function applyNameContainsFilters(tree, filters) {
+  let rows = Array.isArray(tree) ? tree : []
+  for (const f of filters) {
+    rows = applyNameContainsToTree(rows, f)
+  }
   return rows
 }
 
@@ -169,5 +210,5 @@ export function resolveTreeSlice(tree, selected) {
       }))
       .filter((c) => c.adsets.length > 0)
   }
-  return applyNameContainsToTree(rows, selected?.nameContains)
+  return applyNameContainsFilters(rows, normalizeNameContainsFilters(selected))
 }

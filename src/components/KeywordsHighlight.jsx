@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Search, TrendingUp, TrendingDown, ArrowUpDown } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { keywordsData } from '@/data/mockData'
 import { useDashboardFiltersOptional } from '@/context/DashboardFiltersContext'
 import { formatNumber, formatCurrency, formatPercent } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { BlockCard } from '@/components/ui/BlockCard'
 
 const metrics = ['Impressões', 'CTR', 'CPC']
 
@@ -35,28 +36,33 @@ export default function KeywordsHighlight() {
     return 50
   }
 
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-4 rounded-lg border border-surface-border bg-surface-card p-4">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <span className="section-title">Palavras-Chave Destaque</span>
-        <div className="flex items-center gap-2">
-          {metrics.map((m) => (
-            <button
-              key={m}
-              onClick={() => setActiveMetric(m)}
-              className={cn(
-                'text-[10px] px-2 py-1 rounded font-mono transition-all',
-                activeMetric === m
-                  ? 'bg-brand text-[#0F0F0F] font-semibold'
-                  : 'text-muted-foreground hover:text-white'
-              )}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
-      </div>
+  const metricTabs = (
+    <div className="flex gap-1 rounded-lg border border-white/[0.06] bg-[#141414] p-1">
+      {metrics.map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => setActiveMetric(m)}
+          className={cn(
+            'rounded-md px-2 py-1 text-[9px] font-medium font-sans transition-colors',
+            activeMetric === m
+              ? 'bg-brand/20 text-brand ring-1 ring-brand/30'
+              : 'text-muted-foreground hover:bg-white/[0.04] hover:text-white'
+          )}
+        >
+          {m}
+        </button>
+      ))}
+    </div>
+  )
 
+  return (
+    <BlockCard
+      title="Palavras-chave em destaque"
+      badge={`${filtered.length} termos`}
+      actions={metricTabs}
+      bodyClassName="flex flex-col gap-3"
+    >
       <div className="relative shrink-0">
         <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input
@@ -86,6 +92,6 @@ export default function KeywordsHighlight() {
           </div>
         ))}
       </div>
-    </div>
+    </BlockCard>
   )
 }

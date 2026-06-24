@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyCampaignViewFilters,
+  applyTopSpendFilter,
   sortCampaignNodes,
 } from './campaignTreeSort'
 
@@ -25,5 +26,11 @@ describe('campaignTreeSort', () => {
     const out = applyCampaignViewFilters(rows, { onlyWithSpend: true })
     expect(out).toHaveLength(2)
     expect(out.every((r) => (r.metrics?.spend || 0) > 0)).toBe(true)
+  })
+
+  it('mantém top N por investimento', () => {
+    const out = applyTopSpendFilter(rows, 2)
+    expect(out).toHaveLength(2)
+    expect(out.map((r) => r.id)).toEqual(['2', '1'])
   })
 })

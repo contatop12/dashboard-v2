@@ -1,61 +1,75 @@
-import GeralKpiCard, { GERAL_KPI_CARDS } from '@/components/GeralKpiCard'
-import TimelineChart from '@/components/TimelineChart'
+import GeralMetricsPanel from '@/components/GeralMetricsPanel'
 import OverviewTable from '@/components/OverviewTable'
-import FunnelGeral from '@/components/FunnelGeral'
 import Demographics from '@/components/Demographics'
-import InvestimentoChart from '@/components/InvestimentoChart'
-import VideoRange from '@/components/VideoRange'
+import GeralChannelBlock from '@/components/GeralChannelBlock'
 import KeywordsHighlight from '@/components/KeywordsHighlight'
-
-const KPI_BLOCK_DEFS = GERAL_KPI_CARDS.map((c) => ({
-  id: `kpi-${c.id}`,
-  tier: 'primary',
-  defaultLayout: { w: 2, h: 2, minW: 1, maxW: 4, minH: 2, maxH: 4 },
-  render: () => <GeralKpiCard {...c} />,
-}))
+import VideoRange from '@/components/VideoRange'
 
 export const GERAL_DASHBOARD_BLOCKS = [
-  ...KPI_BLOCK_DEFS,
   {
-    id: 'timeline',
-    tier: 'secondary',
-    defaultLayout: { w: 6, h: 4, minW: 2, maxW: 12, minH: 2, maxH: 12 },
-    render: () => <TimelineChart />,
+    id: 'geral-metrics',
+    tier: 'primary',
+    defaultColSpan: 8,
+    defaultRowSpan: 5,
+    minColSpan: 4,
+    maxColSpan: 8,
+    minRowSpan: 4,
+    maxRowSpan: 8,
+    render: () => <GeralMetricsPanel />,
   },
   {
-    id: 'funnel-geral',
+    id: 'overview-campaigns',
     tier: 'secondary',
-    defaultLayout: { w: 6, h: 4, minW: 2, maxW: 12, minH: 2, maxH: 12 },
-    render: () => <FunnelGeral />,
-  },
-  {
-    id: 'overview',
-    tier: 'secondary',
-    defaultLayout: { w: 6, h: 3, minW: 2, maxW: 12, minH: 2, maxH: 12 },
+    defaultColSpan: 8,
+    defaultRowSpan: 4,
+    minColSpan: 4,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 10,
     render: () => <OverviewTable />,
+  },
+  {
+    id: 'investimento-canal',
+    tier: 'secondary',
+    defaultColSpan: 4,
+    defaultRowSpan: 4,
+    minColSpan: 2,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 8,
+    render: () => <GeralChannelBlock />,
   },
   {
     id: 'demographics',
     tier: 'secondary',
-    defaultLayout: { w: 6, h: 3, minW: 2, maxW: 12, minH: 2, maxH: 12 },
+    defaultColSpan: 4,
+    defaultRowSpan: 4,
+    minColSpan: 2,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 8,
     render: () => <Demographics />,
-  },
-  {
-    id: 'investimento-chart',
-    tier: 'secondary',
-    defaultLayout: { w: 4, h: 3, minW: 2, maxW: 12, minH: 2, maxH: 12 },
-    render: () => <InvestimentoChart />,
-  },
-  {
-    id: 'video-range',
-    tier: 'secondary',
-    defaultLayout: { w: 4, h: 3, minW: 2, maxW: 12, minH: 2, maxH: 12 },
-    render: () => <VideoRange />,
   },
   {
     id: 'keywords',
     tier: 'secondary',
-    defaultLayout: { w: 4, h: 3, minW: 2, maxW: 12, minH: 2, maxH: 12 },
+    defaultColSpan: 4,
+    defaultRowSpan: 4,
+    minColSpan: 2,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 8,
     render: () => <KeywordsHighlight />,
+  },
+  {
+    id: 'video-range',
+    tier: 'secondary',
+    defaultColSpan: 4,
+    defaultRowSpan: 4,
+    minColSpan: 2,
+    maxColSpan: 8,
+    minRowSpan: 3,
+    maxRowSpan: 8,
+    render: () => <VideoRange />,
   },
 ]

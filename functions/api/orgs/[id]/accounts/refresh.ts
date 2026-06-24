@@ -12,6 +12,10 @@ import {
   resolveCustomerNames,
   resolveGoogleApiVersion,
 } from '../../../../_lib/google-ads-env'
+import {
+  fetchGoogleBusinessAccounts,
+  makeGmbHttpGet,
+} from '../../../../_lib/google-business-accounts'
 
 async function upsertConnection(
   db: D1Database,
@@ -186,21 +190,15 @@ export async function onRequestPost(context: {
     }
 
     if (googleToken) {
-      const bmR = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
-        headers: { Authorization: `Bearer ${googleToken}` },
-      })
-      const bmD = (await bmR.json()) as { accounts?: { name?: string; accountName?: string }[] }
-      for (const acc of (bmD.accounts ?? []).slice(0, 50)) {
-        const rawName = acc.name || ''
-        const ext = rawName.replace('accounts/', '') || rawName
-        if (!ext) continue
+      const { accounts: gmbAccounts } = await fetchGoogleBusinessAccounts(makeGmbHttpGet(googleToken))
+      for (const acc of gmbAccounts.slice(0, 100)) {
         const credId = googleConn.oauth_credential_id
         const r = await upsertConnection(
           db,
           orgId,
           'google_business',
-          ext,
-          acc.accountName ?? ext,
+          acc.id,
+          acc.name,
           credId
         )
         if (r === 'added') added++

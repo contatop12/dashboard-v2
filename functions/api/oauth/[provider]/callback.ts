@@ -7,6 +7,10 @@ import {
   resolveCustomerNames,
   resolveGoogleApiVersion,
 } from '../../../_lib/google-ads-env'
+import {
+  fetchGoogleBusinessAccounts,
+  makeGmbHttpGet,
+} from '../../../_lib/google-business-accounts'
 
 function redirectWithFlash(request: Request, params: Record<string, string>): Response {
   const u = new URL('/', request.url)
@@ -251,19 +255,9 @@ async function finishGoogle(
     }
   }
 
-  const bmR = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
-    headers: { Authorization: `Bearer ${access}` },
-  })
-  const bmD = (await bmR.json()) as {
-    accounts?: { name?: string; accountName?: string }[]
-  }
-  if (bmR.ok && bmD.accounts?.length) {
-    for (const acc of bmD.accounts.slice(0, 50)) {
-      const name = acc.name || ''
-      const ext = name.replace('accounts/', '') || name
-      if (!ext) continue
-      await insertConnection(db, orgId, 'google_business', ext, acc.accountName ?? ext, credId)
-    }
+  const { accounts: gmbAccounts } = await fetchGoogleBusinessAccounts(makeGmbHttpGet(access))
+  for (const acc of gmbAccounts.slice(0, 100)) {
+    await insertConnection(db, orgId, 'google_business', acc.id, acc.name, credId)
   }
 }
 

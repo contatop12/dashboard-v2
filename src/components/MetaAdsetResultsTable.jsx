@@ -14,6 +14,12 @@ import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
 import { resolveTreeSlice } from '@/lib/filterOptionsFromTree'
+import {
+  applyCampaignViewFilters,
+  applyTopSpendFilter,
+  hasActiveCampaignBlockFilters,
+  resolveCampaignViewFilters,
+} from '@/lib/campaignTreeSort'
 import { filterMetaAdsetRows } from '@/lib/metaTreeFilters'
 import { MetaBlockFilterToolbar } from '@/components/MetaBlockFilterToolbar'
 
@@ -190,18 +196,17 @@ export function MetaAdsetResultsTable() {
 
   const rows = useMemo(() => {
     const sliced = resolveTreeSlice(Array.isArray(tree) ? tree : [], mergedFilters)
-    const flat = flattenAdsetsFromTree(sliced)
+    const viewFilters = resolveCampaignViewFilters(metaBlockFilters)
+    const withView = applyCampaignViewFilters(sliced, viewFilters)
+    const topped = applyTopSpendFilter(withView, metaBlockFilters.topSpendCount)
+    const flat = flattenAdsetsFromTree(topped)
     return filterMetaAdsetRows(flat, mergedFilters)
-  }, [tree, mergedFilters])
+  }, [tree, mergedFilters, metaBlockFilters])
 
   const allRowsCount = useMemo(() => flattenAdsetsFromTree(tree).length, [tree])
 
   const err = typeof data?.campaignsError === 'string' && data.campaignsError.trim() ? data.campaignsError.trim() : null
-  const hasFilters = Boolean(
-    metaBlockFilters.objetivo ||
-      metaBlockFilters.status ||
-      String(metaBlockFilters.nameContains?.text ?? '').trim()
-  )
+  const hasFilters = hasActiveCampaignBlockFilters(metaBlockFilters)
 
   const [columnVisibility, setColumnVisibility] = useState(() => {
     const saved = readJsonLs(LS_VISIBILITY, null)

@@ -4,6 +4,10 @@ import { requireSuperAdmin } from '../../../_lib/admin-guard'
 import { json } from '../../../_lib/json'
 import { getGoogleAccessTokenFromEnv } from '../../../_lib/google-access-token'
 import { listGoogleAdsAccountsFromEnv } from '../../../_lib/google-ads-env'
+import {
+  fetchGoogleBusinessAccounts,
+  makeGmbHttpGet,
+} from '../../../_lib/google-business-accounts'
 
 type DiscoverResult = {
   meta_ads: number
@@ -106,15 +110,9 @@ export async function onRequestPost(context: {
       result.google_ads++
     }
 
-    const bmR = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
-      headers: { Authorization: `Bearer ${googleAccess}` },
-    })
-    const bmD = (await bmR.json()) as { accounts?: { name?: string; accountName?: string }[] }
-    for (const acc of (bmD.accounts ?? []).slice(0, 50)) {
-      const rawName = acc.name || ''
-      const ext = rawName.replace('accounts/', '') || rawName
-      if (!ext) continue
-      await upsertAdminAccount(db, 'google_business', ext, acc.accountName ?? ext)
+    const { accounts: gmbAccounts } = await fetchGoogleBusinessAccounts(makeGmbHttpGet(googleAccess))
+    for (const acc of gmbAccounts.slice(0, 100)) {
+      await upsertAdminAccount(db, 'google_business', acc.id, acc.name)
       result.google_business++
     }
   }

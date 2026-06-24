@@ -13,6 +13,12 @@ import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
 import { resolveTreeSlice } from '@/lib/filterOptionsFromTree'
+import {
+  applyCampaignViewFilters,
+  applyTopSpendFilter,
+  hasActiveCampaignBlockFilters,
+  resolveCampaignViewFilters,
+} from '@/lib/campaignTreeSort'
 import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
 const PAGE_SIZE = 15
@@ -185,22 +191,15 @@ export function GoogleAdGroupResultsTable() {
 
   const rows = useMemo(() => {
     const sliced = resolveTreeSlice(Array.isArray(tree) ? tree : [], mergedFilters)
-    return flattenAdGroupsFromTree(sliced)
-  }, [tree, mergedFilters])
+    const viewFilters = resolveCampaignViewFilters(googleCampaignBlockFilters)
+    const withView = applyCampaignViewFilters(sliced, viewFilters)
+    const topped = applyTopSpendFilter(withView, googleCampaignBlockFilters.topSpendCount)
+    return flattenAdGroupsFromTree(topped)
+  }, [tree, mergedFilters, googleCampaignBlockFilters])
 
   const allRowsCount = useMemo(() => flattenAdGroupsFromTree(tree).length, [tree])
 
-  const hasFilters = useMemo(
-    () =>
-      Boolean(
-        googleCampaignBlockFilters.campanha ||
-          googleCampaignBlockFilters.children ||
-          googleCampaignBlockFilters.objetivo ||
-          googleCampaignBlockFilters.status ||
-          String(googleCampaignBlockFilters.nameContains?.text ?? '').trim()
-      ),
-    [googleCampaignBlockFilters]
-  )
+  const hasFilters = hasActiveCampaignBlockFilters(googleCampaignBlockFilters)
 
   const err = typeof data?.campaignsError === 'string' && data.campaignsError.trim() ? data.campaignsError.trim() : null
 

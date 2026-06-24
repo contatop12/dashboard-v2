@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 const PROVIDERS = [
   { id: 'meta_ads', label: 'Meta Ads' },
   { id: 'google_ads', label: 'Google Ads' },
+  { id: 'google_business', label: 'Google Meu Negócio' },
 ]
 
 function toggleId(list, id) {
@@ -13,8 +14,8 @@ function toggleId(list, id) {
  * Super admin: atribui contas descobertas (secrets) a uma organização sem OAuth.
  */
 export default function OrgAccountAssignments({ orgId }) {
-  const [catalog, setCatalog] = useState({ meta_ads: [], google_ads: [] })
-  const [selected, setSelected] = useState({ meta_ads: [], google_ads: [] })
+  const [catalog, setCatalog] = useState({ meta_ads: [], google_ads: [], google_business: [] })
+  const [selected, setSelected] = useState({ meta_ads: [], google_ads: [], google_business: [] })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -38,6 +39,7 @@ export default function OrgAccountAssignments({ orgId }) {
       setCatalog({
         meta_ads: Array.isArray(cat.meta_ads) ? cat.meta_ads : [],
         google_ads: Array.isArray(cat.google_ads) ? cat.google_ads : [],
+        google_business: Array.isArray(cat.google_business) ? cat.google_business : [],
       })
 
       const connections = Array.isArray(conn.connections) ? conn.connections : []
@@ -45,6 +47,9 @@ export default function OrgAccountAssignments({ orgId }) {
       setSelected({
         meta_ads: envAssigned.filter((c) => c.provider === 'meta_ads').map((c) => c.external_id),
         google_ads: envAssigned.filter((c) => c.provider === 'google_ads').map((c) => c.external_id),
+        google_business: envAssigned
+          .filter((c) => c.provider === 'google_business')
+          .map((c) => c.external_id),
       })
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Erro ao carregar')
@@ -83,6 +88,7 @@ export default function OrgAccountAssignments({ orgId }) {
       const data = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(data.error || 'Falha ao salvar contas')
       setSaved(true)
+      window.dispatchEvent(new Event('p12-account-selection-changed'))
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Erro ao salvar')
     } finally {
@@ -99,8 +105,9 @@ export default function OrgAccountAssignments({ orgId }) {
           Contas atribuídas (secrets)
         </p>
         <p className="text-[10px] text-muted-foreground font-sans mt-1 leading-relaxed">
-          Selecione quais contas Meta e Google este cliente vê na dashboard. Usa os tokens do Worker — sem OAuth.
-          Execute &quot;Descobrir contas&quot; em Configurações se a lista estiver vazia.
+          Selecione quais contas Meta, Google Ads e Google Meu Negócio este cliente vê na dashboard. Usa os
+          tokens do Worker — sem OAuth. Execute &quot;Descobrir contas&quot; em Configurações se a lista
+          estiver vazia.
         </p>
       </div>
 

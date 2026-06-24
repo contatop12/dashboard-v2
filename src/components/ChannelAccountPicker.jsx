@@ -59,9 +59,13 @@ export default function ChannelAccountPicker({ provider, className, alwaysShowSe
   }
 
   if (connections.length === 0) {
+    const hint =
+      provider === 'google_business'
+        ? 'Peça ao admin para atribuir contas GBP em Clientes → Editar'
+        : 'Conecte em Configurações'
     return (
-      <span className={cn('text-[10px] text-amber-200/70 font-sans', className)}>
-        Conecte em Configurações
+      <span className={cn('text-[10px] text-amber-200/70 font-sans', className)} title={hint}>
+        {hint}
       </span>
     )
   }

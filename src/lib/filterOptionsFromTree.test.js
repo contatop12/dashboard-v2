@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest'
-import { applyNameContainsToTree, filterOptionsFromTree, resolveTreeSlice } from './filterOptionsFromTree'
+import {
+  applyNameContainsFilters,
+  applyNameContainsToTree,
+  filterOptionsFromTree,
+  normalizeNameContainsFilters,
+  resolveTreeSlice,
+} from './filterOptionsFromTree'
 
 const tree = [
   {
@@ -152,11 +158,48 @@ describe('resolveTreeSlice', () => {
     expect(out2).toHaveLength(1)
     expect(out2[0].id).toBe('9')
   })
+
+  test('vários filtros de título em AND', () => {
+    const richTree = [
+      {
+        id: '1',
+        name: 'JP | LEAD Camp',
+        adsets: [
+          { id: '11', name: 'Set Alpha', ads: [{ id: '111', name: 'Ad X' }] },
+          { id: '12', name: 'Set Beta', ads: [] },
+        ],
+      },
+      { id: '2', name: 'Other Camp', adsets: [{ id: '21', name: 'Set Alpha', ads: [] }] },
+    ]
+    const out = resolveTreeSlice(richTree, {
+      nameContainsFilters: [
+        { id: 'a', level: 'campanha', text: 'JP' },
+        { id: 'b', level: 'children', text: 'Alpha' },
+      ],
+    })
+    expect(out).toHaveLength(1)
+    expect(out[0].id).toBe('1')
+    expect(out[0].adsets).toHaveLength(1)
+    expect(out[0].adsets[0].id).toBe('11')
+  })
 })
 
 describe('applyNameContainsToTree', () => {
   test('sem texto retorna árvore inalterada', () => {
     expect(applyNameContainsToTree(tree, { level: 'campanha', text: '' })).toHaveLength(2)
     expect(applyNameContainsToTree(tree, null)).toHaveLength(2)
+  })
+})
+
+describe('normalizeNameContainsFilters', () => {
+  test('aceita array novo e legado', () => {
+    expect(
+      normalizeNameContainsFilters({
+        nameContainsFilters: [{ id: '1', level: 'campanha', text: 'JP' }],
+      })
+    ).toHaveLength(1)
+    expect(
+      normalizeNameContainsFilters({ nameContains: { level: 'children', text: 'Set' } })
+    ).toEqual([{ id: 'level-children', level: 'children', text: 'Set' }])
   })
 })

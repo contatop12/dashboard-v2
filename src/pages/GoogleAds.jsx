@@ -29,13 +29,20 @@ import GoogleConversionMixChart from '@/components/GoogleConversionMixChart'
 import { BlockCard } from '@/components/ui/BlockCard'
 import { CampaignTree } from '@/components/CampaignTree'
 import { DimensionFilterSelect } from '@/components/ui/DimensionFilterSelect'
-import { NameContainsFilter } from '@/components/ui/NameContainsFilter'
+import { NameContainsFiltersPanel } from '@/components/ui/NameContainsFiltersPanel'
+import { CampaignComplementaryFilters } from '@/components/ui/CampaignComplementaryFilters'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { useCampaignStatusMutation } from '@/hooks/useCampaignStatusMutation'
-import { filterOptionsFromTree, resolveTreeSlice } from '@/lib/filterOptionsFromTree'
+import {
+  filterOptionsFromTree,
+  hasActiveNameContainsFilters,
+  resolveTreeSlice,
+} from '@/lib/filterOptionsFromTree'
 import {
   applyCampaignViewFilters,
+  applyTopSpendFilter,
   CAMPAIGN_SORT_OPTIONS,
+  hasActiveCampaignBlockFilters,
   hasActiveCampaignToolbarExtras,
   resolveCampaignSort,
   resolveCampaignViewFilters,
@@ -705,13 +712,6 @@ function GoogleAnalysisPanel() {
 
 const GOOGLE_TREE_LABELS = { adsets: 'Grupos de anúncios', ads: 'Anúncios', keywords: 'Palavras-chave' }
 
-const GOOGLE_VIEW_FILTER_CHIPS = [
-  { key: 'onlyWithSpend', label: 'Com gasto' },
-  { key: 'onlyWithConversions', label: 'Com conversões' },
-  { key: 'onlyWithImpressions', label: 'Com impressões' },
-  { key: 'onlyWithClicks', label: 'Com cliques' },
-]
-
 function GoogleCampaignsBlock({ workerPlatformQuery }) {
   const { activeOrgId } = useOrgWorkspace()
   const { loading, data } = usePlatformOverview()
@@ -772,8 +772,9 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
 
   const displayedTree = useMemo(() => {
     const filtered = applyCampaignViewFilters(visibleTree, viewFilters)
-    return sortCampaignNodes(filtered, campaignSort.id, campaignSort.desc)
-  }, [visibleTree, viewFilters, campaignSort])
+    const topped = applyTopSpendFilter(filtered, blockFilters.topSpendCount)
+    return sortCampaignNodes(topped, campaignSort.id, campaignSort.desc)
+  }, [visibleTree, viewFilters, blockFilters.topSpendCount, campaignSort])
 
   const setBlockFilter = (key, opt) => setBlockFilters((prev) => ({ ...prev, [key]: opt }))
   const clearBlockFilter = (key) =>
@@ -782,7 +783,6 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
       delete next[key]
       return next
     })
-  const toggleViewFilter = (key) => setBlockFilters((prev) => ({ ...prev, [key]: !prev[key] }))
   const hasBlockFilters = hasActiveCampaignToolbarExtras(blockFilters)
   const totalCampaigns = tree.length
   const hasActiveTreeFilters = useMemo(
@@ -793,10 +793,9 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
           mergedFilters.objetivo ||
           mergedFilters.status ||
           mergedFilters.ads ||
-          mergedFilters.keywords ||
-          String(mergedFilters.nameContains?.text ?? '').trim()
-      ),
-    [mergedFilters]
+          mergedFilters.keywords
+      ) || hasActiveCampaignBlockFilters(blockFilters),
+    [mergedFilters, blockFilters]
   )
 
   const applyStatus = (node, status) => {
@@ -874,19 +873,6 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
           onClear={clearBlockFilter}
           compact
         />
-        <NameContainsFilter
-          value={blockFilters.nameContains}
-          onChange={(value) => setBlockFilters((prev) => ({ ...prev, nameContains: value }))}
-          onClear={() =>
-            setBlockFilters((prev) => {
-              const next = { ...prev }
-              delete next.nameContains
-              return next
-            })
-          }
-          childLevelLabel="Grupo"
-          compact
-        />
         {hasBlockFilters ? (
           <button
             type="button"
@@ -897,6 +883,28 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
           </button>
         ) : null}
       </div>
+
+      <NameContainsFiltersPanel
+        filters={
+          blockFilters.nameContainsFilters ??
+          (hasActiveNameContainsFilters({ nameContains: blockFilters.nameContains })
+            ? [blockFilters.nameContains]
+            : [])
+        }
+        onChange={(filters) =>
+          setBlockFilters((prev) => {
+            const next = { ...prev }
+            if (filters?.length) next.nameContainsFilters = filters
+            else {
+              delete next.nameContainsFilters
+              delete next.nameContains
+            }
+            return next
+          })
+        }
+        childLevelLabel="Grupo"
+        compact
+      />
 
       <div className="flex flex-wrap items-center gap-2 border-t border-white/[0.04] pt-2">
         <span className="font-sans text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -927,25 +935,9 @@ function GoogleCampaignsBlock({ workerPlatformQuery }) {
         >
           {campaignSort.desc ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
         </button>
-        <span className="hidden h-4 w-px bg-white/10 sm:block" aria-hidden />
-        <span className="font-sans text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Exibir
-        </span>
-        {GOOGLE_VIEW_FILTER_CHIPS.map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => toggleViewFilter(key)}
-            className={cn(
-              'filter-select h-7 text-[11px]',
-              blockFilters[key] && 'border-brand/40 bg-brand/10 text-brand'
-            )}
-            aria-pressed={Boolean(blockFilters[key])}
-          >
-            {label}
-          </button>
-        ))}
       </div>
+
+      <CampaignComplementaryFilters blockFilters={blockFilters} setBlockFilters={setBlockFilters} compact />
     </div>
   )
 

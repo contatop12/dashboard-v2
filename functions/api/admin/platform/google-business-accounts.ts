@@ -3,12 +3,13 @@ import type { UserRow } from '../../../_lib/auth'
 import { requireSuperAdmin } from '../../../_lib/admin-guard'
 import { json } from '../../../_lib/json'
 import { getGoogleAccessTokenFromEnv } from '../../../_lib/google-access-token'
+import {
+  fetchGoogleBusinessAccounts,
+  makeGmbHttpGet,
+  type GoogleBusinessAccountRow,
+} from '../../../_lib/google-business-accounts'
 
-export type GoogleBusinessAccountRow = { id: string; name: string }
-
-function normalizeGmbAccountKey(raw: string): string {
-  return raw.trim().replace(/^accounts\//, '')
-}
+export type { GoogleBusinessAccountRow }
 
 export async function onRequestGet(context: {
   request: Request
@@ -31,33 +32,16 @@ export async function onRequestGet(context: {
   const q = url.searchParams.get('q')?.trim().toLowerCase() || ''
 
   try {
-    const res = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
-      headers: { Authorization: `Bearer ${access}` },
-    })
-    const body = (await res.json().catch(() => ({}))) as {
-      accounts?: { name?: string; accountName?: string }[]
-      error?: { message?: string }
+    const { accounts, error } = await fetchGoogleBusinessAccounts(makeGmbHttpGet(access))
+    if (error && accounts.length === 0) {
+      return json({ accounts: [] as GoogleBusinessAccountRow[], error })
     }
-    if (!res.ok) {
-      return json({
-        accounts: [] as GoogleBusinessAccountRow[],
-        error: body?.error?.message || `Account API (${res.status})`,
-      })
-    }
-
-    const accounts: GoogleBusinessAccountRow[] = (body.accounts ?? []).map((a) => {
-      const id = normalizeGmbAccountKey(a.name ?? '')
-      return {
-        id,
-        name: a.accountName?.trim() || id || 'Conta GBP',
-      }
-    })
 
     const filtered = q
       ? accounts.filter((a) => `${a.name} ${a.id}`.toLowerCase().includes(q))
       : accounts
 
-    return json({ accounts: filtered, error: null as string | null })
+    return json({ accounts: filtered, error: error ?? null })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Erro ao listar contas Google Business'
     return json({ accounts: [] as GoogleBusinessAccountRow[], error: msg })

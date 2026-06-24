@@ -3,7 +3,7 @@ import type { UserRow } from '../../../../_lib/auth'
 import { requireSuperAdmin } from '../../../../_lib/admin-guard'
 import { json, jsonError } from '../../../../_lib/json'
 
-const ASSIGNABLE = ['meta_ads', 'google_ads'] as const
+const ASSIGNABLE = ['meta_ads', 'google_ads', 'google_business'] as const
 type AssignableProvider = (typeof ASSIGNABLE)[number]
 
 type AssignmentItem = { external_id: string; external_name?: string | null }

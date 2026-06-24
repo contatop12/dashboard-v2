@@ -48,7 +48,7 @@ export default function OverviewTable() {
   const badge = `${sorted.length} / ${overviewTableData.length} camp.`
 
   return (
-    <BlockCard title="Visão Geral" badge={badge} bodyClassName="overflow-hidden">
+    <BlockCard title="Performance por campanha" badge={badge} bodyClassName="overflow-hidden">
       <div className="min-h-0 min-w-0 h-full overflow-x-auto overflow-y-auto">
         <table className="w-full min-w-0 max-w-full table-fixed text-xs">
           <thead>

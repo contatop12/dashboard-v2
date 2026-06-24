@@ -1,6 +1,6 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import { Play } from 'lucide-react'
 import { videoRangeData } from '@/data/mockData'
+import { BlockCard } from '@/components/ui/BlockCard'
 
 function CustomTooltip({ active, payload }) {
   if (!active || !payload?.length) return null
@@ -16,12 +16,7 @@ function CustomTooltip({ active, payload }) {
 
 export default function VideoRange() {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 rounded-lg border border-surface-border bg-surface-card p-4">
-      <div className="flex shrink-0 items-center gap-2">
-        <Play size={12} className="text-brand" fill="currentColor" />
-        <span className="section-title">Faixa de Vídeo</span>
-      </div>
-
+    <BlockCard title="Retenção de vídeo" badge="por marco" bodyClassName="flex flex-col gap-3">
       <div className="flex min-h-0 flex-1 items-center gap-4">
         <div className="h-full min-h-[140px] flex-1">
           <ResponsiveContainer width="100%" height="100%">
@@ -58,6 +53,6 @@ export default function VideoRange() {
       <p className="shrink-0 text-center font-sans text-[10px] text-muted-foreground">
         % de visualizações por marco do vídeo
       </p>
-    </div>
+    </BlockCard>
   )
 }

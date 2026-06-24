@@ -382,7 +382,9 @@ export default function WorkerSecretsAccountPicker({ provider, onWorkerQueryChan
         {selectEl}
         {loading ? <span className="sr-only">Carregando contas</span> : null}
         {err ? (
-          <span className="sr-only">{err}</span>
+          <span className="max-w-[12rem] truncate text-[10px] text-amber-200/90 font-sans" title={err}>
+            {err}
+          </span>
         ) : null}
       </div>
     )
