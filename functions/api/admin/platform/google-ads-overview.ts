@@ -613,16 +613,18 @@ async function fetchConversionBreakdown(
   const secondary: ConversionBreakdownRow[] = []
   for (const [key, agg] of totals.entries()) {
     const meta = metaMap.get(key)
-    // Secundária = primary_for_goal === false. Fallback quando o catálogo não
-    // tem a ação: conversions=0 mas all_conversions>0 só ocorre em ação
-    // secundária (não contabilizada na coluna "Conversões").
-    const isSecondary =
-      meta?.primaryForGoal === false ||
-      (meta?.primaryForGoal == null && agg.conversions === 0 && agg.allConversions > 0)
-    // Primárias usam metrics.conversions (bate com o KPI "Conversões");
-    // secundárias usam all_conversions (onde de fato aparecem).
-    const conversions = isSecondary ? agg.allConversions : agg.conversions
-    const value = isSecondary ? agg.allValue : agg.value
+    // Espelha o rótulo do Google ("Otimização de ações: Principal/Secundária"):
+    // Secundária = conversion_action.primary_for_goal === false. Ação ausente do
+    // catálogo (ex.: lead forms Google-hosted que não voltam no SELECT
+    // conversion_action) = tratada como Principal, igual à UI.
+    const isSecondary = meta?.primaryForGoal === false
+    // Conta "Todas as conv." (all_conversions) por ação — igual à tabela de ações
+    // do Google. Necessário porque ações Principais NÃO contabilizadas no lance
+    // têm metrics.conversions=0 e só aparecem em all_conversions (ex.: "Lead form
+    // - Response qualified" = 0 em Conversões / 15 em Todas as conv.).
+    // Consequência: o total de Primárias NÃO bate com o KPI "Conversões" (lance).
+    const conversions = agg.allConversions
+    const value = agg.allValue
     if (conversions === 0 && value === 0) continue
     const name = agg.name ?? meta?.name ?? 'Conversão'
     const rowOut: ConversionBreakdownRow = {

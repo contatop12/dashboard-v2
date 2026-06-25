@@ -63,6 +63,10 @@ function sumGoogleDailyTotals(daily) {
   )
 }
 
+function sumBreakdownConversions(rows) {
+  return Array.isArray(rows) ? rows.reduce((s, r) => s + (Number(r?.conversions) || 0), 0) : 0
+}
+
 function formatFunnelConversionsDisplay(n) {
   const x = Number(n) || 0
   return Math.abs(x % 1) < 0.001
@@ -506,13 +510,21 @@ function GoogleFunnelBlock({ embedded = false }) {
   const breakdown = isPrevious ? data?.compareConversionBreakdown : data?.conversionBreakdown
 
   const totals = useMemo(() => sumGoogleDailyTotals(daily), [daily])
-  const primaryConversions = useMemo(() => {
-    const primary = Array.isArray(breakdown?.primary) ? breakdown.primary : []
-    return primary.reduce((sum, row) => sum + (Number(row?.conversions) || 0), 0)
-  }, [breakdown?.primary])
+  // Estágios de conversão vêm do breakdown (Primárias/Secundárias por rótulo do
+  // Google = all_conversions), para o funil casar com o painel de conversões.
+  // Total ≥ Primárias sempre; cai no total diário (lance) se o breakdown falhar.
+  const primaryConversions = useMemo(() => sumBreakdownConversions(breakdown?.primary), [breakdown?.primary])
+  const totalConversions = useMemo(
+    () =>
+      Math.max(
+        primaryConversions + sumBreakdownConversions(breakdown?.secondary),
+        totals.conversions
+      ),
+    [primaryConversions, breakdown?.secondary, totals.conversions]
+  )
   const funnelStages = useMemo(
-    () => buildGoogleFunnelStages(totals, primaryConversions),
-    [totals, primaryConversions]
+    () => buildGoogleFunnelStages({ ...totals, conversions: totalConversions }, primaryConversions),
+    [totals, totalConversions, primaryConversions]
   )
 
   const funnelMax = funnelStages[0]?.value ?? 0
