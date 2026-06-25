@@ -322,43 +322,41 @@ export default function GoogleMetricsPanel() {
         ))}
       </div>
 
-      {!isPrevious ? (
-        <>
-          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <DailyTrendCard
-              title="Investimento diário"
-              subtitle="Gasto médio por dia no período"
-              daily={daily}
-              valueKey="spend"
-              color="#4285F4"
-              formatValue={(v) => formatCurrency(v)}
-              formatAxis={(v) => `R$${COMPACT_NUMBER.format(Number(v) || 0)}`}
-            />
-            <DailyTrendCard
-              title="Cliques diários"
-              subtitle="Volume médio de cliques por dia"
-              daily={daily}
-              valueKey="clicks"
-              color="#34A853"
-              formatValue={(v) => formatNumber(Math.round(v))}
-              formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
-            />
-            <DailyTrendCard
-              title="Conversões diárias"
-              subtitle="Volume médio de conversões por dia"
-              daily={daily}
-              valueKey="conversions"
-              color="#FBBC04"
-              formatValue={formatDailyConversions}
-              formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
-            />
-          </div>
+      {/* Gráficos também no espelho do período anterior — daily/funil já
+          resolvem para os dados de comparação via useDashboardBlockPeriod. */}
+      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <DailyTrendCard
+          title="Investimento diário"
+          subtitle="Gasto médio por dia no período"
+          daily={daily}
+          valueKey="spend"
+          color="#4285F4"
+          formatValue={(v) => formatCurrency(v)}
+          formatAxis={(v) => `R$${COMPACT_NUMBER.format(Number(v) || 0)}`}
+        />
+        <DailyTrendCard
+          title="Cliques diários"
+          subtitle="Volume médio de cliques por dia"
+          daily={daily}
+          valueKey="clicks"
+          color="#34A853"
+          formatValue={(v) => formatNumber(Math.round(v))}
+          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
+        />
+        <DailyTrendCard
+          title="Conversões diárias"
+          subtitle="Volume médio de conversões por dia"
+          daily={daily}
+          valueKey="conversions"
+          color="#FBBC04"
+          formatValue={formatDailyConversions}
+          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
+        />
+      </div>
 
-          <div className="mb-4">
-            <GoogleAnalysisPanel />
-          </div>
-        </>
-      ) : null}
+      <div className="mb-4">
+        <GoogleAnalysisPanel />
+      </div>
     </div>
   )
 }

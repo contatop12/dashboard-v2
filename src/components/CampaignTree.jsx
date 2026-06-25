@@ -50,7 +50,7 @@ function NodeMetrics({ node, compact = false, resultsLabel = null, searchMode = 
       <div
         className={cn(
           'grid shrink-0 gap-x-4 gap-y-1 font-mono text-[11px] text-foreground',
-          compact ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+          compact ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
         )}
       >
         <Metric k="invest" label={compact ? 'Investimento' : 'Invest.'} v={formatCurrency(Number(m.spend) || 0)} />
@@ -58,6 +58,9 @@ function NodeMetrics({ node, compact = false, resultsLabel = null, searchMode = 
         <Metric k="clicks" label="Cliques" v={formatNumber(Number(m.clicks) || 0)} />
         {!compact && (
           <Metric k="results" label={rl.replace(' (formulário)', ' (form.)')} v={formatNumber(Number(m.results) || 0)} />
+        )}
+        {!compact && (
+          <Metric k="cpl" label="Custo/conv." v={cpl != null ? formatCurrency(cpl) : '—'} />
         )}
         <Metric k="ctrLink" label="CTR link" v={formatPercent(Number(m.ctrLink) || 0)} />
       </div>

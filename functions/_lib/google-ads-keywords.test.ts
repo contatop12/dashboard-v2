@@ -135,12 +135,17 @@ describe('aggregateSearchTerms', () => {
     expect(items[0].impressions).toBe(15)
   })
 
-  it('descarta termos só com impressões (sem clique/custo/conversão)', () => {
+  it('mantém termos só com impressões; ordena clique/custo antes de impressão', () => {
     const items = aggregateSearchTerms([
       termRow({ term: 'ruido', impressions: 3 }),
       termRow({ term: 'bom', clicks: 1, impressions: 2 }),
     ])
-    expect(items.map((i) => i.term)).toEqual(['bom'])
+    expect(items.map((i) => i.term)).toEqual(['bom', 'ruido'])
+  })
+
+  it('descarta termos totalmente zerados (sem impressão)', () => {
+    const items = aggregateSearchTerms([termRow({ term: 'vazio' })])
+    expect(items).toHaveLength(0)
   })
 
   it('ordena por gasto > conversões > cliques e respeita limit', () => {

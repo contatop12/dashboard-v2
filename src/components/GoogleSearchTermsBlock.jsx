@@ -5,8 +5,8 @@ import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
 import { BlockCard } from '@/components/ui/BlockCard'
 import { usePagedRows, TablePagination } from '@/components/ui/TablePagination'
 
-const PAGE_SIZE = 5
-/** Altura mínima alinhada ao corpo de 5 linhas (par com Posição de destaque). */
+const PAGE_SIZE = 10
+/** Altura mínima do corpo da tabela. */
 const PAIRED_BODY_MIN_H = 'min-h-[15rem]'
 /** Termos ocultados pelo usuário (persistido entre sessões). */
 const HIDDEN_TERMS_LS = 'p12_google_search_terms_hidden'
@@ -196,7 +196,7 @@ export function GoogleSearchTermsBlock() {
       badge={badge}
       actions={configControl}
       state={state}
-      emptyMessage="Sem termos de pesquisa com cliques ou custo no período."
+      emptyMessage="Sem termos de pesquisa com impressões no período."
       errorMessage={String(payload?.error || '')}
       className="h-full"
       bodyClassName="flex min-h-0 flex-1 flex-col gap-2 px-3 sm:px-4 pb-3 sm:pb-4"

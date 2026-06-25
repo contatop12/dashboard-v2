@@ -6,6 +6,7 @@ import { cn, formatCurrency, formatNumber } from '@/lib/utils'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { FunnelChart } from '@/components/FunnelChart'
 import { usePlatformOverview } from '@/components/PlatformOverviewProvider'
+import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 import { BlockCard } from '@/components/ui/BlockCard'
 
 const G_BLUE = '#4285F4'
@@ -176,8 +177,11 @@ function GoogleClicksChart({ embedded = false }) {
   const gradA = `googleDailyA-${gid}`
   const gradB = `googleDailyB-${gid}`
   const gradC = `googleDailyCusto-${gid}`
+  const period = useDashboardBlockPeriod()
+  const isPrevious = period === 'previous'
   const { loading, data } = usePlatformOverview()
-  const chartData = useMemo(() => mapGoogleDailyToChart(data?.daily), [data?.daily])
+  const daily = isPrevious ? data?.compareDaily : data?.daily
+  const chartData = useMemo(() => mapGoogleDailyToChart(daily), [daily])
   const [chartMode, setChartMode] = useState(readGoogleChartMode)
   const [visibleModes, setVisibleModes] = useState(readGoogleVisibleChartModes)
   const [showModePicker, setShowModePicker] = useState(false)
@@ -495,13 +499,17 @@ function GoogleClicksChart({ embedded = false }) {
 }
 
 function GoogleFunnelBlock({ embedded = false }) {
+  const period = useDashboardBlockPeriod()
+  const isPrevious = period === 'previous'
   const { loading, data } = usePlatformOverview()
+  const daily = isPrevious ? data?.compareDaily : data?.daily
+  const breakdown = isPrevious ? data?.compareConversionBreakdown : data?.conversionBreakdown
 
-  const totals = useMemo(() => sumGoogleDailyTotals(data?.daily), [data?.daily])
+  const totals = useMemo(() => sumGoogleDailyTotals(daily), [daily])
   const primaryConversions = useMemo(() => {
-    const primary = Array.isArray(data?.conversionBreakdown?.primary) ? data.conversionBreakdown.primary : []
+    const primary = Array.isArray(breakdown?.primary) ? breakdown.primary : []
     return primary.reduce((sum, row) => sum + (Number(row?.conversions) || 0), 0)
-  }, [data?.conversionBreakdown?.primary])
+  }, [breakdown?.primary])
   const funnelStages = useMemo(
     () => buildGoogleFunnelStages(totals, primaryConversions),
     [totals, primaryConversions]

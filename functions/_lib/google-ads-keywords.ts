@@ -281,7 +281,8 @@ export function aggregateSearchTerms(rows: GaqlRow[], limit = 60): SearchTermIte
 
   const items: SearchTermItem[] = []
   for (const a of byTerm.values()) {
-    if (a.clicks === 0 && a.costMicros === 0 && a.conversions === 0) continue
+    // Mantém qualquer termo com impressão (não só os com clique/custo/conversão).
+    if (a.impressions === 0 && a.clicks === 0 && a.costMicros === 0 && a.conversions === 0) continue
     let campaignName = ''
     let best = -1
     for (const [name, cost] of a.campaigns) {
@@ -304,6 +305,7 @@ export function aggregateSearchTerms(rows: GaqlRow[], limit = 60): SearchTermIte
     if (y.spend !== x.spend) return y.spend - x.spend
     if (y.conversions !== x.conversions) return y.conversions - x.conversions
     if (y.clicks !== x.clicks) return y.clicks - x.clicks
+    if (y.impressions !== x.impressions) return y.impressions - x.impressions
     return x.term.localeCompare(y.term, 'pt')
   })
 

@@ -478,7 +478,8 @@ async function fetchSearchTerms(
   `
   const res = await fetchAllGaqlRows(ver, numericId, headers, query)
   if (res.error) return { items: [], error: res.error }
-  return { items: aggregateSearchTerms(res.rows, 60), error: null }
+  // Inclui todos os termos com impressão no período (paginado na UI, 10/linha).
+  return { items: aggregateSearchTerms(res.rows, 500), error: null }
 }
 
 function rowObj(row: GaqlRow): Record<string, unknown> {
@@ -495,13 +496,19 @@ function readNestedString(obj: unknown, ...keys: string[]): string | undefined {
   return undefined
 }
 
-function readMetricsConv(m: unknown): { conversions: number; value: number; spend: number } {
-  if (!m || typeof m !== 'object') return { conversions: 0, value: 0, spend: 0 }
+function readMetricsConv(m: unknown): {
+  conversions: number
+  value: number
+  allConversions: number
+  allValue: number
+} {
+  if (!m || typeof m !== 'object') return { conversions: 0, value: 0, allConversions: 0, allValue: 0 }
   const o = m as Record<string, unknown>
   const conv = Number.parseFloat(String(o.conversions ?? 0)) || 0
   const val = Number.parseFloat(String(o.conversionsValue ?? o.conversions_value ?? 0)) || 0
-  const micros = Number.parseFloat(String(o.costMicros ?? o.cost_micros ?? 0)) || 0
-  return { conversions: conv, value: val, spend: micros / 1_000_000 }
+  const allConv = Number.parseFloat(String(o.allConversions ?? o.all_conversions ?? 0)) || 0
+  const allVal = Number.parseFloat(String(o.allConversionsValue ?? o.all_conversions_value ?? 0)) || 0
+  return { conversions: conv, value: val, allConversions: allConv, allValue: allVal }
 }
 
 async function fetchConversionBreakdown(
@@ -540,14 +547,19 @@ async function fetchConversionBreakdown(
   // primary_for_goal do catálogo carregado acima.
   // metrics.cost_micros é INCOMPATÍVEL com segments.conversion_action(_name):
   // o custo não é atribuível por ação de conversão e a API rejeita a query
-  // ("unsupported metrics: 'cost_micros'"). Só conversions/conversions_value
-  // são segmentáveis por conversion_action.
+  // ("unsupported metrics: 'cost_micros'").
+  // metrics.conversions conta SÓ ações primárias (incluídas na coluna
+  // "Conversões"); ações secundárias (primary_for_goal=false) ficam com
+  // conversions=0 e só aparecem em metrics.all_conversions. Por isso pegamos
+  // ambos: primárias usam conversions, secundárias usam all_conversions.
   const metricsQuery = `
     SELECT
       segments.conversion_action,
       segments.conversion_action_name,
       metrics.conversions,
-      metrics.conversions_value
+      metrics.conversions_value,
+      metrics.all_conversions,
+      metrics.all_conversions_value
     FROM ${fromResource}
     WHERE ${conversionBreakdownWhere(fromResource, since, until, filterClause)}
   `
@@ -561,7 +573,8 @@ async function fetchConversionBreakdown(
     name: string | null
     conversions: number
     value: number
-    spend: number
+    allConversions: number
+    allValue: number
   }
 
   const totals = new Map<string, Agg>()
@@ -574,7 +587,7 @@ async function fetchConversionBreakdown(
     if (!key) continue
 
     const segName = readNestedString(R.segments, 'conversionActionName', 'conversion_action_name')
-    const { conversions, value, spend } = readMetricsConv(R.metrics)
+    const { conversions, value, allConversions, allValue } = readMetricsConv(R.metrics)
     const cur =
       totals.get(key) ??
       ({
@@ -582,12 +595,14 @@ async function fetchConversionBreakdown(
         name: null,
         conversions: 0,
         value: 0,
-        spend: 0,
+        allConversions: 0,
+        allValue: 0,
       } satisfies Agg)
 
     cur.conversions += conversions
     cur.value += value
-    cur.spend += spend
+    cur.allConversions += allConversions
+    cur.allValue += allValue
     if (segName?.trim()) cur.name = segName.trim()
     if (!cur.resourceName.includes('/') && rn.includes('/')) cur.resourceName = rn
 
@@ -597,18 +612,27 @@ async function fetchConversionBreakdown(
   const primary: ConversionBreakdownRow[] = []
   const secondary: ConversionBreakdownRow[] = []
   for (const [key, agg] of totals.entries()) {
-    if (agg.conversions === 0 && agg.value === 0) continue
     const meta = metaMap.get(key)
+    // Secundária = primary_for_goal === false. Fallback quando o catálogo não
+    // tem a ação: conversions=0 mas all_conversions>0 só ocorre em ação
+    // secundária (não contabilizada na coluna "Conversões").
+    const isSecondary =
+      meta?.primaryForGoal === false ||
+      (meta?.primaryForGoal == null && agg.conversions === 0 && agg.allConversions > 0)
+    // Primárias usam metrics.conversions (bate com o KPI "Conversões");
+    // secundárias usam all_conversions (onde de fato aparecem).
+    const conversions = isSecondary ? agg.allConversions : agg.conversions
+    const value = isSecondary ? agg.allValue : agg.value
+    if (conversions === 0 && value === 0) continue
     const name = agg.name ?? meta?.name ?? 'Conversão'
-    const primaryForGoal = meta?.primaryForGoal
     const rowOut: ConversionBreakdownRow = {
       id: agg.resourceName || buildConversionResourceName(numericId, key),
       name,
-      conversions: agg.conversions,
-      value: agg.value,
-      spend: agg.spend,
+      conversions,
+      value,
+      spend: 0,
     }
-    if (primaryForGoal === false) secondary.push(rowOut)
+    if (isSecondary) secondary.push(rowOut)
     else primary.push(rowOut)
   }
 
