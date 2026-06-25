@@ -538,13 +538,16 @@ async function fetchConversionBreakdown(
   // conversion_action.* não pode ser selecionado FROM campaign/ad_group
   // (PROHIBITED_RESOURCE_TYPE_IN_SELECT_CLAUSE) — nome vem do segmento e
   // primary_for_goal do catálogo carregado acima.
+  // metrics.cost_micros é INCOMPATÍVEL com segments.conversion_action(_name):
+  // o custo não é atribuível por ação de conversão e a API rejeita a query
+  // ("unsupported metrics: 'cost_micros'"). Só conversions/conversions_value
+  // são segmentáveis por conversion_action.
   const metricsQuery = `
     SELECT
       segments.conversion_action,
       segments.conversion_action_name,
       metrics.conversions,
-      metrics.conversions_value,
-      metrics.cost_micros
+      metrics.conversions_value
     FROM ${fromResource}
     WHERE ${conversionBreakdownWhere(fromResource, since, until, filterClause)}
   `

@@ -465,7 +465,7 @@ function GoogleConversionsSplit() {
       <div className="grid min-h-0 w-full grid-cols-1 gap-4 lg:grid-cols-3">
         <GoogleConversionPanel title="Primárias" rows={primary} loading={loading} accent="blue" showDelta={showDelta} />
         <GoogleConversionPanel title="Secundárias" rows={secondary} loading={loading} accent="green" showDelta={showDelta} />
-        {!isPrevious ? <GoogleConversionMixChart breakdown={breakdown} /> : null}
+        <GoogleConversionMixChart breakdown={breakdown} />
       </div>
     </div>
   )

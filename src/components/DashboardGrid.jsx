@@ -81,14 +81,19 @@ export default function DashboardGrid({ definitions, className }) {
                 ) : null}
               </div>
               <DashboardBlockPeriodContext.Provider value="previous">
-                <div
-                  className="grid gap-4"
-                  style={{
-                    gridTemplateColumns: `repeat(${Math.min(primaryDefs.length, gridCols)}, minmax(0, 1fr))`,
-                  }}
-                >
+                {/* Espelha a grade principal: mesmos col-spans/stacking,
+                    para o período anterior refletir o layout do principal
+                    em vez de espremer os blocos lado a lado. */}
+                <div className="dashboard-static-grid" style={gridStyle}>
                   {primaryDefs.map((def) => (
-                    <div key={`cmp-${def.id}`}>{def.render()}</div>
+                    <DashboardBlock
+                      key={`cmp-${def.id}`}
+                      blockId={`cmp-${def.id}`}
+                      className="dashboard-block-item"
+                      style={blockGridStyle(def, 'primary', gridCols)}
+                    >
+                      {def.render()}
+                    </DashboardBlock>
                   ))}
                 </div>
               </DashboardBlockPeriodContext.Provider>
