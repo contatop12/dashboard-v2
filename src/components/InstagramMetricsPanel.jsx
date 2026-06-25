@@ -386,40 +386,42 @@ export default function InstagramMetricsPanel() {
         ))}
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <DailyTrendCard
-          title="Alcance diário"
-          subtitle="Alcance médio por dia no período"
-          daily={daily}
-          valueKey="reach"
-          color={trendColor}
-          formatValue={(v) => formatNumber(Math.round(v))}
-          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
-        />
-        <DailyTrendCard
-          title="Impressões diárias"
-          subtitle="Impressões médias por dia"
-          daily={daily}
-          valueKey="impressions"
-          color="#9B8EFF"
-          formatValue={(v) => formatNumber(Math.round(v))}
-          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
-        />
-        <DailyTrendCard
-          title="Interações diárias"
-          subtitle="Curtidas, comentários, salvamentos e compartilhamentos"
-          daily={daily}
-          valueKey="interactions"
-          color="#F5C518"
-          formatValue={(v) => formatNumber(Math.round(v))}
-          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
-        />
-      </div>
-
       {!isPrevious ? (
-        <div className="mb-4">
-          <InstagramAnalysisPanel />
-        </div>
+        <>
+          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <DailyTrendCard
+              title="Alcance diário"
+              subtitle="Alcance médio por dia no período"
+              daily={daily}
+              valueKey="reach"
+              color={trendColor}
+              formatValue={(v) => formatNumber(Math.round(v))}
+              formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
+            />
+            <DailyTrendCard
+              title="Impressões diárias"
+              subtitle="Impressões médias por dia"
+              daily={daily}
+              valueKey="impressions"
+              color="#9B8EFF"
+              formatValue={(v) => formatNumber(Math.round(v))}
+              formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
+            />
+            <DailyTrendCard
+              title="Interações diárias"
+              subtitle="Curtidas, comentários, salvamentos e compartilhamentos"
+              daily={daily}
+              valueKey="interactions"
+              color="#F5C518"
+              formatValue={(v) => formatNumber(Math.round(v))}
+              formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
+            />
+          </div>
+
+          <div className="mb-4">
+            <InstagramAnalysisPanel />
+          </div>
+        </>
       ) : null}
         </>
       ) : null}

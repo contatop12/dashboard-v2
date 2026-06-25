@@ -333,6 +333,7 @@ type ConversionBreakdownRow = {
   name: string
   conversions: number
   value: number
+  spend: number
 }
 
 type ConversionBreakdownPayload = {
@@ -345,6 +346,24 @@ const EMPTY_CONVERSION_BREAKDOWN: ConversionBreakdownPayload = {
   primary: [],
   secondary: [],
   error: null,
+}
+
+function resolveConversionBreakdownFrom(filters: GoogleDimensionFilters): string {
+  if (filters.adGroupId || filters.adId) return 'ad_group'
+  if (filters.campaignIds.length > 0) return 'campaign'
+  return 'customer'
+}
+
+function conversionBreakdownWhere(
+  fromResource: string,
+  since: string,
+  until: string,
+  filterClause: string
+): string {
+  if (fromResource === 'customer') {
+    return `segments.date BETWEEN '${since}' AND '${until}'`
+  }
+  return `campaign.status != 'REMOVED' AND segments.date BETWEEN '${since}' AND '${until}'${filterClause}`
 }
 
 type KeywordQualityItem = {
@@ -476,12 +495,13 @@ function readNestedString(obj: unknown, ...keys: string[]): string | undefined {
   return undefined
 }
 
-function readMetricsConv(m: unknown): { conversions: number; value: number } {
-  if (!m || typeof m !== 'object') return { conversions: 0, value: 0 }
+function readMetricsConv(m: unknown): { conversions: number; value: number; spend: number } {
+  if (!m || typeof m !== 'object') return { conversions: 0, value: 0, spend: 0 }
   const o = m as Record<string, unknown>
   const conv = Number.parseFloat(String(o.conversions ?? 0)) || 0
   const val = Number.parseFloat(String(o.conversionsValue ?? o.conversions_value ?? 0)) || 0
-  return { conversions: conv, value: val }
+  const micros = Number.parseFloat(String(o.costMicros ?? o.cost_micros ?? 0)) || 0
+  return { conversions: conv, value: val, spend: micros / 1_000_000 }
 }
 
 async function fetchConversionBreakdown(
@@ -491,7 +511,7 @@ async function fetchConversionBreakdown(
   since: string,
   until: string,
   filterClause = '',
-  fromResource = 'campaign'
+  fromResource = 'customer'
 ): Promise<ConversionBreakdownPayload> {
   const metaQuery = `
     SELECT
@@ -523,10 +543,10 @@ async function fetchConversionBreakdown(
       segments.conversion_action,
       segments.conversion_action_name,
       metrics.conversions,
-      metrics.conversions_value
+      metrics.conversions_value,
+      metrics.cost_micros
     FROM ${fromResource}
-    WHERE campaign.status != 'REMOVED'
-      AND segments.date BETWEEN '${since}' AND '${until}'${filterClause}
+    WHERE ${conversionBreakdownWhere(fromResource, since, until, filterClause)}
   `
   const metricsRes = await fetchAllGaqlRows(ver, numericId, headers, metricsQuery)
   if (metricsRes.error) {
@@ -538,6 +558,7 @@ async function fetchConversionBreakdown(
     name: string | null
     conversions: number
     value: number
+    spend: number
   }
 
   const totals = new Map<string, Agg>()
@@ -550,7 +571,7 @@ async function fetchConversionBreakdown(
     if (!key) continue
 
     const segName = readNestedString(R.segments, 'conversionActionName', 'conversion_action_name')
-    const { conversions, value } = readMetricsConv(R.metrics)
+    const { conversions, value, spend } = readMetricsConv(R.metrics)
     const cur =
       totals.get(key) ??
       ({
@@ -558,10 +579,12 @@ async function fetchConversionBreakdown(
         name: null,
         conversions: 0,
         value: 0,
+        spend: 0,
       } satisfies Agg)
 
     cur.conversions += conversions
     cur.value += value
+    cur.spend += spend
     if (segName?.trim()) cur.name = segName.trim()
     if (!cur.resourceName.includes('/') && rn.includes('/')) cur.resourceName = rn
 
@@ -580,6 +603,7 @@ async function fetchConversionBreakdown(
       name,
       conversions: agg.conversions,
       value: agg.value,
+      spend: agg.spend,
     }
     if (primaryForGoal === false) secondary.push(rowOut)
     else primary.push(rowOut)
@@ -1039,6 +1063,7 @@ async function buildGoogleOverviewBody(
   const filterClause = gaqlFilterClause(filters)
   // ad_group.id não existe no resource campaign — com filtro de grupo, agrega a partir de ad_group
   const aggFrom = filters.adGroupId ? 'ad_group' : 'campaign'
+  const breakdownFrom = resolveConversionBreakdownFrom(filters)
   const baseWhere = `campaign.status != 'REMOVED' AND segments.date BETWEEN '${since}' AND '${until}'${filterClause}`
 
   const aggQuery = `
@@ -1083,6 +1108,7 @@ async function buildGoogleOverviewBody(
       daily: [],
       compareDaily: [],
       conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+      compareConversionBreakdown: null,
       keywordQuality: EMPTY_KEYWORD_QUALITY,
       campaignTypes: EMPTY_CAMPAIGN_TYPES,
       monthlyResults: EMPTY_MONTHLY_RESULTS,
@@ -1142,6 +1168,7 @@ async function buildGoogleOverviewBody(
 
   const [
     conversionBreakdown,
+    compareConversionBreakdown,
     keywordQuality,
     campaignTypes,
     monthlyResults,
@@ -1150,7 +1177,18 @@ async function buildGoogleOverviewBody(
     topKeywords,
     searchTerms,
   ] = await Promise.all([
-    fetchConversionBreakdown(ver, numericId, headers, since, until, filterClause, aggFrom),
+    fetchConversionBreakdown(ver, numericId, headers, since, until, filterClause, breakdownFrom),
+    compareSince && compareUntil
+      ? fetchConversionBreakdown(
+          ver,
+          numericId,
+          headers,
+          compareSince,
+          compareUntil,
+          filterClause,
+          breakdownFrom
+        )
+      : Promise.resolve(null),
     fetchKeywordQualityList(ver, numericId, headers, since, until, filterClause),
     fetchCampaignTypesGrouped(ver, numericId, headers, since, until, filterClause, 'campaign'),
     fetchGoogleMonthlyResults(ver, numericId, headers, until, filterClause),
@@ -1174,6 +1212,7 @@ async function buildGoogleOverviewBody(
     daily,
     compareDaily,
     conversionBreakdown,
+    compareConversionBreakdown,
     keywordQuality,
     campaignTypes,
     monthlyResults,
@@ -1219,6 +1258,7 @@ export async function onRequestGet(context: {
         daily: [],
         compareDaily: [],
         conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+      compareConversionBreakdown: null,
         keywordQuality: EMPTY_KEYWORD_QUALITY,
         campaignTypes: EMPTY_CAMPAIGN_TYPES,
       monthlyResults: EMPTY_MONTHLY_RESULTS,
@@ -1244,6 +1284,7 @@ export async function onRequestGet(context: {
         daily: [],
         compareDaily: [],
         conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+      compareConversionBreakdown: null,
         keywordQuality: EMPTY_KEYWORD_QUALITY,
         campaignTypes: EMPTY_CAMPAIGN_TYPES,
       monthlyResults: EMPTY_MONTHLY_RESULTS,
@@ -1275,6 +1316,7 @@ export async function onRequestGet(context: {
         daily: [],
         compareDaily: [],
         conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+      compareConversionBreakdown: null,
         keywordQuality: EMPTY_KEYWORD_QUALITY,
         campaignTypes: EMPTY_CAMPAIGN_TYPES,
       monthlyResults: EMPTY_MONTHLY_RESULTS,
@@ -1330,6 +1372,7 @@ export async function onRequestGet(context: {
         daily: [],
         compareDaily: [],
         conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+      compareConversionBreakdown: null,
         keywordQuality: EMPTY_KEYWORD_QUALITY,
         campaignTypes: EMPTY_CAMPAIGN_TYPES,
       monthlyResults: EMPTY_MONTHLY_RESULTS,
@@ -1368,6 +1411,7 @@ export async function onRequestGet(context: {
       daily: [],
       compareDaily: [],
       conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+      compareConversionBreakdown: null,
       keywordQuality: EMPTY_KEYWORD_QUALITY,
       campaignTypes: EMPTY_CAMPAIGN_TYPES,
       monthlyResults: EMPTY_MONTHLY_RESULTS,
@@ -1394,6 +1438,7 @@ export async function onRequestGet(context: {
       daily: [],
       compareDaily: [],
       conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+      compareConversionBreakdown: null,
       keywordQuality: EMPTY_KEYWORD_QUALITY,
       campaignTypes: EMPTY_CAMPAIGN_TYPES,
       monthlyResults: EMPTY_MONTHLY_RESULTS,
@@ -1451,6 +1496,7 @@ export async function onRequestGet(context: {
       daily: [],
       compareDaily: [],
       conversionBreakdown: EMPTY_CONVERSION_BREAKDOWN,
+      compareConversionBreakdown: null,
       keywordQuality: EMPTY_KEYWORD_QUALITY,
       campaignTypes: EMPTY_CAMPAIGN_TYPES,
       monthlyResults: EMPTY_MONTHLY_RESULTS,

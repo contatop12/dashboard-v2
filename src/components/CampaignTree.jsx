@@ -14,7 +14,7 @@ const OBJECTIVE_RESULT_LABEL = {
   OUTCOME_TRAFFIC: 'Cliques no link',
 }
 
-import { sortCampaignNodes, CAMPAIGN_SORT_OPTIONS } from '@/lib/campaignTreeSort'
+import { sortCampaignNodes, sortKeywordNodes, CAMPAIGN_SORT_OPTIONS, KEYWORD_SORT_OPTIONS } from '@/lib/campaignTreeSort'
 
 const DEFAULT_LABELS = { adsets: 'Conjuntos', ads: 'Anúncios', keywords: 'Palavras-chave' }
 
@@ -81,6 +81,27 @@ function NodeMetrics({ node, compact = false, resultsLabel = null, searchMode = 
   )
 }
 
+function KeywordMetrics({ node }) {
+  const m = node.metrics || {}
+  const spend = Number(m.spend) || 0
+  const results = Number(m.results) || 0
+  const clicks = Number(m.clicks) || 0
+  const costPerConv = results > 0 ? spend / results : null
+  const resultsDisplay =
+    Math.abs(results % 1) > 1e-6
+      ? new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(results)
+      : formatNumber(Math.round(results))
+
+  return (
+    <div className="grid shrink-0 grid-cols-2 gap-x-4 gap-y-1 font-mono text-[11px] text-foreground sm:grid-cols-4">
+      <Metric k="invest" label="Investimento" v={formatCurrency(spend)} />
+      <Metric k="results" label="Conversões" v={resultsDisplay} />
+      <Metric k="clicks" label="Cliques" v={formatNumber(clicks)} />
+      <Metric k="cpl" label="Custo/conv." v={costPerConv != null ? formatCurrency(costPerConv) : '—'} />
+    </div>
+  )
+}
+
 function Metric({ k, label, v }) {
   return (
     <div className="flex min-w-[4.5rem] flex-col">
@@ -93,7 +114,7 @@ function Metric({ k, label, v }) {
   )
 }
 
-function SortSelect({ value, onChange, className, options = CAMPAIGN_SORT_OPTIONS }) {
+function SortSelect({ value, onChange, className, options = CAMPAIGN_SORT_OPTIONS, ariaLabel = 'Ordenar' }) {
   return (
     <select
       value={value}
@@ -102,7 +123,7 @@ function SortSelect({ value, onChange, className, options = CAMPAIGN_SORT_OPTION
         'rounded border border-surface-border bg-surface-input px-2 py-1 font-sans text-[10px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
         className
       )}
-      aria-label="Ordenar"
+      aria-label={ariaLabel}
     >
       {options.map((o) => (
         <option key={o.id} value={o.id}>
@@ -190,7 +211,7 @@ function EntityRow({ node, level, onToggleStatus, hasChildren, expanded, onExpan
   )
 }
 
-function KeywordRow({ kw, searchMode = true }) {
+function KeywordRow({ kw }) {
   const match = MATCH_TYPE_LABELS[String(kw.matchType || '').toUpperCase()]
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 sm:flex-row sm:items-center sm:gap-4 sm:px-4">
@@ -206,7 +227,7 @@ function KeywordRow({ kw, searchMode = true }) {
           ) : null}
         </div>
       </div>
-      <NodeMetrics node={kw} compact searchMode={searchMode} />
+      <KeywordMetrics node={kw} />
     </div>
   )
 }
@@ -268,11 +289,12 @@ function AdCard({ ad, onToggleStatus, resultsLabel, searchMode = false }) {
 function AdsetBlock({ adset, onToggleStatus, labels, resultsLabel, searchMode = false }) {
   const [open, setOpen] = useState(true)
   const [adSort, setAdSort] = useState('spend')
+  const [kwSort, setKwSort] = useState('spend')
   const [kwOpen, setKwOpen] = useState(true)
   const ads = useMemo(() => sortNodes(adset.ads, adSort), [adset.ads, adSort])
   const keywords = useMemo(
-    () => (Array.isArray(adset.keywords) ? adset.keywords : []),
-    [adset.keywords]
+    () => sortKeywordNodes(Array.isArray(adset.keywords) ? adset.keywords : [], kwSort),
+    [adset.keywords, kwSort]
   )
   const hasAds = ads.length > 0
   const hasKeywords = searchMode && keywords.length > 0
@@ -297,16 +319,27 @@ function AdsetBlock({ adset, onToggleStatus, labels, resultsLabel, searchMode = 
               type="button"
               aria-expanded={kwOpen}
               onClick={() => setKwOpen((v) => !v)}
-              className="flex items-center gap-1 font-display text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80 hover:text-muted-foreground"
+              className="flex min-w-0 items-center gap-1 font-display text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80 hover:text-muted-foreground"
             >
-              <ChevronRight size={12} className={cn('transition-transform', kwOpen && 'rotate-90')} />
-              {labels.keywords} ({keywords.length})
+              <ChevronRight size={12} className={cn('shrink-0 transition-transform', kwOpen && 'rotate-90')} />
+              <span className="truncate">
+                {labels.keywords} ({keywords.length})
+              </span>
             </button>
+            {kwOpen ? (
+              <SortSelect
+                value={kwSort}
+                onChange={setKwSort}
+                options={KEYWORD_SORT_OPTIONS}
+                className="shrink-0"
+                ariaLabel="Ordenar palavras-chave"
+              />
+            ) : null}
           </div>
           {kwOpen ? (
             <div className="flex flex-col gap-2">
               {keywords.map((kw) => (
-                <KeywordRow key={kw.id} kw={kw} searchMode={searchMode} />
+                <KeywordRow key={kw.id} kw={kw} />
               ))}
             </div>
           ) : null}

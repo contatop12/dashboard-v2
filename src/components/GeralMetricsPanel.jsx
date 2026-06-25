@@ -356,42 +356,44 @@ export default function GeralMetricsPanel() {
         ))}
       </div>
 
-      <GeralChannelSummary />
-
-      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <DailyTrendCard
-          title="Investimento diário"
-          subtitle="Gasto médio por dia (todos os canais)"
-          daily={daily}
-          valueKey="spend"
-          color={isPrevious ? '#8AB4F8' : '#F5C518'}
-          formatValue={(v) => formatCurrency(v)}
-          formatAxis={(v) => `R$${COMPACT_NUMBER.format(Number(v) || 0)}`}
-        />
-        <DailyTrendCard
-          title="Resultados diários"
-          subtitle="Volume médio de resultados por dia"
-          daily={daily}
-          valueKey="results"
-          color={isPrevious ? '#81C995' : '#34A853'}
-          formatValue={(v) => formatNumber(Math.round(v))}
-          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
-        />
-        <DailyTrendCard
-          title="Impressões diárias"
-          subtitle="Alcance de mídia médio por dia"
-          daily={daily}
-          valueKey="impressions"
-          color={isPrevious ? '#C4B5FD' : '#9B8EFF'}
-          formatValue={(v) => formatNumber(Math.round(v))}
-          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
-        />
-      </div>
-
       {!isPrevious ? (
-        <div className="mb-2">
-          <GeralAnalysisPanel />
-        </div>
+        <>
+          <GeralChannelSummary />
+
+          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <DailyTrendCard
+              title="Investimento diário"
+              subtitle="Gasto médio por dia (todos os canais)"
+              daily={daily}
+              valueKey="spend"
+              color="#F5C518"
+              formatValue={(v) => formatCurrency(v)}
+              formatAxis={(v) => `R$${COMPACT_NUMBER.format(Number(v) || 0)}`}
+            />
+            <DailyTrendCard
+              title="Resultados diários"
+              subtitle="Volume médio de resultados por dia"
+              daily={daily}
+              valueKey="results"
+              color="#34A853"
+              formatValue={(v) => formatNumber(Math.round(v))}
+              formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
+            />
+            <DailyTrendCard
+              title="Impressões diárias"
+              subtitle="Alcance de mídia médio por dia"
+              daily={daily}
+              valueKey="impressions"
+              color="#9B8EFF"
+              formatValue={(v) => formatNumber(Math.round(v))}
+              formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
+            />
+          </div>
+
+          <div className="mb-2">
+            <GeralAnalysisPanel />
+          </div>
+        </>
       ) : null}
     </div>
   )

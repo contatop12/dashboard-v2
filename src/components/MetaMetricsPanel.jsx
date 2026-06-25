@@ -491,40 +491,42 @@ export default function MetaMetricsPanel() {
         ))}
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <DailyTrendCard
-          title="Investimento diário"
-          subtitle="Gasto médio por dia no período"
-          daily={daily}
-          valueKey="spend"
-          color={isPrevious ? '#8AB4F8' : '#1877F2'}
-          formatValue={(v) => formatCurrency(v)}
-          formatAxis={(v) => `R$${COMPACT_NUMBER.format(Number(v) || 0)}`}
-        />
-        <DailyTrendCard
-          title="Cliques diários"
-          subtitle="Volume médio de cliques por dia"
-          daily={daily}
-          valueKey="clicks"
-          color={isPrevious ? '#81C995' : '#34A853'}
-          formatValue={(v) => formatNumber(Math.round(v))}
-          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
-        />
-        <DailyTrendCard
-          title="Alcance diário"
-          subtitle="Alcance médio por dia no período"
-          daily={daily}
-          valueKey="reach"
-          color={isPrevious ? '#FDD663' : '#F5C518'}
-          formatValue={(v) => formatNumber(Math.round(v))}
-          formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
-        />
-      </div>
-
       {!isPrevious ? (
-        <div className="mb-4">
-          <MetaAnalysisPanel conversionId={conversionId} metricsRaw={metricsRaw} />
-        </div>
+        <>
+          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <DailyTrendCard
+              title="Investimento diário"
+              subtitle="Gasto médio por dia no período"
+              daily={daily}
+              valueKey="spend"
+              color="#1877F2"
+              formatValue={(v) => formatCurrency(v)}
+              formatAxis={(v) => `R$${COMPACT_NUMBER.format(Number(v) || 0)}`}
+            />
+            <DailyTrendCard
+              title="Cliques diários"
+              subtitle="Volume médio de cliques por dia"
+              daily={daily}
+              valueKey="clicks"
+              color="#34A853"
+              formatValue={(v) => formatNumber(Math.round(v))}
+              formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
+            />
+            <DailyTrendCard
+              title="Alcance diário"
+              subtitle="Alcance médio por dia no período"
+              daily={daily}
+              valueKey="reach"
+              color="#F5C518"
+              formatValue={(v) => formatNumber(Math.round(v))}
+              formatAxis={(v) => COMPACT_NUMBER.format(Number(v) || 0)}
+            />
+          </div>
+
+          <div className="mb-4">
+            <MetaAnalysisPanel conversionId={conversionId} metricsRaw={metricsRaw} />
+          </div>
+        </>
       ) : null}
     </div>
   )

@@ -3,6 +3,7 @@ import {
   applyCampaignViewFilters,
   applyTopSpendFilter,
   sortCampaignNodes,
+  sortKeywordNodes,
 } from './campaignTreeSort'
 
 const rows = [
@@ -32,5 +33,24 @@ describe('campaignTreeSort', () => {
     const out = applyTopSpendFilter(rows, 2)
     expect(out).toHaveLength(2)
     expect(out.map((r) => r.id)).toEqual(['2', '1'])
+  })
+
+  it('ordena palavras-chave por cliques decrescente', () => {
+    const keywords = [
+      { id: 'k1', keyword: 'alpha', metrics: { spend: 10, clicks: 5 } },
+      { id: 'k2', keyword: 'beta', metrics: { spend: 80, clicks: 47 } },
+      { id: 'k3', keyword: 'gamma', metrics: { spend: 20, clicks: 9 } },
+    ]
+    const sorted = sortKeywordNodes(keywords, 'clicks', true)
+    expect(sorted.map((k) => k.id)).toEqual(['k2', 'k3', 'k1'])
+  })
+
+  it('ordena palavras-chave por texto crescente', () => {
+    const keywords = [
+      { id: 'k1', keyword: 'zona sul', metrics: { spend: 1 } },
+      { id: 'k2', keyword: 'apartamento', metrics: { spend: 2 } },
+    ]
+    const sorted = sortKeywordNodes(keywords, 'keyword', false)
+    expect(sorted.map((k) => k.keyword)).toEqual(['apartamento', 'zona sul'])
   })
 })

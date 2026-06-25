@@ -13,6 +13,7 @@ import WorkerSecretsAccountPicker, {
   readWorkerGoogleAdsQueryFromStorage,
 } from '@/components/WorkerSecretsAccountPicker'
 import { useDashboardFilters } from '@/context/DashboardFiltersContext'
+import { useDashboardBlockPeriod } from '@/context/DashboardBlockPeriodContext'
 import { useAuth } from '@/context/AuthContext'
 import { useOrgWorkspace } from '@/context/OrgWorkspaceContext'
 import { buildPlatformOverviewUrl } from '@/lib/platformOverviewUrl'
@@ -236,15 +237,62 @@ function GoogleDailyChartTooltip({ active, payload, label }) {
   )
 }
 
-function formatConversionCell(conversions, value) {
-  const hasFrac = Math.abs(conversions % 1) > 1e-6
-  const convPart = hasFrac
-    ? new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(conversions)
-    : formatNumber(Math.round(conversions))
-  if (value && Math.abs(value) >= 0.01) {
-    return `${convPart} · ${formatCurrency(value)}`
+function formatConversionCount(conversions) {
+  const n = Number(conversions) || 0
+  const hasFrac = Math.abs(n % 1) > 1e-6
+  return hasFrac
+    ? new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
+    : formatNumber(Math.round(n))
+}
+
+function conversionDeltaPct(current, previous) {
+  const c = Number(current)
+  const p = Number(previous)
+  if (!Number.isFinite(c) || !Number.isFinite(p) || p === 0) return null
+  return ((c - p) / Math.abs(p)) * 100
+}
+
+function attachConversionCompare(rows, compareRows) {
+  const cmpMap = new Map((compareRows ?? []).map((r) => [r.id, r]))
+  return rows.map((r) => {
+    const cmp = cmpMap.get(r.id)
+    return {
+      ...r,
+      deltaPct: cmp ? conversionDeltaPct(r.conversions, cmp.conversions) : null,
+    }
+  })
+}
+
+function formatConversionCell(row) {
+  const conv = Number(row.conversions) || 0
+  const spend = Number(row.spend) || 0
+  const costPerConv = conv > 0 && spend > 0 ? spend / conv : null
+  return {
+    count: formatConversionCount(conv),
+    costPerConv,
+    attributedValue: Number(row.value) > 0 ? Number(row.value) : null,
   }
-  return convPart
+}
+
+function ConversionDeltaBadge({ deltaPct }) {
+  if (deltaPct === null || deltaPct === undefined || Number.isNaN(Number(deltaPct))) return null
+  const n = Number(deltaPct)
+  const isUp = n > 0
+  const isDown = n < 0
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-mono text-[9px] font-medium',
+        isUp && 'bg-emerald-500/15 text-emerald-400',
+        isDown && 'bg-red-500/15 text-red-400',
+        !isUp && !isDown && 'bg-white/5 text-muted-foreground'
+      )}
+    >
+      {isUp ? <ArrowUp size={9} /> : isDown ? <ArrowDown size={9} /> : null}
+      {n >= 0 ? '+' : ''}
+      {n.toFixed(1)}%
+    </span>
+  )
 }
 
 function formatConversionTotal(total) {
@@ -254,13 +302,13 @@ function formatConversionTotal(total) {
     : formatNumber(Math.round(total))
 }
 
-function GoogleConversionPanel({ title, rows, loading, accent = 'blue' }) {
+function GoogleConversionPanel({ title, rows, loading, accent = 'blue', showDelta = false }) {
   const total = rows.reduce((s, r) => s + (Number(r.conversions) || 0), 0)
   const maxConv = Math.max(...rows.map((r) => Number(r.conversions) || 0), 1)
   const barColor = accent === 'green' ? '#34A853' : '#4285F4'
 
   return (
-    <div className="google-conv-card">
+    <div className={cn('google-conv-card', showDelta && 'google-conv-card--compare')}>
       <div className="google-conv-card__head">
         <h3 className="text-xs font-medium text-foreground font-sans">{title}</h3>
         {loading ? <span className="text-[10px] text-muted-foreground">Carregando…</span> : null}
@@ -276,15 +324,20 @@ function GoogleConversionPanel({ title, rows, loading, accent = 'blue' }) {
               const conv = Number(r.conversions) || 0
               const barPct = maxConv > 0 ? Math.min(100, (conv / maxConv) * 100) : 0
               const sharePct = total > 0 ? (conv / total) * 100 : 0
+              const cell = formatConversionCell(r)
               return (
                 <li key={r.id} className="min-w-0">
-                  <div className="mb-1 flex items-baseline justify-between gap-2">
+                  <div className="mb-1 flex items-start justify-between gap-2">
                     <span className="min-w-0 flex-1 truncate text-[11px] font-sans text-foreground" title={r.name}>
                       {r.name}
                     </span>
-                    <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-foreground">
-                      {formatConversionCell(conv, Number(r.value) || 0)}
-                    </span>
+                    <div className="flex shrink-0 flex-col items-end gap-0.5">
+                      <span className="font-mono text-xs font-semibold tabular-nums text-foreground">
+                        {cell.count}
+                        <span className="ml-1 text-[10px] font-sans font-normal text-muted-foreground">conv.</span>
+                      </span>
+                      {showDelta ? <ConversionDeltaBadge deltaPct={r.deltaPct} /> : null}
+                    </div>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
                     <div
@@ -292,9 +345,16 @@ function GoogleConversionPanel({ title, rows, loading, accent = 'blue' }) {
                       style={{ width: `${barPct}%`, backgroundColor: barColor }}
                     />
                   </div>
-                  <span className="mt-0.5 block text-right font-mono text-[9px] tabular-nums text-muted-foreground">
-                    {sharePct >= 0.05 ? `${sharePct.toFixed(0)}%` : '<1%'} do grupo
-                  </span>
+                  <div className="mt-0.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+                    <span className="font-mono text-[9px] tabular-nums text-muted-foreground">
+                      {sharePct >= 0.05 ? `${sharePct.toFixed(0)}%` : '<1%'} do grupo
+                    </span>
+                    {cell.costPerConv != null ? (
+                      <span className="font-mono text-[9px] tabular-nums text-muted-foreground">
+                        Custo/conv. {formatCurrency(cell.costPerConv)}
+                      </span>
+                    ) : null}
+                  </div>
                 </li>
               )
             })}
@@ -310,23 +370,102 @@ function GoogleConversionPanel({ title, rows, loading, accent = 'blue' }) {
 }
 
 function GoogleConversionsSplit() {
+  const period = useDashboardBlockPeriod()
+  const { comparePrimaryKpi, compareDateRange, dateRange } = useDashboardFilters()
   const { loading, data } = usePlatformOverview()
-  const cd = data?.conversionBreakdown
-  const primary = Array.isArray(cd?.primary) ? cd.primary : []
-  const secondary = Array.isArray(cd?.secondary) ? cd.secondary : []
-  const err = typeof cd?.error === 'string' ? cd.error : ''
+  const isPrevious = period === 'previous'
+  const showDelta = comparePrimaryKpi && !isPrevious
+
+  const breakdown = useMemo(() => {
+    if (isPrevious) return data?.compareConversionBreakdown ?? data?.conversionBreakdown
+    return data?.conversionBreakdown
+  }, [isPrevious, data?.compareConversionBreakdown, data?.conversionBreakdown])
+
+  const compareBreakdown = useMemo(
+    () => (showDelta ? data?.compareConversionBreakdown : null),
+    [showDelta, data?.compareConversionBreakdown]
+  )
+
+  const primary = useMemo(() => {
+    const rows = Array.isArray(breakdown?.primary) ? breakdown.primary : []
+    return showDelta ? attachConversionCompare(rows, compareBreakdown?.primary) : rows
+  }, [breakdown?.primary, showDelta, compareBreakdown?.primary])
+
+  const secondary = useMemo(() => {
+    const rows = Array.isArray(breakdown?.secondary) ? breakdown.secondary : []
+    return showDelta ? attachConversionCompare(rows, compareBreakdown?.secondary) : rows
+  }, [breakdown?.secondary, showDelta, compareBreakdown?.secondary])
+
+  const err = typeof breakdown?.error === 'string' ? breakdown.error : ''
+
+  const rangeLabel = useMemo(() => {
+    if (isPrevious && data?.compareRange?.since && data?.compareRange?.until) {
+      try {
+        const s = parse(data.compareRange.since, 'yyyy-MM-dd', new Date())
+        const u = parse(data.compareRange.until, 'yyyy-MM-dd', new Date())
+        return `${format(s, 'd MMM', { locale: ptBR })} – ${format(u, 'd MMM yyyy', { locale: ptBR })}`
+      } catch {
+        /* fall through */
+      }
+    }
+    if (!isPrevious && data?.primaryRange?.since && data?.primaryRange?.until) {
+      try {
+        const s = parse(data.primaryRange.since, 'yyyy-MM-dd', new Date())
+        const u = parse(data.primaryRange.until, 'yyyy-MM-dd', new Date())
+        return `${format(s, 'd MMM', { locale: ptBR })} – ${format(u, 'd MMM yyyy', { locale: ptBR })}`
+      } catch {
+        /* fall through */
+      }
+    }
+    const r = isPrevious ? compareDateRange : dateRange
+    if (r?.start && r?.end) {
+      return `${format(r.start, 'd MMM', { locale: ptBR })} – ${format(r.end, 'd MMM yyyy', { locale: ptBR })}`
+    }
+    return null
+  }, [isPrevious, data?.compareRange, data?.primaryRange, compareDateRange, dateRange])
+
+  if (isPrevious && !comparePrimaryKpi) {
+    return null
+  }
+
+  if (isPrevious && !loading && !data?.compareConversionBreakdown) {
+    return (
+      <div className="google-conversions-section rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center">
+        <p className="text-xs font-medium text-foreground">Sem conversões para o período de comparação</p>
+      </div>
+    )
+  }
 
   return (
-    <div className="google-conversions-section flex min-h-0 w-full min-w-0 flex-col gap-4">
-      <div className="flex items-center gap-2 px-0.5">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand/90">Conversões</span>
-        <span className="text-xs text-muted-foreground font-sans">por tipo de ação</span>
+    <div className={cn('google-conversions-section flex min-h-0 w-full min-w-0 flex-col gap-4', isPrevious && 'opacity-95')}>
+      <div className="flex flex-wrap items-end justify-between gap-2 px-0.5">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand/90">Conversões</span>
+            <span className="text-xs text-muted-foreground font-sans">por tipo de ação</span>
+          </div>
+          <p className="mt-0.5 text-[10px] text-muted-foreground font-sans">
+            {isPrevious
+              ? 'Referência do período comparado'
+              : showDelta
+                ? 'Variação de volume vs período de comparação'
+                : 'Volume por ação de conversão no período'}
+          </p>
+          {rangeLabel ? (
+            <p className="mt-1 font-mono text-[10px] tabular-nums text-foreground/75">{rangeLabel}</p>
+          ) : null}
+        </div>
+        {!isPrevious && showDelta ? (
+          <span className="rounded-md bg-brand/10 px-2 py-0.5 text-[10px] font-medium text-brand">
+            Comparando
+          </span>
+        ) : null}
       </div>
       {err ? <p className="text-[10px] text-amber-200/90 font-sans">{err}</p> : null}
       <div className="grid min-h-0 w-full grid-cols-1 gap-4 lg:grid-cols-3">
-        <GoogleConversionPanel title="Primárias" rows={primary} loading={loading} accent="blue" />
-        <GoogleConversionPanel title="Secundárias" rows={secondary} loading={loading} accent="green" />
-        <GoogleConversionMixChart />
+        <GoogleConversionPanel title="Primárias" rows={primary} loading={loading} accent="blue" showDelta={showDelta} />
+        <GoogleConversionPanel title="Secundárias" rows={secondary} loading={loading} accent="green" showDelta={showDelta} />
+        {!isPrevious ? <GoogleConversionMixChart breakdown={breakdown} /> : null}
       </div>
     </div>
   )
@@ -997,7 +1136,7 @@ const GOOGLE_DASHBOARD_BLOCKS = [
   },
   {
     id: 'google-conversions-split',
-    tier: 'secondary',
+    tier: 'primary',
     defaultColSpan: 8,
     defaultRowSpan: 3,
     minColSpan: 2,

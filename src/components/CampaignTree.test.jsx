@@ -87,6 +87,12 @@ describe('CampaignTree', () => {
                 matchType: 'EXACT',
                 metrics: { spend: 80, results: 2, ctrLink: 6, cpm: 8, impressions: 800, clicks: 48 },
               },
+              {
+                id: 'k2',
+                keyword: 'apartamento zona sul',
+                matchType: 'PHRASE',
+                metrics: { spend: 20, results: 0, ctrLink: 3, cpm: 5, impressions: 200, clicks: 2 },
+              },
             ],
           },
         ],
@@ -96,10 +102,13 @@ describe('CampaignTree', () => {
       <CampaignTree tree={searchTree} onToggleStatus={() => {}} platform="google" labels={{ keywords: 'Palavras-chave' }} />
     )
     await userEvent.click(screen.getByRole('button', { name: /expandir Camp Search/i }))
-    expect(screen.getByText('Palavras-chave (1)')).toBeInTheDocument()
+    expect(screen.getByText('Palavras-chave (2)')).toBeInTheDocument()
+    expect(screen.getByLabelText('Ordenar palavras-chave')).toBeInTheDocument()
     expect(screen.getByText('cyrela apartamento')).toBeInTheDocument()
+    await userEvent.selectOptions(screen.getByLabelText('Ordenar palavras-chave'), 'clicks')
+    expect(screen.getByLabelText('Ordenar palavras-chave')).toHaveValue('clicks')
     expect(screen.getByText('Exata')).toBeInTheDocument()
-    expect(screen.getAllByText('Impr.').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Cliques').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Conversões').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Custo/conv.').length).toBeGreaterThan(0)
   })
 })

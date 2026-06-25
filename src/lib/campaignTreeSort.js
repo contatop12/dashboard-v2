@@ -11,6 +11,14 @@ export const CAMPAIGN_SORT_OPTIONS = [
   { id: 'name', label: 'Nome' },
 ]
 
+export const KEYWORD_SORT_OPTIONS = [
+  { id: 'spend', label: 'Investimento' },
+  { id: 'results', label: 'Conversões' },
+  { id: 'clicks', label: 'Cliques' },
+  { id: 'cpl', label: 'Custo/conv.' },
+  { id: 'keyword', label: 'Palavra-chave' },
+]
+
 export const DEFAULT_CAMPAIGN_SORT = { id: 'spend', desc: true }
 
 function metricValue(node, sortId) {
@@ -51,6 +59,36 @@ export function sortCampaignNodes(items, sortId = 'spend', desc = true) {
     return desc ? -cmp : cmp
   })
   return list
+}
+
+/** Ordena palavras-chave na árvore de campanhas Search. */
+export function sortKeywordNodes(items, sortId = 'spend', desc = true) {
+  const list = [...(items || [])]
+  const id = sortId || 'spend'
+  list.sort((a, b) => {
+    if (id === 'keyword') {
+      const av = String(a?.keyword ?? '').toLowerCase()
+      const bv = String(b?.keyword ?? '').toLowerCase()
+      const cmp = av.localeCompare(bv, 'pt-BR')
+      return desc ? -cmp : cmp
+    }
+    if (id === 'cpl') {
+      const av = keywordCostPerResult(a, desc)
+      const bv = keywordCostPerResult(b, desc)
+      if (av === bv) return 0
+      return desc ? (av > bv ? -1 : 1) : av > bv ? 1 : -1
+    }
+    const cmp = compareSortValues(metricValue(a, id), metricValue(b, id), id)
+    return desc ? -cmp : cmp
+  })
+  return list
+}
+
+function keywordCostPerResult(node, desc) {
+  const m = node?.metrics || {}
+  const results = Number(m.results) || 0
+  if (results <= 0) return desc ? -1 : Number.POSITIVE_INFINITY
+  return (Number(m.spend) || 0) / results
 }
 
 export const CAMPAIGN_VIEW_FILTER_CHIPS = [
